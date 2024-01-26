@@ -324,12 +324,22 @@ physeq
 physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
 ```
 
-```{r ordination-vegan, eval=FALSE}
+```{r ordination-vegan}
 ordmat <- psotu2veg(physeq_rarefied)
 
 all(colSums(ordmat) > 0)
 all(rowSums(ordmat) > 0)
+all(ordmat >= 0)
 
+ordmat <- decostand(ordmat, method = "rclr")
+
+samples <- sample_data(physeq_rarefied) %>%
+  as.data.frame() %>%
+  as_tibble()
+
+rda <- rda(ordmat)
+
+biplot(rda)
 
 
 ```
