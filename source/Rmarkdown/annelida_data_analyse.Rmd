@@ -6,22 +6,27 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir = here::here())
+library(knitr)
+library(here)
+opts_chunk$set(echo = TRUE)
+opts_knit$set(root.dir = here::here())
 
 if (!"phyloseq" %in% rownames(installed.packages())) {
   remotes::install_github("joey711/phyloseq")
 }
 library(phyloseq)
 library(vegan)
-library(reshape2)
 library(ggplot2)
+library(ggrepel)
 library(ggpubr)
 library(gridExtra)
 library(ggbiplot)
-library(devtools)
 library(factoextra)
 library(dplyr)
+library(rstatix)
+library(dunn.test)
+library(compositions)
+
 #### Handig pakket met veel phyloseq add-ons
 #install.packages("remotes")
 if (!"psadd" %in% rownames(installed.packages())) {
@@ -45,75 +50,70 @@ sdf <- shared_drive_find("PRJ_MBAG") %>%
   drive_ls(pattern = "Annelida", type = "folder")
 ```
 
-```{r}
+```{r rdata-file-path}
 rdata_dribble <- sdf %>%
   drive_ls(pattern = "^phyloseq_Olig01_Annelida$", type = "folder") %>%
   drive_ls("physeq_Olig01_Annelida_species.Rdata") %>%
   drive_reveal(what = "path")
 ```
 
-```{r}
+```{r load-rdata-file}
 load(file.path(mbag_folder, rdata_dribble$path))
 ```
 
 
-# Alfa-diversiteit
+# Verkennende analyses
 
-## True Rarefaction
+## Alfa-diversiteit
+
+### Preprocessing stappen
 
 <!--vergeet HIER niet te starten van de NIET-rarefied versie-->
 
 Link: https://jacobrprice.github.io/2017/08/26/phyloseq-to-vegan-and-back.html
 
-```{r}
-sample_sums(physeq_Olig01_Annelida_species) ##sanity check
+Check totaal aantal reads (hier de decielen van 0% = minimum tot 100% = maximum):
 
+```{r quantiles-reads}
+sample_sums(physeq_Olig01_Annelida_species) %>%
+  quantile(probs = seq(0, 1, 0.1))
+```
+
+
+```{r}
 ## Pick whatever dataset you want to work with
 
 physeq <- physeq_Olig01_Annelida_species
 
 # physeq <- physeq_18S_Annelida
+
 ```
 
-```{r}
+Remove samples according to the dataset you want to work with (e.g. without replicates or without a certain land use type)
 
-##### cleanup ######
 
+
+```{r selectie-taxongroep}
 physeq <- subset_taxa(physeq, phylum =="Annelida")
 
-sample_sums(physeq)
-
-## Remove samples according to the dataset you want to work with (e.g. without replicates or without a certain land use type)
-## metadata staat voorlopig in het nederlands, eerst vertalen naar engels?
-
-# physeq <- subset_samples_no_zero(physeq, Cmon_PlotID != "VUL_IN")
-
-
 ```
 
-```{r}
+```{r }
+sample_sums(physeq) %>%
+  quantile(probs = seq(0, 1, 0.1))
+```
 
-# Sanity check
 
+```{r verken-object}
 physeq
 
-head(sample_data(physeq))
-
-physeq_Olig01_Annelida_species
-
-sample_sums(physeq)
-
-
+glimpse(sample_data(physeq) %>% as_tibble())
 ```
 
-```{r}
 
-######################################################################
-############# Voorbereidende stap #########################################
-######################################################################
+Voorbereidende stap: convert the otu_table() within a phyloseq object to a vegan compatible data object
 
-
-# convert the otu_table() within a phyloseq object to a vegan compatible data object
+```{r psotu2veg-function}
 psotu2veg <- function(physeq) {
   OTU <- otu_table(physeq)
   if (taxa_are_rows(OTU)) {
@@ -123,105 +123,61 @@ psotu2veg <- function(physeq) {
 }
 
 veganobject <- psotu2veg(physeq)
-
-
 ```
 
-```{r}
 
-###################################################################
-############ Perform true rarefaction to estiamte species richness ############
-##############################################################################
+### Rarefaction analyse 
 
-sam.new <-   data.frame(sample_data(physeq))
+Schatting van de soortenrijkdom via rarefaction analyse.
 
-# Sanity check
-
-head(sam.new)
-
-sam.new
-
-```
-
-```{r}
-
-########################################################
-############### True rarefaction using vegan ###################
-########################################################
+```{r rarefaction}
+sam.new <- data.frame(sample_data(physeq))
 
 
-Estimated_species_richness <- vegan::rarefy(veganobject, 30780, se = FALSE, MARGIN = 1)
-
-Estimated_species_richness # Sanity check
-
-write.table(Estimated_species_richness, file = "true_rarefaction_Estimated_species_richness_Olig01_Annelida.txt")
-
-head(Estimated_species_richness) # Sanity check
+Estimated_species_richness <- vegan::rarefy(
+  veganobject,
+  30780,
+  se = FALSE,
+  MARGIN = 1)
 
 true_rarefaction_results <- cbind(sam.new, Estimated_species_richness)
-
-getwd()
-
-write.csv(true_rarefaction_results, "true_rarefaction_results_Olig01_Annelida_final.csv")
-
 ```
+
 plot results land use types
 
 
-```{r}
-
-
-library(ggplot2)
-library(ggrepel)
-
+```{r raref-landgebruik}
 ggplot(
   true_rarefaction_results,
-  aes(x = Landgebruik_MBAG,
-      y = Estimated_species_richness,
-      color = Landgebruik_MBAG)) +
-  geom_point() +
-  ylab("Expected species richness (Annelida(Olig01))") +
-  xlab("Landgebruik") +
-  labs(color = "Landgebruik")
-
-
-####### Eventueel nog opsmukken met: #################
-
-# namen veranderen naar waarden Landgebruik_MBAG
-
+  aes(x = stringr::str_wrap(Landgebruik_MBAG, width = 15),
+      y = Estimated_species_richness)) +
+  geom_jitter(alpha = 0.3) +
+  stat_summary(fun.data = mean_cl_boot, col = "red") +
+  labs(y = "Expected species richness\n(Annelida(Olig01)",  
+       x = "Landgebruik")
 ```
 
-```{r}
-
-###### Diepte #######
-
-
+```{r raref-diepte}
 ggplot(
   true_rarefaction_results,
-  aes(x = Diepte, y = Estimated_species_richness, color = Diepte)) +
-  geom_point() +
-  ylab("Expected species richness (Annelida(Olig01))") +
-  xlab("Diepte") +
-  labs(color = "Diepte")
-
+  aes(x = Diepte,
+      y = Estimated_species_richness)) +
+  geom_jitter(alpha = 0.3) +
+  stat_summary(fun.data = mean_cl_boot, col = "red") +
+  labs(y = "Expected species richness (Annelida(Olig01))",
+       x = "Diepte")
 ```
 
-```{r}
+### Statistische testen
 
-#####################################################################
-########################   Statistics     ###################################
-#####################################################################
+Opmerking: heel deze sectie beter vervangen door een regressiemodel.
 
-
+```{r test-normaliteit}
 shapiro.test(true_rarefaction_results$Estimated_species_richness)
-
 # is p-value van de shapiro test hierboven kleiner dan 0.05, dan is de data niet normaal verdeeld en doen we kruskal-wallis
 ```
 
-```{r}
-
-library(rstatix)
-
+```{r kw-test}
 kruskal_test(
   true_rarefaction_results,
   Estimated_species_richness ~ Landgebruik_MBAG
@@ -232,45 +188,14 @@ kruskal_test(
 
 ```
 
-```{r}
 
-
-
-
-#### alfa-diversiteit 2: Kruskal Wallis en Dunn post-hoc test with adjusted p-values using the Benjamini–Hochberg method
-
-# Eerst beslissen voor hoeveel dingen je wil testen. Welke zijn dus de goede variabelen in de metadata
-
-install.packages("dunn.test")
-library(dunn.test)
-library(rstatix)
-
-
-shapiro.test(true_rarefaction_results$Estimated_species_richness)
-```
-
-```{r}
-
-# is p-value van de shapiro test hierboven kleiner dan 0.05, dan is de data niet normaal verdeeld en doen we kruskal-wallis
-
-
-kruskal_test(true_rarefaction_results, Estimated_species_richness ~ Landgebruik_MBAG)
-kruskal_test(true_rarefaction_results, Estimated_species_richness ~ Diepte)
-
-```
-
-```{r}
-
+```{r post-hoc-test}
 # Define the variable for which you found a significant difference
 variable_of_interest <- "Landgebruik_MBAG"  # Replace with the variable name
 
 # Perform the Kruskal-Wallis test
 kruskal_result <- kruskal_test(true_rarefaction_results, Estimated_species_richness ~ get(variable_of_interest))
 
-
-```
-
-```{r}
 
 # Perform the Dunn post-hoc test with Benjamini-Hochberg correction
 dunn_result <- dunn.test(
@@ -279,155 +204,106 @@ dunn_result <- dunn.test(
   method = "bh")
 
 # Display the Dunn test results
-print("Dunn Test Results:")
-print(dunn_result)
-
-# Extract adjusted p-values
-adjusted_p_values <- dunn_result$P.adjusted
-
-# Print the adjusted p-values for each pairwise comparison
-print("Adjusted P-values:")
-print(adjusted_p_values)
-
+data.frame(
+  comparison = dunn_result$comparisons,
+  p_adjusted = dunn_result$P.adjusted) %>%
+  kable(digits = 4)
 ```
 
-Identify Groups with Highest/Lowest Alpha Diversity: You can also extract specific values if you want to determine which group has the highest or lowest estimated species richness. For example, you can use the summary function to compute summary statistics and identify the group with the maximum or minimum mean estimated species richness:
+Identify Groups with Highest/Lowest Alpha Diversity: You can also extract specific values if you want to determine which group has the highest or lowest estimated species richness.
+For example, you can use the summary function to compute summary statistics and identify the group with the maximum or minimum mean estimated species richness:
 
 
 ```{r}
-
-  
-
 # Find the group with the highest estimated species richness
-sumstats <- true_rarefaction_results %>%
+true_rarefaction_results %>%
   as_tibble() %>%
   group_by(Landgebruik_MBAG) %>%
   summarise(
     min = min(Estimated_species_richness),
-    max = max(Estimated_species_richness))
-
-knitr::kable(sumstats)
+    p25 = quantile(Estimated_species_richness, probs = 0.25),
+    mediaan = median(Estimated_species_richness),
+    mean = mean(Estimated_species_richness),
+    p75 = quantile(Estimated_species_richness, probs = 0.75),
+    max = max(Estimated_species_richness)
+  ) %>%
+  kable()
 ```
 
 
-```{r rarefaction}
+### Rarefaction curves
 
+Werkt nog niet
 
-
-
-
-
-#### rarefaction curves
-
-
-
-library(vegan)
-
+```{r rarefaction-curves, eval=FALSE}
 S <- specnumber(veganobject)
-
-getwd()
-
-write.table(S, file = "Olig01_Annelida_specnumber.txt")
-
-specnumber(veganobject)
-
-min(rowSums(veganobject))
 
 raremax <- min(rowSums(veganobject))
 
-options(scipen=5)
-
-rarecurve(veganobject, step = 100, sample = raremax, col = "blue", cex= 0.6)
-
-
-
+rarecurve(
+  veganobject,
+  step = 1000,
+  sample = raremax,
+  col = "blue",
+  cex = 0.6)
 ```
-General results from phyloseq object
-
-OTU counts per phylum / class / order / family / genus
-
-```{r}
 
 
+## OTU counts 
 
-# Load required packages
-library(phyloseq)
-library(dplyr)
+per phylum
 
+```{r per-phylum}
 # Count OTUs per Phylum
-otu_counts_per_phylum <- tax_table(physeq) %>%
+tax_table(physeq) %>%
   as.data.frame() %>%
-  group_by(Phylum) %>%
-  summarise(OTU_Count = n())
-
-# Print the result
-print(otu_counts_per_phylum)
-
-write.csv(otu_counts_per_phylum, file = "otu_counts_per_phylum.csv")
+  as_tibble() %>%
+  group_by(phylum) %>%
+  summarise(OTU_Count = n()) %>%
+  kable()
 ```
 
-```{r}
+Per genus
 
-## Genus level
-
-# Load required packages
-library(phyloseq)
-library(dplyr)
-
-# Count OTUs per Genus
-otu_counts_per_genus <- tax_table(physeq) %>%
+```{r per-genus}
+tax_table(physeq) %>%
   as.data.frame() %>%
-  group_by(Genus) %>%
-  summarise(OTU_Count = n())
-
-# Print the result
-print(otu_counts_per_genus)
-
-write.csv(otu_counts_per_genus, file = "otu_counts_per_genus.csv")
+  group_by(genus) %>%
+  summarise(OTU_Count = n()) %>%
+  arrange(desc(OTU_Count)) %>%
+  kable()
 ```
 
-```{r}
+Per species (check of er species zijn met meer dan 1 OTU)
 
-## Species level
-
-# Load required packages
-library(phyloseq)
-library(dplyr)
-
-# Count OTUs per Species
-otu_counts_per_species <- tax_table(physeq) %>%
+```{r per-species}
+tax_table(physeq) %>%
   as.data.frame() %>%
-  group_by(Species) %>%
-  summarise(OTU_Count = n())
-
-# Print the result
-print(otu_counts_per_species)
-
-write.csv(otu_counts_per_species, file = "otu_counts_per_species.csv")
-
+  group_by(species) %>%
+  summarise(OTU_Count = n()) %>%
+  filter(OTU_Count > 1) %>%
+  kable()
 ```
 
-```{r}
 
-##Read counts per phylum   #### werkt miss niet
+## Read counts
 
-# Summarize read counts per Phylum
+Hier loopt nog iets mis.
+
+```{r eval=FALSE}
 physeq %>%
-  tax_glom(taxrank = "Phylum") %>%
-  transform_sample_counts(function(x) sum(x)) %>%
+  tax_glom(taxrank = "family") %>%
   otu_table() %>%
   as.data.frame() %>%
-  group_by(Phylum) %>%
+  as_tibble() %>%
+  group_by(phylum) %>%
   summarise(Read_Count = sum(!!sym(colnames(.))))
-
-# Print the result
-print(otu_counts_per_phylum)
 
 ```
 
-```{r}
-#### How to remove unwanted OTUs from phyloseq object
+## How to remove unwanted OTUs from phyloseq object
 
+```{r function-prune-taxa}
 pop_taxa = function(physeq, badTaxa){
   allTaxa = taxa_names(physeq)
   allTaxa <- allTaxa[!(allTaxa %in% badTaxa)]
@@ -442,40 +318,26 @@ physeq
 
 ```
 
-```{r}
+## Ordinatie
 
-################################################################
-#############   Ordinatie   ####################################
+```{r physec-rarefied}
+physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
+```
 
+```{r ordination-vegan, eval=FALSE}
+ordmat <- psotu2veg(physeq_rarefied)
 
+all(colSums(ordmat) > 0)
+all(rowSums(ordmat) > 0)
 
-library(phyloseq)
-library(vegan)
-library(compositions)
-library(ggplot2)
-
-# Load phyloseq object
-physeq <- physeq_Olig01_Annelida_rar.rarefied.species
-
-physeq
-
-#physeq <- rarefy_even_depth(physeq, sample.size = 30780)
-
-physeq
-
-
-head(sample_data(physeq))
 
 
 ```
 
+
 ```{r eval=FALSE}
-# Load metadata
-
-## OF ZONDER stringsAsFactors = T ???
-
 # Perform CLR transformation
-clr_physeq <- transform(physeq, "clr")
+clr_physeq_rarefied <- transform(physeq_rarefied, "clr")
 
 # Calculate Bray distance matrix based on the CLR-transformed data
 bray_distance <- distance(physeq, method = "bray")
