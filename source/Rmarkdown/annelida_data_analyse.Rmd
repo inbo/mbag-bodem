@@ -221,10 +221,11 @@ We voegen ook een random intercept toe die aangeeft op welke locatie een staal w
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
 Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads (<= 1e+4).
 
+We modelleren de soortenrijkdom als een Negatief Binomiaal model omdat we verwachten dat deze data overdispersie vertonen ten opzichte van een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde).
+
 ```{r m-annelida-richness}
 samples_totcount_10k <- tidy_physeq$samples %>%
-  filter(total_count > 1e+4)
-
+  filter(total_count > 1e+4) 
 
 form_annelida_richness <- formula(
   observed ~ 
@@ -242,6 +243,8 @@ m_annelida_richness <- glmmTMB::glmmTMB(
 ```
 
 Model validatie toont dat er problemen zijn met de residuele variabiliteit.
+Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
+
 
 ```{r}
 performance::check_model(m_annelida_richness)
@@ -262,8 +265,7 @@ Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal r
 marginaleffects::plot_predictions(
   m_annelida_richness,
   condition = c("total_count"),
-  vcov = vcov(m_annelida_richness)
-) +
+  vcov = vcov(m_annelida_richness)) +
   labs(y = "Voorspeld aantal taxa") +
   scale_x_log10()
 ```
@@ -275,14 +277,16 @@ We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het
 marginaleffects::plot_predictions(
   m_annelida_richness,
   condition = c("Landgebruik_MBAG", "Diepte"),
-  vcov = vcov(m_annelida_richness)
-) +
-  labs(y = "Voorspeld aantal taxa")
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
 ```
 
 
 ### Rarefaction analyse 
 
+Dit is een alternatief voor voorgaande analyse.
 Schatting van de soortenrijkdom via rarefaction analyse.
 
 ```{r rarefaction}
@@ -292,35 +296,58 @@ sam.new <- data.frame(sample_data(physeq))
 Estimated_species_richness <- vegan::rarefy(
   veganobject,
   30780,
-  se = FALSE,
+  se = TRUE,
   MARGIN = 1)
 
-true_rarefaction_results <- cbind(sam.new, Estimated_species_richness)
+
+true_rarefaction_results <- cbind(
+  sam.new %>% select(Cmon_PlotID, Diepte, Landgebruik_MBAG),
+  est = Estimated_species_richness["S",],
+  se = Estimated_species_richness["se",]) %>%
+  as_tibble() %>%
+  mutate(est_lower = est - 2 * se,
+         est_upper = est + 2 * se)
 ```
 
-plot results land use types
 
-
-```{r raref-landgebruik}
-ggplot(
-  true_rarefaction_results,
-  aes(x = stringr::str_wrap(Landgebruik_MBAG, width = 15),
-      y = Estimated_species_richness)) +
-  geom_jitter(alpha = 0.3) +
-  stat_summary(fun.data = mean_cl_boot, col = "red") +
-  labs(y = "Expected species richness\n(Annelida(Olig01)",  
-       x = "Landgebruik")
+```{r}
+glimpse(true_rarefaction_results)
+# verwijder gevallen waar se te klein is of nul is
+true_rarefaction_results <- true_rarefaction_results %>%
+  filter(se > 0.1)
 ```
 
-```{r raref-diepte}
-ggplot(
-  true_rarefaction_results,
-  aes(x = Diepte,
-      y = Estimated_species_richness)) +
-  geom_jitter(alpha = 0.3) +
-  stat_summary(fun.data = mean_cl_boot, col = "red") +
-  labs(y = "Expected species richness (Annelida(Olig01))",
-       x = "Diepte")
+```{r m-rarefied}
+library(brms)
+
+form_rarefaction <- bf(
+  est | se(se, sigma = TRUE) ~
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+)
+
+m_rarefaction <- brm(
+  formula = form_rarefaction,
+  data = true_rarefaction_results,
+  family = gaussian())
+
+```
+
+
+
+```{r m-rarefied-summary}
+summary(m_rarefaction)
+```
+
+Dit model geeft gelijkaardige resultaten als het model waarbij we rechtstreeks werkten met de geobserveerde aantallen taxa en (de log van) het totaal aantal reads als covariaat toevoegden.
+
+```{r m-rarefied-predictions}
+conditional_effects(
+  m_rarefaction,
+    effects = c("Landgebruik_MBAG:Diepte"),
+  re.form = NA)
 ```
 
 
@@ -381,35 +408,19 @@ tax_table(physeq) %>%
 
 ## Read counts
 
-Hier loopt nog iets mis.
 
-```{r eval=FALSE}
-physeq %>%
-  tax_glom(taxrank = "family") %>%
-  otu_table() %>%
-  as.data.frame() %>%
-  as_tibble() %>%
-  group_by(phylum) %>%
-  summarise(Read_Count = sum(!!sym(colnames(.))))
+Overzicht van som van reads per family:
 
+```{r}
+tidy_physeq %>%
+  tidytacos::aggregate_taxa(rank = "family") %>%
+  tidytacos::everything() %>%
+  group_by(family) %>%
+  summarise(read_counts = sum(count)) %>%
+  arrange(desc(read_counts)) %>%
+  kable()
 ```
 
-## How to remove unwanted OTUs from phyloseq object
-
-```{r function-prune-taxa}
-pop_taxa = function(physeq, badTaxa){
-  allTaxa = taxa_names(physeq)
-  allTaxa <- allTaxa[!(allTaxa %in% badTaxa)]
-  return(prune_taxa(allTaxa, physeq))
-}
-
-badTaxa = c("Zotu511")
-physeq <- pop_taxa(physeq, badTaxa)
-
-physeq
-
-
-```
 
 ## Ordinatie
 
