@@ -46,8 +46,7 @@ Deze tabelletjes kunnen best gewoon csv bestanden zijn die we inlezen.
 -->
 
 ```{r load-rdata-file}
-load(
-  file.path(
+path_naar_bestand <- file.path(
     mbag_folder,
     "4c_bodembiodiversiteit",
     "data",
@@ -56,60 +55,43 @@ load(
     "phyloseq_Olig01_Annelida",
     "physeq_Olig01_Annelida_species.Rdata"
   )
-)
+
+load(path_naar_bestand)
 ```
 
+Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
-# Verkennende analyses
-
-## Alfa-diversiteit
-
-### Preprocessing stappen
+# Preprocessing stappen
 
 <!--vergeet HIER niet te starten van de NIET-rarefied versie-->
 
-Link: https://jacobrprice.github.io/2017/08/26/phyloseq-to-vegan-and-back.html
-
-Check totaal aantal reads (hier de decielen van 0% = minimum tot 100% = maximum):
-
-```{r quantiles-reads}
-sample_sums(physeq_Olig01_Annelida_species) %>%
-  quantile(probs = seq(0, 1, 0.1))
-```
-
-
-```{r}
+```{r hernoem-object}
 ## Pick whatever dataset you want to work with
-
 physeq <- physeq_Olig01_Annelida_species
 
 # physeq <- physeq_18S_Annelida
 
 ```
 
+
+## Filter en selectie stappen
+
 Remove samples according to the dataset you want to work with (e.g. without replicates or without a certain land use type)
 
-
-
-```{r selectie-taxongroep}
-physeq <- subset_taxa(physeq, phylum =="Annelida")
-
-```
-
-```{r }
-sample_sums(physeq) %>%
-  quantile(probs = seq(0, 1, 0.1))
+```{r filter-taxongroep}
+physeq <- subset_taxa(
+  physeq,
+  phylum == "Annelida")
 ```
 
 
-```{r verken-object}
-physeq
-
-glimpse(sample_data(physeq) %>% as_tibble())
-```
+Link: https://jacobrprice.github.io/2017/08/26/phyloseq-to-vegan-and-back.html
 
 
 Voorbereidende stap: convert the otu_table() within a phyloseq object to a vegan compatible data object
+
+
+## Conversie voor gebruik in andere packages
 
 ```{r psotu2veg-function}
 psotu2veg <- function(physeq) {
@@ -120,8 +102,48 @@ psotu2veg <- function(physeq) {
   return(as(OTU, "matrix"))
 }
 
+```
+
+
+```{r convert-to-vegan-matrix}
 veganobject <- psotu2veg(physeq)
 ```
+
+
+
+# Verkennende analyses
+
+```{r}
+physeq
+```
+
+
+## Sample data
+
+```{r verken-sample-data}
+glimpse(sample_data(physeq) %>% as_tibble())
+```
+
+Check totaal aantal reads (hier de decielen van 0% = minimum tot 100% = maximum):
+
+```{r quantiles-reads}
+sample_sums(physeq) %>%
+  quantile(probs = seq(0, 1, 0.1))
+```
+
+## OTU tabel
+
+```{r verken-otu-data}
+glimpse(otu_table(physeq) %>% as.data.frame %>% as_tibble())
+```
+
+## Taxonomie tabel
+
+```{r verken-taxonomie-data}
+glimpse(tax_table(physeq) %>% as.data.frame %>% as_tibble())
+```
+
+## Alfa-diversiteit
 
 
 ### Rarefaction analyse 
