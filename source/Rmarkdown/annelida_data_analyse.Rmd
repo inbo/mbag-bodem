@@ -15,7 +15,7 @@ editor_options:
 ```{r setup, include=FALSE}
 library(knitr)
 library(here)
-opts_chunk$set(echo = TRUE)
+opts_chunk$set(echo = TRUE, out.width = "100%")
 opts_knit$set(root.dir = here::here())
 
 if (!"phyloseq" %in% rownames(installed.packages())) {
@@ -47,6 +47,7 @@ if (!"tidytacos" %in% rownames(installed.packages())) {
 library(tidytacos)
 library(glmmTMB)
 library(marginaleffects)
+library(performance)
 
 mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG"
 ```
@@ -237,8 +238,15 @@ form_annelida_richness <- formula(
 m_annelida_richness <- glmmTMB::glmmTMB(
   formula = form_annelida_richness,
   data = samples_totcount_10k,
-  family = glmmTMB::nbinom1())
+  family = glmmTMB::nbinom2())
 ```
+
+Model validatie toont dat er problemen zijn met de residuele variabiliteit.
+
+```{r}
+performance::check_model(m_annelida_richness)
+```
+
 
 ```{r m-annelida-richness-summary}
 summary(m_annelida_richness)
@@ -313,68 +321,6 @@ ggplot(
   stat_summary(fun.data = mean_cl_boot, col = "red") +
   labs(y = "Expected species richness (Annelida(Olig01))",
        x = "Diepte")
-```
-
-### Statistische testen
-
-Opmerking: heel deze sectie beter vervangen door een regressiemodel.
-
-```{r test-normaliteit}
-shapiro.test(true_rarefaction_results$Estimated_species_richness)
-# is p-value van de shapiro test hierboven kleiner dan 0.05, dan is de data niet normaal verdeeld en doen we kruskal-wallis
-```
-
-```{r kw-test}
-kruskal_test(
-  true_rarefaction_results,
-  Estimated_species_richness ~ Landgebruik_MBAG
-)
-kruskal_test(
-  true_rarefaction_results,
-  Estimated_species_richness ~ Diepte)
-
-```
-
-
-```{r post-hoc-test}
-# Define the variable for which you found a significant difference
-variable_of_interest <- "Landgebruik_MBAG"  # Replace with the variable name
-
-# Perform the Kruskal-Wallis test
-kruskal_result <- kruskal_test(true_rarefaction_results, Estimated_species_richness ~ get(variable_of_interest))
-
-
-# Perform the Dunn post-hoc test with Benjamini-Hochberg correction
-dunn_result <- dunn.test(
-  true_rarefaction_results$Estimated_species_richness,
-  true_rarefaction_results[[variable_of_interest]],
-  method = "bh")
-
-# Display the Dunn test results
-data.frame(
-  comparison = dunn_result$comparisons,
-  p_adjusted = dunn_result$P.adjusted) %>%
-  kable(digits = 4)
-```
-
-Identify Groups with Highest/Lowest Alpha Diversity: You can also extract specific values if you want to determine which group has the highest or lowest estimated species richness.
-For example, you can use the summary function to compute summary statistics and identify the group with the maximum or minimum mean estimated species richness:
-
-
-```{r}
-# Find the group with the highest estimated species richness
-true_rarefaction_results %>%
-  as_tibble() %>%
-  group_by(Landgebruik_MBAG) %>%
-  summarise(
-    min = min(Estimated_species_richness),
-    p25 = quantile(Estimated_species_richness, probs = 0.25),
-    mediaan = median(Estimated_species_richness),
-    mean = mean(Estimated_species_richness),
-    p75 = quantile(Estimated_species_richness, probs = 0.75),
-    max = max(Estimated_species_richness)
-  ) %>%
-  kable()
 ```
 
 
