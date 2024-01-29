@@ -33,7 +33,7 @@ library(dplyr)
 library(rstatix)
 library(dunn.test)
 library(compositions)
-
+library(sf)
 #### Handig pakket met veel phyloseq add-ons
 #install.packages("remotes")
 if (!"psadd" %in% rownames(installed.packages())) {
@@ -87,7 +87,9 @@ physeq <- physeq_Olig01_Annelida_species
 
 ## Filter en selectie stappen
 
-Remove samples according to the dataset you want to work with (e.g. without replicates or without a certain land use type)
+<!--Remove samples according to the dataset you want to work with (e.g. without replicates or without a certain land use type)-->
+
+Filter taxongroep:
 
 ```{r filter-taxongroep}
 physeq <- subset_taxa(
@@ -96,13 +98,16 @@ physeq <- subset_taxa(
 ```
 
 
+
+
+
+## Conversie voor gebruik in andere packages
+
 Link: https://jacobrprice.github.io/2017/08/26/phyloseq-to-vegan-and-back.html
 
 
 Voorbereidende stap: convert the otu_table() within a phyloseq object to a vegan compatible data object
 
-
-## Conversie voor gebruik in andere packages
 
 ```{r psotu2veg-function}
 psotu2veg <- function(physeq) {
@@ -122,6 +127,9 @@ veganobject <- psotu2veg(physeq)
 
 ```{r convert-tidytacos}
 tidy_physeq <- tidytacos::from_phyloseq(physeq)
+tidy_physeq <- tidy_physeq %>%
+  tidytacos::add_alpha() %>%
+  tidytacos::add_total_count()
 ```
 
 
@@ -145,6 +153,38 @@ sample_sums(physeq) %>%
   quantile(probs = seq(0, 1, 0.1))
 ```
 
+Er zijn dus lege samples (zonder OTUs).
+
+We verkennen ook de verdeling van de samples over de belangrijkste design-variabelen:
+
+```{r designvars}
+tidy_physeq$samples %>%
+  count(Diepte, Landgebruik_MBAG) %>%
+  kable()
+```
+
+Aantal bodemlocaties:
+
+```{r}
+tidy_physeq$samples %>%
+  group_by(Landgebruik_MBAG) %>%
+  summarise(n_locaties = n_distinct(Cmon_PlotID)) %>%
+  kable()
+```
+
+De meeste 0-10 cm en 10-30 cm stalen zijn van dezelfde locatie.
+Met deze gepaardheid moeten we rekening houden in analyses.
+
+Verspreiding van de bodemlocaties in Vlaanderen:
+
+```{r}
+tidy_physeq$samples %>%
+  distinct(Cmon_PlotID, c_LB72X, c_LB72Y, Landgebruik_MBAG) %>%
+  st_as_sf(coords = c("c_LB72X", "c_LB72Y"), crs = 31370) %>%
+  ggplot() +
+  geom_sf(aes(colour = Landgebruik_MBAG))
+```
+
 ## OTU tabel
 
 ```{r verken-otu-data}
@@ -158,6 +198,48 @@ glimpse(tax_table(physeq) %>% as.data.frame %>% as_tibble())
 ```
 
 ## Alfa-diversiteit
+
+The raw number of taxa is a problematic measure because it depends on the total number of reads:
+
+```{r}
+tidy_physeq$samples %>%
+  filter(total_count > 0) %>%
+  ggplot(
+    aes(x = total_count, y = observed)) +
+  geom_point() +
+  scale_x_log10() +
+  labs(y = "Observed number of taxa")
+```
+
+We therefore include the log of the total number of reads as a variable in the model.
+For this particular analysis, we excluded sampling units for which the total number of reads was smaller than or equal to 100.
+
+```{r m-plant-micro}
+form_plant_micro <- bf(
+  number_taxa ~ 
+    log(lib_size)
+  + landscape_type
+  + school_context
+  + landscape_type:school_context
+  + (1 | province_name)
+  + (1 | case_control_id)
+  + (1 | school_id)
+  )
+
+m_plant_micro <- brm(
+  formula = form_plant_micro,
+  data = env_microbiome_plant %>% filter(lib_size > 100),
+  family = brms::negbinomial(),
+  prior = NULL,
+  sample_prior = TRUE,
+  cores = 4,
+  normalize = FALSE,
+  init = 0,
+  iter = 1000,
+  file = here("src", "brms_models", "m_plant_micro"),
+  file_refit = "on_change"
+)
+```
 
 
 ### Rarefaction analyse 
