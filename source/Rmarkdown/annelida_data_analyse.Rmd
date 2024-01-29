@@ -34,31 +34,29 @@ if (!"psadd" %in% rownames(installed.packages())) {
 }
 
 library(psadd)
-library(googledrive)
-googledrive::drive_auth(email = "*@inbo.be")
 
 mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG"
 ```
 
 # Inlezen data
 
-```{r shared-drive-data-folders}
-sdf <- shared_drive_find("PRJ_MBAG") %>%
-  drive_ls(pattern = "4c_bodem", type = "folder") %>%
-  drive_ls(pattern = "data", type = "folder") %>%
-  drive_ls(pattern = "statistiek", type = "folder") %>%
-  drive_ls(pattern = "Annelida", type = "folder")
-```
-
-```{r rdata-file-path}
-rdata_dribble <- sdf %>%
-  drive_ls(pattern = "^phyloseq_Olig01_Annelida$", type = "folder") %>%
-  drive_ls("physeq_Olig01_Annelida_species.Rdata") %>%
-  drive_reveal(what = "path")
-```
+<!--In plaats van een .Rdata object, zouden we hier beter de bronbestanden inlezen met de code die hiervoor nodig.
+Met bronbestanden bedoel ik hier gewoon de drie tabelletjes die samen het phyloseq object vormen.
+Deze tabelletjes kunnen best gewoon csv bestanden zijn die we inlezen.
+-->
 
 ```{r load-rdata-file}
-load(file.path(mbag_folder, rdata_dribble$path))
+load(
+  file.path(
+    mbag_folder,
+    "4c_bodembiodiversiteit",
+    "data",
+    "statistiek",
+    "Annelida",
+    "phyloseq_Olig01_Annelida",
+    "physeq_Olig01_Annelida_species.Rdata"
+  )
+)
 ```
 
 
