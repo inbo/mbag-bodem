@@ -107,8 +107,8 @@ Voorbereidende stap: functies om een `phyloseq` object te converteren naar een `
 
 ```{r psotu2veg-function}
 psotu2veg <- function(physeq) {
-  otu <- otu_table(physeq)
-  if (taxa_are_rows(otu)) {
+  otu <- phyloseq::otu_table(physeq)
+  if (phyloseq::taxa_are_rows(otu)) {
     otu <- t(otu)
   }
   return(as(otu, "matrix"))
