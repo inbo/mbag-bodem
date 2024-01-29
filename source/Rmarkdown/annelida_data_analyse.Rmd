@@ -45,6 +45,8 @@ if (!"tidytacos" %in% rownames(installed.packages())) {
   remotes::install_github("lebeerlab/tidytacos")
 }
 library(tidytacos)
+library(glmmTMB)
+library(marginaleffects)
 
 mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG"
 ```
@@ -199,6 +201,8 @@ glimpse(tax_table(physeq) %>% as.data.frame %>% as_tibble())
 
 ## Alfa-diversiteit
 
+### Regressiemodel met correctie voor totaal aantal reads
+
 The raw number of taxa is a problematic measure because it depends on the total number of reads:
 
 ```{r}
@@ -211,34 +215,61 @@ tidy_physeq$samples %>%
   labs(y = "Observed number of taxa")
 ```
 
-We therefore include the log of the total number of reads as a variable in the model.
-For this particular analysis, we excluded sampling units for which the total number of reads was smaller than or equal to 100.
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads (<= 1e+4).
 
-```{r m-plant-micro}
-form_plant_micro <- bf(
-  number_taxa ~ 
-    log(lib_size)
-  + landscape_type
-  + school_context
-  + landscape_type:school_context
-  + (1 | province_name)
-  + (1 | case_control_id)
-  + (1 | school_id)
+```{r m-annelida-richness}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 1e+4)
+
+
+form_annelida_richness <- formula(
+  observed ~ 
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
   )
 
-m_plant_micro <- brm(
-  formula = form_plant_micro,
-  data = env_microbiome_plant %>% filter(lib_size > 100),
-  family = brms::negbinomial(),
-  prior = NULL,
-  sample_prior = TRUE,
-  cores = 4,
-  normalize = FALSE,
-  init = 0,
-  iter = 1000,
-  file = here("src", "brms_models", "m_plant_micro"),
-  file_refit = "on_change"
-)
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_10k,
+  family = glmmTMB::nbinom1())
+```
+
+```{r m-annelida-richness-summary}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-richness-anova}
+car::Anova(m_annelida_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_annelida_richness)
+) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-annelida-richness-predictions}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_annelida_richness)
+) +
+  labs(y = "Voorspeld aantal taxa")
 ```
 
 
