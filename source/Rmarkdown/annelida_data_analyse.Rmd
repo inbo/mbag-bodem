@@ -53,7 +53,8 @@ mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
 
 # Inlezen data
 
-<!--In plaats van een .Rdata object, zouden we hier beter de bronbestanden inlezen met de code die hiervoor nodig.
+<!--
+In plaats van een .Rdata object, zouden we hier beter de bronbestanden inlezen met de code die hiervoor nodig.
 Met bronbestanden bedoel ik hier gewoon de drie tabelletjes die samen het phyloseq object vormen.
 Deze tabelletjes kunnen best gewoon csv bestanden zijn die we inlezen.
 -->
@@ -101,10 +102,7 @@ physeq <- subset_taxa(
 
 ## Conversie voor gebruik in andere packages
 
-Link: https://jacobrprice.github.io/2017/08/26/phyloseq-to-vegan-and-back.html
-
-
-Voorbereidende stap: convert the otu_table() within a phyloseq object to a vegan compatible data object
+Voorbereidende stap: functies om een `phyloseq` object te converteren naar een `vegan matrix` of een `tidytacos` object.
 
 
 ```{r psotu2veg-function}
@@ -199,7 +197,7 @@ glimpse(tax_table(physeq) %>% as.data.frame %>% as_tibble())
 
 ### Regressiemodel met correctie voor totaal aantal reads
 
-The raw number of taxa is a problematic measure because it depends on the total number of reads:
+Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
 
 ```{r}
 tidy_physeq$samples %>%
@@ -214,7 +212,7 @@ tidy_physeq$samples %>%
 We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
-Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads (<= 1e+4).
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
 
 We modelleren de soortenrijkdom als een Negatief Binomiaal model omdat we verwachten dat deze data overdispersie vertonen ten opzichte van een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde).
 

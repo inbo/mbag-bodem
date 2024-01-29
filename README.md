@@ -25,5 +25,5 @@ Research Institute for Nature and Forest (INBO)[^cph][^fnd]
 <!-- description: start -->
 Dit pilootproject maakt deel uit van de opstart van het Meetnet Biodiversiteit Agrarisch Gebied (MBAG). INBO zal in samenwerking met ILVO een toestandsmeetnet voor bodembiodiversiteit opstarten. We onderzoeken hiervoor de bodemstalen genomen via het bodemkoolstofmeetnet (Cmon).
 
-Op 450 reeds ingevroren Cmon stalen voeren we een eDNA metabarcoding analyse uit. Hiervoor worden internationale protocols (LUCAS, SoilBON) gebruikt zodat we de data van bacteriën, schimmels en macro-invertebraten kunnen vergelijken.
+Op 450 reeds ingevroren `Cmon` stalen voeren we een eDNA metabarcoding analyse uit. Hiervoor worden internationale protocols (`LUCAS`, `SoilBON`) gebruikt zodat we de data van bacteriën, schimmels en macro-invertebraten kunnen vergelijken.
 <!-- description: end -->
