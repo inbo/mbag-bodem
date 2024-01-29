@@ -41,6 +41,10 @@ if (!"psadd" %in% rownames(installed.packages())) {
 }
 
 library(psadd)
+if (!"tidytacos" %in% rownames(installed.packages())) {
+  remotes::install_github("lebeerlab/tidytacos")
+}
+library(tidytacos)
 
 mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG"
 ```
@@ -116,6 +120,9 @@ psotu2veg <- function(physeq) {
 veganobject <- psotu2veg(physeq)
 ```
 
+```{r convert-tidytacos}
+tidy_physeq <- tidytacos::from_phyloseq(physeq)
+```
 
 
 # Verkennende analyses
