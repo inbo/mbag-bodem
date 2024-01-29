@@ -35,7 +35,6 @@ library(dunn.test)
 library(compositions)
 library(sf)
 #### Handig pakket met veel phyloseq add-ons
-#install.packages("remotes")
 if (!"psadd" %in% rownames(installed.packages())) {
   remotes::install_github("cpauvert/psadd")
 }
@@ -49,7 +48,7 @@ library(glmmTMB)
 library(marginaleffects)
 library(performance)
 
-mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG"
+mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
 ```
 
 # Inlezen data
@@ -80,11 +79,7 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 <!--vergeet HIER niet te starten van de NIET-rarefied versie-->
 
 ```{r hernoem-object}
-## Pick whatever dataset you want to work with
 physeq <- physeq_Olig01_Annelida_species
-
-# physeq <- physeq_18S_Annelida
-
 ```
 
 
@@ -114,11 +109,11 @@ Voorbereidende stap: convert the otu_table() within a phyloseq object to a vegan
 
 ```{r psotu2veg-function}
 psotu2veg <- function(physeq) {
-  OTU <- otu_table(physeq)
-  if (taxa_are_rows(OTU)) {
-    OTU <- t(OTU)
+  otu <- otu_table(physeq)
+  if (taxa_are_rows(otu)) {
+    otu <- t(otu)
   }
-  return(as(OTU, "matrix"))
+  return(as(otu, "matrix"))
 }
 
 ```
@@ -225,10 +220,10 @@ We modelleren de soortenrijkdom als een Negatief Binomiaal model omdat we verwac
 
 ```{r m-annelida-richness}
 samples_totcount_10k <- tidy_physeq$samples %>%
-  filter(total_count > 1e+4) 
+  filter(total_count > 1e+4)
 
 form_annelida_richness <- formula(
-  observed ~ 
+  observed ~
     log(total_count)
   + Landgebruik_MBAG
   + Diepte
@@ -290,10 +285,10 @@ Dit is een alternatief voor voorgaande analyse.
 Schatting van de soortenrijkdom via rarefaction analyse.
 
 ```{r rarefaction}
-sam.new <- data.frame(sample_data(physeq))
+sam_new <- data.frame(sample_data(physeq))
 
 
-Estimated_species_richness <- vegan::rarefy(
+estimated_species_richness <- vegan::rarefy(
   veganobject,
   30780,
   se = TRUE,
@@ -301,9 +296,9 @@ Estimated_species_richness <- vegan::rarefy(
 
 
 true_rarefaction_results <- cbind(
-  sam.new %>% select(Cmon_PlotID, Diepte, Landgebruik_MBAG),
-  est = Estimated_species_richness["S",],
-  se = Estimated_species_richness["se",]) %>%
+  sam_new %>% select(Cmon_PlotID, Diepte, Landgebruik_MBAG),
+  est = estimated_species_richness["S", ],
+  se = estimated_species_richness["se", ]) %>%
   as_tibble() %>%
   mutate(est_lower = est - 2 * se,
          est_upper = est + 2 * se)
@@ -349,25 +344,6 @@ conditional_effects(
     effects = c("Landgebruik_MBAG:Diepte"),
   re.form = NA)
 ```
-
-
-### Rarefaction curves
-
-Werkt nog niet
-
-```{r rarefaction-curves, eval=FALSE}
-S <- specnumber(veganobject)
-
-raremax <- min(rowSums(veganobject))
-
-rarecurve(
-  veganobject,
-  step = 1000,
-  sample = raremax,
-  col = "blue",
-  cex = 0.6)
-```
-
 
 ## OTU counts 
 
@@ -459,13 +435,9 @@ bray_distance <- distance(physeq, method = "bray")
 # Perform PCoA
 pcoa_result <- ordinate(physeq, method = "PCoA", distance = "bray")
 
-# Create the ordination plot with color based on land_use and shape based on diepte
-plot_ordination(physeq, pcoa_result, type = "samples", color = "Landgebruik_MBAG", shape = "Diepte") +
+# Create the ordination plot with color based on land_use and shape 
+# based on diepte
+plot_ordination(physeq, pcoa_result, type = "samples",
+                color = "Landgebruik_MBAG", shape = "Diepte") +
   theme_minimal()
-
-
-
-
-
 ```
-
