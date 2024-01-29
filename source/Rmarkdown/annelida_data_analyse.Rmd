@@ -435,7 +435,7 @@ bray_distance <- distance(physeq, method = "bray")
 # Perform PCoA
 pcoa_result <- ordinate(physeq, method = "PCoA", distance = "bray")
 
-# Create the ordination plot with color based on land_use and shape 
+# Create the ordination plot with color based on land_use and shape
 # based on diepte
 plot_ordination(physeq, pcoa_result, type = "samples",
                 color = "Landgebruik_MBAG", shape = "Diepte") +
