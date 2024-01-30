@@ -43,6 +43,10 @@ library(psadd)
 if (!"tidytacos" %in% rownames(installed.packages())) {
   remotes::install_github("lebeerlab/tidytacos")
 }
+if (!"ggVennDiagram" %in% rownames(installed.packages())) {
+  install.packages("ggVennDiagram")
+}
+
 library(tidytacos)
 library(glmmTMB)
 library(marginaleffects)
@@ -192,6 +196,21 @@ glimpse(otu_table(physeq) %>% as.data.frame %>% as_tibble())
 ```{r verken-taxonomie-data}
 glimpse(tax_table(physeq) %>% as.data.frame %>% as_tibble())
 ```
+
+Unieke en gedeelde taxa per diepte:
+
+```{r}
+tidy_physeq %>%
+  tidytacos::tacoplot_venn(Diepte)
+```
+
+Unieke en gedeelde taxa per landgebruik:
+
+```{r}
+tidy_physeq %>%
+  tidytacos::tacoplot_venn(Landgebruik_MBAG)
+```
+
 
 ## Alfa-diversiteit
 

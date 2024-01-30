@@ -296,4 +296,9 @@ plots$boxplot[[2]]
 plots$credible_intervals_1D
 ```
 
+```{r sccomp-mean-variance}
+plots$credible_intervals_2D
+```
+
+
 # Referenties
