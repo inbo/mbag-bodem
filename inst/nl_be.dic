@@ -1,12 +1,16 @@
+-SNE
 .Rdata
 Annelida
 Cmon
 MBAG
 OTU
 OTUs
+Ordinaties
 Rarefaction
+beta-binomiaal
 bodembiodiversiteit
 bodemkoolstofmeetnet
+centered-log-ratio
 counts
 covariaat
 csv
@@ -16,6 +20,7 @@ gepaardheid
 intercept
 macro-invertebraten
 metabarcoding
+multivariaat
 phyloseq
 phylum
 rarefaction
