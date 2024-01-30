@@ -281,6 +281,9 @@ sccomp_data_annelida %>%
   kable()
 ```
 
+Hier volgen de default geproduceerde figuren.
+Deze zijn echter nog niet heel geschikt omdat we in het model een interactie hebben tussen twee factoren en deze interactie wordt in deze figuren niet getoond.
+
 ```{r sccomp-boxplot-landgebruik}
 plots$boxplot[[1]]
 ```
