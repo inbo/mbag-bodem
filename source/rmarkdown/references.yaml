@@ -1,0 +1,44 @@
+---
+references:
+- id: mangiola2023
+  accessed: "06:02:08"
+  author:
+  - family: Mangiola
+    given: Stefano
+  - family: Roth-Schulze
+    given: Alexandra J.
+  - family: Trussart
+    given: Marie
+  - family: Zozaya-Valdés
+    given: Enrique
+  - family: Ma
+    given: Mengyao
+  - family: Gao
+    given: Zijie
+  - family: Rubin
+    given: Alan F.
+  - family: Speed
+    given: Terence P.
+  - family: Shim
+    given: Heejung
+  - family: Papenfuss
+    given: Anthony T.
+  container-title: Proceedings of the National Academy of Sciences
+  container-title-short: Proc. Natl. Acad. Sci. U.S.A.
+  DOI: 10.1073/pnas.2203828120
+  ISSN: 0027-8424, 1091-6490
+  issue: 33
+  issued: 2023-08-15
+  key: B5XP8VP6
+  language: en
+  libraryID: 1
+  page: e2203828120
+  providerKey: 2509FBBE-5BB0-44C4-B119-6083A81ED673
+  source: DOI.org (Crossref)
+  title: "sccomp: Robust differential composition and variability
+    analysis for single-cell data"
+  title-short: sccomp
+  type: article-journal
+  URL: "https://pnas.org/doi/10.1073/pnas.2203828120"
+  volume: 120
+...
