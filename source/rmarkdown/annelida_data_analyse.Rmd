@@ -128,6 +128,10 @@ veganobject <- psotu2veg(physeq)
 ```{r convert-tidytacos}
 tidy_physeq <- tidytacos::from_phyloseq(physeq)
 tidy_physeq <- tidy_physeq %>%
+  remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = c("phylum", "class", "order", "family", "genus", "species")
+  ) %>%
   tidytacos::add_alpha() %>%
   tidytacos::add_total_count()
 ```
@@ -209,6 +213,21 @@ Unieke en gedeelde taxa per landgebruik:
 ```{r}
 tidy_physeq %>%
   tidytacos::tacoplot_venn(Landgebruik_MBAG)
+```
+
+```{r}
+tidy_physeq %>%
+  tidytacos::tacoplot_stack()
+```
+
+```{r}
+tidy_physeq %>%
+  tidytacos::tacoplot_stack(x = Landgebruik_MBAG)
+```
+
+```{r}
+tidy_physeq %>%
+  tidytacos::tacoplot_stack(x = Diepte)
 ```
 
 

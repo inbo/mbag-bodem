@@ -74,7 +74,10 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
 ```{r}
 tidy_physeq <- tidytacos::from_phyloseq(physeq_Olig01_Annelida_species) %>%
-  tidytacos::remove_empty_samples()
+  tidytacos::remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = c("phylum", "class", "order", "family", "genus", "species")
+  ) 
 ```
 
 # Analyse van verschillen in samenstelling
