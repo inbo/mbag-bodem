@@ -352,11 +352,23 @@ s_annelida_predictions <- sccomp::sccomp_predict(
   number_of_draws = 2000,
   mcmc_seed = 1254)
 
+sortering <- s_annelida %>%
+  filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
+  select(taxon_id, c_lower) %>%
+  left_join(sccomp_data_annelida %>%
+              distinct(taxon_id, genus),
+            by = join_by(taxon_id)) %>%
+  arrange(c_lower)
+
 s_annelida_predictions <- s_annelida_predictions %>%
   left_join(my_new_data, by = join_by(sample_id)) %>%
   left_join(sccomp_data_annelida %>%
               distinct(taxon_id, genus),
-            by = join_by(taxon_id))
+            by = join_by(taxon_id)) %>%
+  mutate(
+    taxon_id = factor(taxon_id, levels = sortering$taxon_id),
+    genus = factor(genus, levels = sortering$genus)
+  )
 ```
 
 De volgende figuur toont de modelvoorspellingen.
