@@ -381,5 +381,18 @@ s_annelida_predictions %>%
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
 
+We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
+
+```{r}
+s_annelida_predictions %>%
+  ggplot() +
+  geom_col(
+    aes(x = Landgebruik_MBAG,
+        y = proportion_mean,
+        fill = genus)) +
+  facet_grid(~Diepte) +
+  theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
+```
+
 
 # Referenties
