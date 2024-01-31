@@ -72,11 +72,16 @@ load(path_naar_bestand)
 
 Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
+
+
 ```{r}
+ranks <- physeq_Olig01_Annelida_species %>%
+  phyloseq::rank_names()
+
 tidy_physeq <- tidytacos::from_phyloseq(physeq_Olig01_Annelida_species) %>%
   tidytacos::remove_empty_samples() %>%
   tidytacos::set_rank_names(
-    rank_names = c("phylum", "class", "order", "family", "genus", "species")
+    rank_names = ranks
   ) 
 ```
 
@@ -242,7 +247,11 @@ sccomp_data_annelida <- tidy_physeq %>%
          Landgebruik_MBAG, genus, occurrence) %>%
   filter(
     complete.cases(.)
-  )
+  ) %>%
+  mutate(Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c("Akker", "Tijdelijk grasland", "Blijvend grasland",
+               "Residentieel grasland", "Natuurgrasland")))
 ```
 
 Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
@@ -272,6 +281,8 @@ if (!file.exists(here("source", "brms_models", "s_annelida.rds"))) {
 s_annelida <- readRDS(here("source", "brms_models", "s_annelida.rds"))
 ```
 
+### Model evaluatie
+
 ```{r sccomp-test}
 sctest <- sccomp::sccomp_test(s_annelida)
 plots <- plot(sctest)
@@ -284,8 +295,17 @@ sccomp_data_annelida %>%
   kable()
 ```
 
-Hier volgen de default geproduceerde figuren.
-Deze zijn echter nog niet heel geschikt omdat we in het model een interactie hebben tussen twee factoren en deze interactie wordt in deze figuren niet getoond.
+Hier volgen de standaard geproduceerde figuren.
+
+De boxplots geven aan of het model de data goed beschrijven.
+De blauwe boxen in de achtergrond zijn simulaties van het model (voorspellingen uit de _a posteriori_ kansverdeling).
+De gekleurde boxen in de voorgrond zijn op basis van de geobserveerde data, die ook getoond worden als punten.
+Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is het model goed in staat om de data te beschrijven.
+
+Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
+
+-   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
+-   in t3 (en eventueel t6) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
 
 ```{r sccomp-boxplot-landgebruik}
 plots$boxplot[[1]]
@@ -295,12 +315,70 @@ plots$boxplot[[1]]
 plots$boxplot[[2]]
 ```
 
+De volgende figuren tonen een parameterschattingen (gemiddelde) met 95% credibiliteitsinterval voor elk van de taxa in functie van covariaten.
+Omdat meerdere taxa in het model zitten, is een correctie nodig voor multiple testing.
+In de figuur is dit met kleur aangeduid: de blauwe intervallen zijn significant verschillend van een zone van +/- 0.2 rond de nul in de logit schaal na rekening te houden met een correctie waarbij maximum 5% vals positieve gevallen worden toegelaten (False discovery rate).
+
 ```{r sccomp-ci1d, fig.height = 200/25.4}
 plots$credible_intervals_1D
 ```
 
+Tot slot tonen we nog een figuur die de relatie tussen gemiddelde en variantie toont voor elk van de taxa in het model.
+De figuur laat toe om in te schatten of deze relatie goed gemodelleerd werd.
+We willen hier geen sterke associatie zien tussen de x (gemiddelden) en de y (varianties) as.
+
 ```{r sccomp-mean-variance}
 plots$credible_intervals_2D
+```
+
+### Model predicties
+
+
+```{r calc-sccomp-predictions}
+# maak data.frame voor nieuwe predicties
+my_new_data <- sccomp_data_annelida %>%
+  distinct(Landgebruik_MBAG, Diepte)
+my_new_data$sample_id <- paste0("newsample", seq_len(nrow(my_new_data)))
+
+# make predictions for these new data, without the random effect
+# this returns a df with 4 times number of taxa rows
+s_annelida_predictions <- sccomp::sccomp_predict(
+  s_annelida,
+  formula_composition = ~
+    Landgebruik_MBAG +
+    Diepte +
+    Landgebruik_MBAG:Diepte,
+  new_data = my_new_data,
+  number_of_draws = 2000,
+  mcmc_seed = 1254)
+
+s_annelida_predictions <- s_annelida_predictions %>%
+  left_join(my_new_data, by = join_by(sample_id)) %>%
+  left_join(sccomp_data_annelida %>%
+              distinct(taxon_id, genus),
+            by = join_by(taxon_id))
+```
+
+De volgende figuur toont de modelvoorspellingen.
+We zien een duidelijke toename van Achaeta, Lumbricus en Marionina met afnemende landgebruiksintensiteit.
+Henlea soorten komen meer voor in 0-10 cm dan 10-30 cm.
+
+```{r plot-sccomp-predictions}
+s_annelida_predictions %>%
+  ggplot() +
+  geom_pointrange(
+    aes(
+      x = Landgebruik_MBAG,
+      y = proportion_mean,
+      ymin = proportion_lower,
+      ymax = proportion_upper,
+      colour = Diepte),
+    position = position_dodge(width = 0.4),
+    alpha = 0.7
+  ) +
+  facet_wrap(~ genus, scales = "free_y") +
+  scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
+  theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
 
 
