@@ -82,7 +82,7 @@ tidy_physeq <- tidytacos::from_phyloseq(physeq_Olig01_Annelida_species) %>%
   tidytacos::remove_empty_samples() %>%
   tidytacos::set_rank_names(
     rank_names = ranks
-  ) 
+  )
 ```
 
 # Analyse van verschillen in samenstelling
@@ -305,7 +305,7 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   in t3 (en eventueel t6) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+-   in `t3` (en eventueel `t6`) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
 
 ```{r sccomp-boxplot-landgebruik}
 plots$boxplot[[1]]
@@ -316,8 +316,8 @@ plots$boxplot[[2]]
 ```
 
 De volgende figuren tonen een parameterschattingen (gemiddelde) met 95% credibiliteitsinterval voor elk van de taxa in functie van covariaten.
-Omdat meerdere taxa in het model zitten, is een correctie nodig voor multiple testing.
-In de figuur is dit met kleur aangeduid: de blauwe intervallen zijn significant verschillend van een zone van +/- 0.2 rond de nul in de logit schaal na rekening te houden met een correctie waarbij maximum 5% vals positieve gevallen worden toegelaten (False discovery rate).
+Omdat meerdere taxa in het model zitten, is een correctie nodig voor meervoudige testen.
+In de figuur is dit met kleur aangeduid: de blauwe intervallen zijn significant verschillend van een zone van +/- 0.2 rond de nul in de logit schaal na rekening te houden met een correctie waarbij maximum 5% vals positieve gevallen worden toegelaten (`False discovery rate`).
 
 ```{r sccomp-ci1d, fig.height = 200/25.4}
 plots$credible_intervals_1D
@@ -372,8 +372,8 @@ s_annelida_predictions <- s_annelida_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-We zien een duidelijke toename van Achaeta, Lumbricus en Marionina met afnemende landgebruiksintensiteit.
-Henlea soorten komen meer voor in 0-10 cm dan 10-30 cm.
+We zien een duidelijke toename van _Achaeta_, _Lumbricus_ en _Marionina_ met afnemende landgebruiksintensiteit.
+_Henlea_ soorten komen meer voor in 0-10 cm dan 10-30 cm.
 
 ```{r plot-sccomp-predictions}
 s_annelida_predictions %>%
