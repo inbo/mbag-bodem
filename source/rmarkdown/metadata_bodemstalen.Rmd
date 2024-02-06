@@ -199,7 +199,7 @@ Om voor individuele strata-combinaties uitspraken te doen, hebben we dan echter 
 We berekenen de landbouwhoofdteelten (2022) in buffer van 10 m rond elke locatie en vatten dit verder samen op niveau van gewasgroep.
 
 ```{r}
-source("source/R/geocomputations.R")
+source("source/r/geocomputations.R")
 lbg_binding <- arrow::open_dataset(
   "data/landbouwgebruikspercelen/parquet/lbgbrprc2022.parquet"
 )
