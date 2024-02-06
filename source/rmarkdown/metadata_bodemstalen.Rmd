@@ -133,7 +133,8 @@ Een deel van de plots zijn momenteel nog in analyse, maar binnenkort hebben we w
 ## Verdeling over landbouwstreken
 
 ```{r landbouwstreken}
-landbouwstreken <- read_sf(file.path("data", "landbouwstreken", "Lbstrbel.shp")) %>%
+landbouwstreken <- read_sf(
+  "S:/Vlaanderen/Landbouw/Landbouwstreken_België/Lbstrbel.shp") %>%
   janitor::clean_names() %>%
   st_transform(crs = 31370)
 
@@ -198,7 +199,7 @@ Om voor individuele strata-combinaties uitspraken te doen, hebben we dan echter 
 We berekenen de landbouwhoofdteelten (2022) in buffer van 10 m rond elke locatie en vatten dit verder samen op niveau van gewasgroep.
 
 ```{r}
-source("src/R/geocomputations.R")
+source("source/R/geocomputations.R")
 lbg_binding <- arrow::open_dataset(
   "data/landbouwgebruikspercelen/parquet/lbgbrprc2022.parquet"
 )
