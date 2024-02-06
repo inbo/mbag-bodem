@@ -88,7 +88,7 @@ bodem_meta %>%
               names_prefix = "diepte_")
 ```
 
-De missing data bij mbag_luc, kunnen we ondervangen via cmon_lu_text:
+De missing data bij `mbag_luc`, kunnen we ondervangen via `cmon_lu_text`:
 
 ```{r}
 bodem_meta %>%
@@ -102,11 +102,11 @@ bodem_meta %>%
 
 ```
 
-Hoe belangrijk zijn de 0-10 cm versus 10-30 cm staalnamemonsters voor eDNA?
+Hoe belangrijk zijn de 0-10 cm versus 10-30 cm stalen voor eDNA?
 
 
 
-In `nematodenstalen` zitten alle plots waarvan ILVO nematodenstalen heeft binnengekregen en ge-extraheerd.
+In `nematodenstalen` zitten alle plots waarvan ILVO nematodenstalen heeft binnengekregen en geëxtraheerd.
 
 ```{r}
 glimpse(nematodenstalen)
@@ -126,7 +126,7 @@ bodem_locs_meta_sf <- bodem_meta_sf %>%
 
 
 
-Een deel van de plots zijn momenteel nog in analyse, maar binnenkort hebben we wel alle fysico-chemische Cmon data (textuur, pH, C, N , bulk densiteit) en meta-data (foto's proefvlakken, vegetatiebeschrijving, condities bij staalname,...).
+Een deel van de plots zijn momenteel nog in analyse, maar binnenkort hebben we wel alle fysico-chemische Cmon data (textuur, pH, C, N , bulk densiteit) en metadata (foto's proefvlakken, vegetatiebeschrijving, condities bij staalname,...).
 
 # Verkenning
 
@@ -192,7 +192,7 @@ bodem_locs_meta_sf %>%
 ```
 
 Vermits het om een GRTS steekproef gaat, kunnen we in principe verwachten dat de verdeling van het aantal locaties over de verschillende combinaties van landbouwstreek en landgebruik, min of meer evenredig is met het oppervlakte-aandeel van deze combinaties.
-Om voor individuele strata-combinaties uitspraken te doen, hebben we dan echter vaak te weinig data.
+Om voor individuele combinaties van strata uitspraken te doen, hebben we dan echter vaak te weinig data.
 
 ## Informatie van landbouwgebruikspercelen
 
@@ -246,7 +246,7 @@ bodem_locs_meta_sf %>%
 
 ## Overlap met meetnet akkervogels?
 
-Voorlopig enkel Leemstreek en Zandleemstreek (+ deel van de Polders).
+Voorlopig enkel Leemstreek en Zandleemstreek (en een deel van de Polders).
 
 TO DO
 

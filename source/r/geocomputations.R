@@ -2,7 +2,7 @@
 #'
 #' @param xy an object of class POINT
 #' @param cell_width_m cell width in meter, default 500
-#' @param point_position default center of grid cell
+#' @param point_position default centre of grid cell
 #' @param crs default EPSG code 31370
 #'
 #' @return
@@ -12,7 +12,8 @@
 point_to_gridcell <- function(
   xy,
   cell_width_m = 500,
-  point_position = c("center", "lowerleft", "upperleft", "lowerright", "upperright"),
+  point_position = c("center", "lowerleft", "upperleft", "lowerright",
+                     "upperright"),
   crs = 31370) {
   point_position <- match.arg(point_position)
 
@@ -39,7 +40,8 @@ point_to_gridcell <- function(
 #'
 #' @param grid_cell A polygon within which boundaries zonal statistics will be
 #' calculated
-#' @param layer A rasterlayer containing land use classes or a polygon layer (sf object)
+#' @param layer A `rasterlayer` containing land use classes or a polygon layer
+#' (sf object)
 #' @param grid_group_by_col A character vector of columns to group by for zones
 #' @param layer_group_by_col A character vector of columns to group by for
 #' layer
