@@ -1,0 +1,251 @@
+---
+title: "Verkenning metadata eDNA bodemstalen"
+author: "Hans Van Calster, Bruno De Vos"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: "hide"
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir = here::here())
+opts_chunk$set(echo = TRUE)
+library(readxl)
+library(dplyr)
+library(sf)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+conflicted::conflicts_prefer(dplyr::select, dplyr::filter)
+```
+
+
+# Inlezen data
+
+```{r inlezen}
+mbag_shared_drive <- "G:/Gedeelde drives/PRJ_MBAG"
+bodem_meta <- read_excel(
+  file.path(
+    mbag_shared_drive,
+    "4c_bodembiodiversiteit",
+    "data",
+    "eDNASamplist_20230705.xlsx"
+  ),
+  sheet = "Alle_stalen"
+) %>%
+  janitor::clean_names() %>%
+  mutate(mbag_e_dna_staal = factor(mbag_e_dna_staal),
+         mbag_nematodenstaal = factor(mbag_nematodenstaal)) 
+
+nematodenstalen <- read_excel(
+  file.path(
+    mbag_shared_drive,
+    "4c_bodembiodiversiteit",
+    "data",
+    "eDNASamplist_20230705.xlsx"
+  ),
+  sheet = "Subset_nematodenstalen_ILVO"
+) %>%
+  janitor::clean_names()
+
+```
+
+
+```{r inlezen-gis}
+
+filepath <- "Z:/Projects/PRJ_MBAG/4c_bodembiodiversiteit/steekproef/MBAG_eDNA_sampling"
+
+bodem_meta_sf <- read_sf(filepath) %>%
+  janitor::clean_names() %>%
+  mutate(mbag_e_dna = factor(mbag_e_dna)) %>%
+  st_transform(crs = 31370)
+```
+
+
+Dit overzicht omvat de Cmon plots en alle ingevroren eDNA stalen momenteel beschikbaar bij ILVO en de stalen van residentiële graslanden en natuurgraslanden bij INBO. 
+
+```{r}
+glimpse(bodem_meta)
+```
+
+
+
+Onderstaande tabel geeft het aantal stalen die we kunnen opnemen in de eDNA analyse (alle 344 stalen van ILVO) en een selectie van 101 INBO stalen.
+Er is ook aangegeven welke plots voorlopig zijn geselecteerd (op basis van landgebruik).
+In de samenwerkingsovereenkomst met ILVO hebben we het over 450 stalen voor eDNA analyse.
+Dit komt neer op alle locaties met grasland of akker als landgebruik waarvan er al een bodemstaal beschikbaar is.
+
+```{r}
+bodem_meta %>%
+  filter(mbag_e_dna_staal == 1) %>%
+  count(staalopslag, diepte, mbag_luc) %>%
+  pivot_wider(values_from = n,
+              names_from = diepte,
+              names_prefix = "diepte_")
+```
+
+De missing data bij mbag_luc, kunnen we ondervangen via cmon_lu_text:
+
+```{r}
+bodem_meta %>%
+  filter(mbag_e_dna_staal == 1) %>%
+  mutate(mbag_luc = ifelse(is.na(mbag_luc), cmon_l_utext, mbag_luc),
+         mbag_luc = ifelse(mbag_luc == "Akkerland", "Akker", mbag_luc)) %>%
+  count(staalopslag, diepte, mbag_luc) %>%
+  pivot_wider(values_from = n,
+              names_from = diepte,
+              names_prefix = "diepte_")
+
+```
+
+Hoe belangrijk zijn de 0-10 cm versus 10-30 cm staalnamemonsters voor eDNA?
+
+
+
+In `nematodenstalen` zitten alle plots waarvan ILVO nematodenstalen heeft binnengekregen en ge-extraheerd.
+
+```{r}
+glimpse(nematodenstalen)
+```
+
+
+```{r}
+bodem_locs_meta_sf <- bodem_meta_sf %>%
+  mutate(mbag_luc = ifelse(is.na(mbag_luc), cmon_l_utext, mbag_luc),
+         mbag_luc = ifelse(mbag_luc == "Akkerland", "Akker", mbag_luc)) %>%
+  select(plot_id, diepte, starts_with("mbag")) %>%
+  group_by(plot_id, mbag_luc, mbag_e_dna) %>%
+  summarise(dieptes = paste(diepte, collapse = " en "),
+            .groups = "drop")
+
+```
+
+
+
+Een deel van de plots zijn momenteel nog in analyse, maar binnenkort hebben we wel alle fysico-chemische Cmon data (textuur, pH, C, N , bulk densiteit) en meta-data (foto's proefvlakken, vegetatiebeschrijving, condities bij staalname,...).
+
+# Verkenning
+
+## Verdeling over landbouwstreken
+
+```{r landbouwstreken}
+landbouwstreken <- read_sf(file.path("data", "landbouwstreken", "Lbstrbel.shp")) %>%
+  janitor::clean_names() %>%
+  st_transform(crs = 31370)
+
+bodem_locs_meta_sf <- bodem_locs_meta_sf %>%
+  st_join(landbouwstreken %>% select(landbouwstreek = naam))
+```
+
+```{r}
+bodem_locs_meta_sf %>%
+  ggplot() +
+  geom_sf(data = landbouwstreken %>%
+            st_filter(bodem_locs_meta_sf),
+          aes(fill = naam),
+          alpha = 0.2) +
+  geom_sf_text(data = landbouwstreken %>%
+            st_filter(bodem_locs_meta_sf),
+          aes(label = naam)) +
+  geom_sf(aes(colour = mbag_e_dna)) +
+  guides(fill = "none")
+```
+
+
+Aantal wel of niet geselecteerde locaties opgedeeld volgens landbouwstreek.
+In `Duinen` en `Weidestreek (Luik)` zitten dan te weinig data.
+We kunnen deze beter verwijderen.
+
+```{r}
+bodem_locs_meta_sf %>%
+  st_drop_geometry() %>%
+  count(mbag_e_dna, landbouwstreek, name = "aantal_locaties") %>%
+  mutate(mbag_e_dna = factor(
+    mbag_e_dna,
+    labels = c("niet geselecteerd", "wel geselecteeerd"))) %>%
+  pivot_wider(
+    names_from = mbag_e_dna,
+    values_from = aantal_locaties,
+    values_fill = 0) %>%
+  kable()
+```
+
+Wanneer we deze data (enkel de wel geselecteerde locaties en zonder Duinen en Weidestreek) verder opsplitsen over de landgebruiken bekomen we:
+
+```{r}
+bodem_locs_meta_sf %>%
+  st_drop_geometry() %>%
+  filter(mbag_e_dna == 1,
+         !landbouwstreek %in% c("Duinen", "Weidestreek (Luik)")) %>%
+  count(mbag_e_dna, mbag_luc, landbouwstreek, name = "aantal_locaties") %>%
+  pivot_wider(
+    names_from = mbag_luc,
+    values_from = aantal_locaties,
+    values_fill = 0) %>%
+  select(-mbag_e_dna) %>%
+  kable()
+```
+
+Vermits het om een GRTS steekproef gaat, kunnen we in principe verwachten dat de verdeling van het aantal locaties over de verschillende combinaties van landbouwstreek en landgebruik, min of meer evenredig is met het oppervlakte-aandeel van deze combinaties.
+Om voor individuele strata-combinaties uitspraken te doen, hebben we dan echter vaak te weinig data.
+
+## Informatie van landbouwgebruikspercelen
+
+We berekenen de landbouwhoofdteelten (2022) in buffer van 10 m rond elke locatie en vatten dit verder samen op niveau van gewasgroep.
+
+```{r}
+source("src/R/geocomputations.R")
+lbg_binding <- arrow::open_dataset(
+  "data/landbouwgebruikspercelen/parquet/lbgbrprc2022.parquet"
+)
+
+bodem_locs_lbg <- landusemetrics_grid_cell(
+    grid_cell = bodem_locs_meta_sf %>%
+      st_buffer(dist = 10),
+    layer = lbg_binding %>%
+      select(LBLHFDTLT, geometry) %>%
+      sfarrow::read_sf_dataset() %>%
+      st_transform(31370),
+    grid_group_by_col = "plot_id",
+    layer_group_by_col = "LBLHFDTLT")
+
+mapping <- lbg_binding %>%
+    select(GEWASGROEP, LBLHFDTLT) %>%
+    collect() %>%
+    distinct()
+
+bodem_locs_lbg <- bodem_locs_lbg %>%
+    left_join(mapping)
+
+```
+
+De kolom samenstelling geeft de samenstelling van gewasgroepen rond de eDNA bodemstaalnamelocaties.
+
+```{r landbouwhoofdteelt}
+bodem_locs_meta_sf %>%
+  left_join(bodem_locs_lbg %>%
+              group_by(plot_id, GEWASGROEP) %>%
+              summarise(area_prop = sum(area_prop)) %>%
+              summarise(samenstelling = paste(
+                paste0(GEWASGROEP, " (", round(area_prop, 2), ")"),
+                collapse = " - "
+              ))) %>%
+  filter(mbag_e_dna == 1) %>%
+  count(mbag_luc, samenstelling) %>%
+  arrange(desc(n)) %>%
+  rename(aantal_locaties = n) %>%
+  st_drop_geometry() %>%
+  kable()
+```
+
+
+## Overlap met meetnet akkervogels?
+
+Voorlopig enkel Leemstreek en Zandleemstreek (+ deel van de Polders).
+
+TO DO
+
