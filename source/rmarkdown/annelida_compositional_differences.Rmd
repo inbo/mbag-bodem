@@ -45,6 +45,7 @@ if (!"sccomp" %in% rownames(installed.packages())) {
   remotes::install_github("stemangiola/sccomp")
 }
 library(sccomp)
+library(inboggvegan)
 ```
 
 # Inlezen data
@@ -87,6 +88,24 @@ tidy_physeq <- tidytacos::from_phyloseq(physeq_Olig01_Annelida_species) %>%
 
 # Analyse van verschillen in samenstelling
 
+## Verkenning verschillen in totaal aantal reads
+
+Indien er belangrijke verschillen zijn in totaal aantal reads tussen stalen die behoren tot verschillende groepen, dan zal dit ook (mogelijk artificiële) verschillen veroorzaken in ordinaties.
+
+```{r total-count-confounding}
+tidy_physeq %>%
+  add_total_count() %>%
+  samples() %>%
+  select(Diepte, Landgebruik_MBAG, total_count) %>%
+  mutate(Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c("Akker", "Tijdelijk grasland", "Blijvend grasland",
+               "Residentieel grasland", "Natuurgrasland"))) %>%
+  ggplot() +
+  geom_boxplot(aes(x = Landgebruik_MBAG, y = total_count, fill = Diepte)) +
+  scale_y_log10()
+```
+
 ## Ordinaties
 
 -   We verwijderen taxa die minder dan `frequency_threshold` voorkomen in de stalen
@@ -99,6 +118,7 @@ tidy_physeq <- tidytacos::from_phyloseq(physeq_Olig01_Annelida_species) %>%
 calc_ordinations <- function(
     tacos_data,
     frequency_threshold,
+    cumulative_prop_explained = 0.9,
     use_rank = NULL
 ) {
 
@@ -127,7 +147,7 @@ calc_ordinations <- function(
       counts %>% select(-.data$sample_id),
       method = "rclr"))
   d <- pca1$sdev^2
-  truncate_axis <- sum(cumsum(d) / sum(d) < 0.9)
+  truncate_axis <- sum(cumsum(d) / sum(d) < cumulative_prop_explained)
   message(sprintf(
     "Calculating tsne based on first %s axes from PCA solution",
     truncate_axis))
@@ -180,8 +200,13 @@ plot_tsne <- function(plotdata, colour = NULL) {
 ```{r}
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
-  frequency_threshold = 10)
+  frequency_threshold = 0)
 ```
+
+```{r}
+ggscreeplot(ordination$pca, type = "both")
+```
+
 
 ```{r}
 plot_pca(ordination$plotdata, colour = Landgebruik_MBAG)
@@ -205,7 +230,11 @@ plot_tsne(ordination$plotdata, colour = Diepte)
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   use_rank = "genus",
-  frequency_threshold = 10)
+  frequency_threshold = 0)
+```
+
+```{r}
+ggscreeplot(ordination$pca, type = "both")
 ```
 
 ```{r}
