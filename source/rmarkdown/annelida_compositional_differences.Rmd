@@ -108,16 +108,20 @@ tidy_physeq %>%
 
 ## Ordinaties
 
--   We verwijderen taxa die minder dan `frequency_threshold` voorkomen in de stalen
+We definiëren een functie die volgende stappen uitvoert:
+
+-   (optioneel) We verwijderen taxa die minder dan `frequency_threshold` (instelbaar) voorkomen in de stalen
+-   (optioneel) "rarefy" de samples tot een minimum aantal reads (instelbaar)
 -   We transformeren met de robuuste "centered-log-ratio" transformatie omdat we werken met compositionele data waar enkel relatieve verschillen in abundantie betekenisvol zijn
 -   Eerst voeren we een principale componenten analyse uit op deze data
--   Daarna behouden we de eerste `n` principale componenten die samen 90% van de totale variatie verklaren. Deze stap zal helpen om ruis uit de dataset te verwijderen.
+-   Daarna behouden we de eerste `n` principale componenten die samen 90% (instelbaar) van de totale variatie verklaren. Deze stap zal helpen om ruis uit de dataset te verwijderen.
 -   Tot slot voeren we een *t*-SNE analyse uit met als input de getrimde PCA oplossing en visualiseren we de resultaten
 
 ```{r function-ordinations}
 calc_ordinations <- function(
     tacos_data,
-    frequency_threshold,
+    rarefy_min_reads = NULL,
+    frequency_threshold = 0,
     cumulative_prop_explained = 0.9,
     use_rank = NULL
 ) {
@@ -132,6 +136,15 @@ calc_ordinations <- function(
     } %>%
     tidytacos::filter_counts(
       .by = "taxon_id", n() > frequency_threshold)
+
+  
+  if (!is.null(rarefy_min_reads)) {
+    message(paste("samples rarefied to", rarefy_min_reads, "reads"))
+    data <- data %>%
+      tidytacos::add_total_count() %>%
+      tidytacos::filter_samples(total_count >= rarefy_min_reads) %>%
+      tidytacos::rarefy(n = rarefy_min_reads)
+  }
 
   print(tidytacos::tacosum(data))
 
