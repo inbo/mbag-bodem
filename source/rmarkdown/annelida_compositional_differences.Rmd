@@ -31,6 +31,7 @@ if (!"tidytacos" %in% rownames(installed.packages())) {
   remotes::install_github("lebeerlab/tidytacos")
 }
 library(tidytacos)
+library(lubridate)
 
 
 mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
@@ -75,7 +76,7 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
 
 
-```{r}
+```{r create-tidytacos-object}
 ranks <- physeq_Olig01_Annelida_species %>%
   phyloseq::rank_names()
 
@@ -83,10 +84,39 @@ tidy_physeq <- tidytacos::from_phyloseq(physeq_Olig01_Annelida_species) %>%
   tidytacos::remove_empty_samples() %>%
   tidytacos::set_rank_names(
     rank_names = ranks
+  ) %>%
+  tidytacos::mutate_samples(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
   )
 ```
 
 # Analyse van verschillen in samenstelling
+
+## Verkenning designvariabelen
+
+```{r}
+tidy_physeq %>%
+  samples() %>%
+  select(Datum_staalname, Staalnemer, Landgebruik_MBAG, Diepte) %>%
+  group_by(Landgebruik_MBAG, Diepte, Staalnemer) %>%
+  summarise(
+    n_samples = n(),
+    avg_month = round(mean(month(Datum_staalname)), 1),
+    top3_months = month(Datum_staalname, label = TRUE) %>%
+      forcats::fct_infreq() %>%
+      levels() %>%
+      paste(collapse = "; ") %>%
+      stringr::str_sub(start = 1, end = 13),
+    period = interval(start = min(Datum_staalname), end = max(Datum_staalname)),
+    ) %>%
+  kable()
+```
+
 
 ## Verkenning verschillen in totaal aantal reads
 
@@ -97,13 +127,45 @@ tidy_physeq %>%
   add_total_count() %>%
   samples() %>%
   select(Diepte, Landgebruik_MBAG, total_count) %>%
-  mutate(Landgebruik_MBAG = factor(
-    Landgebruik_MBAG,
-    levels = c("Akker", "Tijdelijk grasland", "Blijvend grasland",
-               "Residentieel grasland", "Natuurgrasland"))) %>%
   ggplot() +
   geom_boxplot(aes(x = Landgebruik_MBAG, y = total_count, fill = Diepte)) +
   scale_y_log10()
+```
+
+Onder 10,000 zijn er een aantal outliers.
+We verwijderen deze en maken de figuur opnieuw:
+
+```{r remove-total-count-outliers}
+minimum_total_count <- 1e+04
+
+tidy_physeq <- tidy_physeq %>%
+  add_total_count() %>%
+  filter_samples(total_count > minimum_total_count)
+```
+
+
+```{r total-count-confounding-wo-outliers}
+tidy_physeq %>%
+  samples() %>%
+  select(Diepte, Landgebruik_MBAG, total_count) %>%
+  ggplot() +
+  geom_hline(aes(yintercept = exp(mean(log(total_count))))) +
+  geom_boxplot(aes(x = Landgebruik_MBAG, y = total_count, fill = Diepte)) +
+  scale_y_log10(breaks = c(1e+04, 1e+05, 3e+05, 1e+06))
+```
+
+Ook eens checken of er verschil is volgens datum staalname of staalnemer:
+
+```{r}
+tidy_physeq %>%
+  samples() %>%
+  select(Datum_staalname, Staalnemer, total_count) %>%
+  ggplot() +
+  geom_point(aes(x = Datum_staalname, y = total_count, colour = Staalnemer)) +
+  geom_smooth(aes(
+    x = Datum_staalname, y = total_count,
+    colour = Staalnemer, fill = Staalnemer)) +
+  scale_y_log10(breaks = c(1e+04, 1e+05, 3e+05, 1e+06))
 ```
 
 ## Ordinaties
@@ -111,20 +173,27 @@ tidy_physeq %>%
 We definiëren een functie die volgende stappen uitvoert:
 
 -   (optioneel) We verwijderen taxa die minder dan `frequency_threshold` (instelbaar) voorkomen in de stalen
--   (optioneel) "rarefy" de samples tot een minimum aantal reads (instelbaar)
+    -   voordeel: dit zijn taxa die weinig informatie dragen
+    -   nadeel: indien zeldzame taxa geclusterd zitten in een groep, missen we dit patroon als we ze verwijderen
+-   (optioneel) "rarefy" de samples tot een gelijk aantal reads (instelbaar)
+    -   voordeel: eventueel vertekening door verschillen in totaal aantal reads tussen stalen wordt weggewerkt; kan zeker van belang zijn als er systematische verschillen in totaal aantal reads zitten tussen de groepen die we willen vergelijken (zie vorige sectie)
+    -   nadeel: dit is een randomisatieprocedure die in feite 10 - 100-tal keer zou herhaald moeten worden waarna de resultaten van elk van de random datasets gecombineerd worden (vergelijkbaar met "multiple imputation"); bij een ordinatie is er echter geen manier om tot een consensus ordinatie te komen
 -   We transformeren met de robuuste "centered-log-ratio" transformatie omdat we werken met compositionele data waar enkel relatieve verschillen in abundantie betekenisvol zijn
 -   Eerst voeren we een principale componenten analyse uit op deze data
+    -   de afstanden tussen samples in de ordinatieruimte zijn dan Euclidische afstanden tussen "centered-log-ratio" getransformeerde variabelen - dit is in de literatuur ook bekend als de Aitchinson afstand.
 -   Daarna behouden we de eerste `n` principale componenten die samen 90% (instelbaar) van de totale variatie verklaren. Deze stap zal helpen om ruis uit de dataset te verwijderen.
 -   Tot slot voeren we een *t*-SNE analyse uit met als input de getrimde PCA oplossing en visualiseren we de resultaten
+
 
 ```{r function-ordinations}
 calc_ordinations <- function(
     tacos_data,
-    rarefy_min_reads = NULL,
+    rarefy_even_reads = NULL,
     frequency_threshold = 0,
     cumulative_prop_explained = 0.9,
     use_rank = NULL
 ) {
+  set.seed(20315)
 
   data <- tacos_data %>%
     {
@@ -138,12 +207,10 @@ calc_ordinations <- function(
       .by = "taxon_id", n() > frequency_threshold)
 
   
-  if (!is.null(rarefy_min_reads)) {
-    message(paste("samples rarefied to", rarefy_min_reads, "reads"))
+  if (!is.null(rarefy_even_reads)) {
+    message(paste("samples rarefied to", rarefy_even_reads, "reads"))
     data <- data %>%
-      tidytacos::add_total_count() %>%
-      tidytacos::filter_samples(total_count >= rarefy_min_reads) %>%
-      tidytacos::rarefy(n = rarefy_min_reads)
+      tidytacos::rarefy(n = rarefy_even_reads, replace = TRUE)
   }
 
   print(tidytacos::tacosum(data))
@@ -157,7 +224,7 @@ calc_ordinations <- function(
 
   pca1 <- prcomp(
     vegan::decostand(
-      counts %>% select(-.data$sample_id),
+      counts %>% select(-"sample_id"),
       method = "rclr"))
   d <- pca1$sdev^2
   truncate_axis <- sum(cumsum(d) / sum(d) < cumulative_prop_explained)
@@ -213,7 +280,8 @@ plot_tsne <- function(plotdata, colour = NULL) {
 ```{r}
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
-  frequency_threshold = 0)
+  frequency_threshold = 0,
+  rarefy_even_reads = 100000)
 ```
 
 ```{r}
@@ -243,7 +311,8 @@ plot_tsne(ordination$plotdata, colour = Diepte)
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   use_rank = "genus",
-  frequency_threshold = 0)
+  frequency_threshold = 0,
+  rarefy_even_reads = 100000)
 ```
 
 ```{r}
@@ -289,11 +358,7 @@ sccomp_data_annelida <- tidy_physeq %>%
          Landgebruik_MBAG, genus, occurrence) %>%
   filter(
     complete.cases(.)
-  ) %>%
-  mutate(Landgebruik_MBAG = factor(
-    Landgebruik_MBAG,
-    levels = c("Akker", "Tijdelijk grasland", "Blijvend grasland",
-               "Residentieel grasland", "Natuurgrasland")))
+  )
 ```
 
 Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
