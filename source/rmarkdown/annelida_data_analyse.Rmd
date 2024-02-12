@@ -71,7 +71,7 @@ path_naar_bestand <- file.path(
     "statistiek",
     "Annelida",
     "phyloseq",
-    "physeq_Olig01_Annelida_species_mbag.Rdata"
+    "physeq_Olig01_Annelida_species.Rdata"
   )
 
 load(path_naar_bestand)
