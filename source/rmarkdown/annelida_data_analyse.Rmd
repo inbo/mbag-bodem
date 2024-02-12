@@ -127,6 +127,8 @@ veganobject <- psotu2veg(physeq)
 
 ```{r convert-tidytacos}
 tidy_physeq <- tidytacos::from_phyloseq(physeq)
+tidy_physeq_rarefied <- tidytacos::from_phyloseq(physeq_rarefied)
+
 tidy_physeq <- tidy_physeq %>%
   remove_empty_samples() %>%
   tidytacos::set_rank_names(
@@ -134,6 +136,15 @@ tidy_physeq <- tidy_physeq %>%
   ) %>%
   tidytacos::add_alpha() %>%
   tidytacos::add_total_count()
+
+tidy_physeq_rarefied <- tidy_physeq_rarefied %>%
+  remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = c("phylum", "class", "order", "family", "genus", "species")
+  ) %>%
+  tidytacos::add_alpha() %>%
+  tidytacos::add_total_count()
+
 ```
 
 
@@ -192,41 +203,44 @@ tidy_physeq$samples %>%
 ## OTU tabel
 
 ```{r verken-otu-data}
-glimpse(otu_table(physeq) %>% as.data.frame %>% as_tibble())
+physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
+
+
+glimpse(otu_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
 ```
 
 ## Taxonomie tabel
 
 ```{r verken-taxonomie-data}
-glimpse(tax_table(physeq) %>% as.data.frame %>% as_tibble())
+glimpse(tax_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
 ```
 
 Unieke en gedeelde taxa per diepte:
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_venn(Diepte)
 ```
 
 Unieke en gedeelde taxa per landgebruik:
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_venn(Landgebruik_MBAG)
 ```
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_stack()
 ```
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_stack(x = Landgebruik_MBAG)
 ```
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_stack(x = Diepte)
 ```
 
