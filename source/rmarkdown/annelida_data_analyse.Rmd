@@ -98,6 +98,9 @@ Filter taxongroep:
 physeq <- subset_taxa(
   physeq,
   phylum == "Annelida")
+
+physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
+
 ```
 
 
@@ -203,7 +206,6 @@ tidy_physeq$samples %>%
 ## OTU tabel
 
 ```{r verken-otu-data}
-physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
 
 
 glimpse(otu_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
@@ -451,7 +453,7 @@ tidy_physeq %>%
 ## Ordinatie
 
 ```{r physec-rarefied}
-physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
+
 ```
 
 ```{r ordination-vegan}
