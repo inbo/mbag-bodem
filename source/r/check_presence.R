@@ -1,22 +1,35 @@
-library(dplyr)
-library(purrr)
-
-# Set working directory
-setwd("YOUR_WORKING_DIRECTORY")
-
-# West-Europa
-# België, Frankrijk, Duitsland, Luxemburg, Nederland, Zwitserland, Oostenrijk
-
-
-check_presence_from_file <- function(input_file = "./EJP_inse01_species_unique.txt", countries = c("BE", "FR", "DE", "LU", "NL", "CH", "AT")) {
-  # Read scientific names from the input file
-  scientificNames <- readLines(input_file)
+#' Deze functie gaat na of een soort volgens GBIF voorkomt in een gekozen set
+#' van landen
+#'
+#' Default zijn West-Europese landen ingesteld: België, Frankrijk, Duitsland,
+#' Luxemburg, Nederland, Zwitserland, Oostenrijk
+#'
+#' @param input A character vector of Scientific names or a .txt file from which
+#' Scientific Names can be read.
+#' @param countries a character vector of country codes
+#'
+#' @example
+#' result_WestEurope <- check_presence_from_file()
+#' print(result_WestEurope)
+check_presence <- function(
+    input = NULL,
+    countries = c("BE", "FR", "DE", "LU", "NL", "CH", "AT")) {
+  require(dplyr)
+  require(purrr)
+  if (!is.null(input) && file.exists(input)) {
+    # Read scientific names from the input file
+    scientific_names <- readLines(input)
+  } else if (is.character(input)) {
+    scientific_names <- input
+  } else {
+    stop("Input must be either a character vector or a valid file path.")
+  }
 
   # Remove any empty lines
-  scientificNames <- scientificNames[scientificNames != ""]
+  scientific_names <- scientific_names[scientific_names != ""]
 
   # Initialize vector to store presence results
-  presence <- logical(length(scientificNames))
+  presence <- logical(length(scientific_names))
 
   # Loop over each country
   for (country in countries) {
@@ -39,21 +52,19 @@ check_presence_from_file <- function(input_file = "./EJP_inse01_species_unique.t
       }
     }
 
-    # Map over scientific names and check occurrence data for the current country
-    country_presence <- purrr::map_lgl(scientificNames, check_occurrence)
+    # Map over scientific names and check occurrence data for the current
+    # country
+    country_presence <- purrr::map_lgl(scientific_names, check_occurrence)
 
     # Update presence vector with results for the current country
     presence <- presence | country_presence
   }
 
   # Create tibble with results
-  result_table <- tibble::tibble(present = presence, scientificName = scientificNames)
+  result_table <- tibble::tibble(
+    present = presence,
+    scientific_name = scientific_names
+  )
 
   return(result_table)
 }
-
-# Example usage:
-result_WestEurope <- check_presence_from_file()
-print(result_WestEurope)
-
-write.csv(result_WestEurope, "result_WestEurope.csv")
