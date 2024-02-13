@@ -52,7 +52,8 @@ check_presence <- function(
       }
     }
 
-    # Map over scientific names and check occurrence data for the current country
+    # Map over scientific names and check occurrence data for the current
+    # country
     country_presence <- purrr::map_lgl(scientific_names, check_occurrence)
 
     # Update presence vector with results for the current country
