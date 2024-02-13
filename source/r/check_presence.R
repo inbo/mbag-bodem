@@ -18,18 +18,18 @@ check_presence <- function(
   require(purrr)
   if (!is.null(input) && file.exists(input)) {
     # Read scientific names from the input file
-    scientificNames <- readLines(input)
+    scientific_names <- readLines(input)
   } else if (is.character(input)) {
-    scientificNames <- input
+    scientific_names <- input
   } else {
     stop("Input must be either a character vector or a valid file path.")
   }
 
   # Remove any empty lines
-  scientificNames <- scientificNames[scientificNames != ""]
+  scientific_names <- scientific_names[scientific_names != ""]
 
   # Initialize vector to store presence results
-  presence <- logical(length(scientificNames))
+  presence <- logical(length(scientific_names))
 
   # Loop over each country
   for (country in countries) {
@@ -53,7 +53,7 @@ check_presence <- function(
     }
 
     # Map over scientific names and check occurrence data for the current country
-    country_presence <- purrr::map_lgl(scientificNames, check_occurrence)
+    country_presence <- purrr::map_lgl(scientific_names, check_occurrence)
 
     # Update presence vector with results for the current country
     presence <- presence | country_presence
@@ -62,7 +62,7 @@ check_presence <- function(
   # Create tibble with results
   result_table <- tibble::tibble(
     present = presence,
-    scientificName = scientificNames
+    scientific_name = scientific_names
   )
 
   return(result_table)
