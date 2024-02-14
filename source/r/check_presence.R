@@ -16,7 +16,7 @@ check_presence <- function(
     countries = c("BE", "FR", "DE", "LU", "NL", "CH", "AT")) {
   require(dplyr)
   require(purrr)
-  if (!is.null(input) && file.exists(input)) {
+  if (length(input) == 1 && !is.null(input) && file.exists(input)) {
     # Read scientific names from the input file
     scientific_names <- readLines(input)
   } else if (is.character(input)) {
