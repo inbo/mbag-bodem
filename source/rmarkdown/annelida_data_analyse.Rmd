@@ -223,8 +223,11 @@ glimpse(tax_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
 species <- as.vector(tax_table(physeq)[, "species"])
 species <- species[!grepl("_otu", species)]
 species <- gsub("_", " ", species)
-source("source/r/check_presence.R")
-check_presence(species)
+source(here::here("source/r/check_presence.R"))
+gbif_check <- check_presence(species)
+gbif_check %>%
+filter(!present) %>%
+  kable(caption = "Not present according to GBIF in Western-Europe")
 ```
 
 Unieke en gedeelde taxa per diepte:
