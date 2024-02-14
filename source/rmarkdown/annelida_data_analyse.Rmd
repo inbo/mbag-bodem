@@ -213,8 +213,18 @@ glimpse(otu_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
 
 ## Taxonomie tabel
 
+
 ```{r verken-taxonomie-data}
 glimpse(tax_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
+```
+
+```{r GBIF-check-presence}
+
+species <- as.vector(tax_table(physeq)[, "species"])
+species <- species[!grepl("_otu", species)]
+species <- gsub("_", " ", species)
+source("source/r/check_presence.R")
+check_presence(species)
 ```
 
 Unieke en gedeelde taxa per diepte:
@@ -250,6 +260,7 @@ physeq_rarefied <- merge_phyloseq(physeq_rarefied, sample_data(physeq_rarefied))
 psadd::plot_krona(physeq_rarefied, "MBAG_Olig01_Annelida_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte", "Landgebruik_MBAG_diepte", trim = T)
 
 ```
+
 
 ```{r}
 tidy_physeq_rarefied %>%
