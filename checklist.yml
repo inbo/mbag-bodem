@@ -15,3 +15,6 @@ spelling:
   ignore:
   - .github
   - LICENSE.md
+  other:
+    en-GB:
+      - source/r/geocomputations.R
