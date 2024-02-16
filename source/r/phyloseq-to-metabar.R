@@ -1,5 +1,7 @@
 # Install/load packages
 
+waarom verdwijnt deze commit
+
 # Function to install a package if not already installed
 install_if_missing <- function(package_name) {
   if (!requireNamespace(package_name, quietly = TRUE)) {
