@@ -1,7 +1,5 @@
 # Install/load packages
 
-waarom verdwijnt deze commit
-
 # Function to install a package if not already installed
 install_if_missing <- function(package_name) {
   if (!requireNamespace(package_name, quietly = TRUE)) {
@@ -15,7 +13,7 @@ packages_to_load <- c("igraph", "ggplot2", "dplyr", "tidyr",
                       "microbiome", "biom", "data.table")
 
 # Load packages
-for(package_name in packages_to_load) {
+for (package_name in packages_to_load) {
   library(package_name, character.only = TRUE)
 }
 
@@ -29,21 +27,24 @@ download_and_source <- function(url, destination) {
 }
 
 # Download and source microfiltR_source_code.R
-download_and_source("https://raw.githubusercontent.com/itsmisterbrown/microfiltR/master/microfiltR_source_code.R", "microfiltR_source_code.R")
+download_and_source(
+  "https://raw.githubusercontent.com/itsmisterbrown/microfiltR/master/microfiltR_source_code.R",
+  "microfiltR_source_code.R")
 
 # Download and source check_metabarlist.R
-download_and_source("https://raw.githubusercontent.com/metabaRfactory/metabaR/HEAD/R/check_metabarlist.R", "check_metabarlist.R")
+download_and_source(
+  "https://raw.githubusercontent.com/metabaRfactory/metabaR/HEAD/R/check_metabarlist.R",
+  "check_metabarlist.R")
 
 # Download and source subset_metabarlist.R
-download_and_source("https://raw.githubusercontent.com/metabaRfactory/metabaR/HEAD/R/subset_metabarlist.R", "subset_metabarlist.R")
+download_and_source(
+  "https://raw.githubusercontent.com/metabaRfactory/metabaR/HEAD/R/subset_metabarlist.R",
+  "subset_metabarlist.R")
 
 # Download and source ggtaxplot.R
-download_and_source("https://raw.githubusercontent.com/slambrechts/metabaR/master/R/ggtaxplot.R", "ggtaxplot.R")
-
-################################################################################
-# Set working directory
-
-#setwd("G:/path/to/working/directory")
+download_and_source(
+  "https://raw.githubusercontent.com/slambrechts/metabaR/master/R/ggtaxplot.R",
+  "ggtaxplot.R")
 
 ################################################################################
 ################################################################################
@@ -52,12 +53,19 @@ load("./physeq_Olig01_Annelida_rar_species.Rdata")
 
 
 fp <- paste(getwd(), "/", sep = "")
-write.dataset(ps = physeq_Olig01_Annelida_rar.rarefied.species, filePATH = fp, filePREFIX = "Olig01_Annelida")
+write.dataset(
+  ps = physeq_Olig01_Annelida_rar.rarefied.species,
+  filePATH = fp,
+  filePREFIX = "Olig01_Annelida")
 
 
 ################################################################################
 # File reads
-asv_tab <- as.matrix(t(phyloseq::otu_table(physeq_Olig01_Annelida_rar.rarefied.species)))
+asv_tab <- as.matrix(
+  t(
+    phyloseq::otu_table(physeq_Olig01_Annelida_rar.rarefied.species)
+    )
+  )
 file_reads <- as.data.frame(asv_tab)
 
 # Make numeric columns numeric
@@ -73,12 +81,19 @@ class(file_reads_num_matrix)
 
 # Add _r1 to the row names
 # adding suffix to row names
-rownames(file_reads_num_matrix) <- paste(rownames(file_reads_num_matrix),"r1",sep = "_")
+rownames(file_reads_num_matrix) <- paste(
+  rownames(file_reads_num_matrix),
+  "r1",
+  sep = "_"
+  )
 
 
 # Save file
-write.table(file_reads_num_matrix, file = "Olig01_Annelida_ASV_table_transpose.txt", sep = "\t",
-            row.names = TRUE)
+write.table(
+  file_reads_num_matrix,
+  file = "Olig01_Annelida_ASV_table_transpose.txt",
+  sep = "\t",
+  row.names = TRUE)
 
 
 ################################################################################
@@ -102,21 +117,31 @@ file_pcrs_matrix <- as.matrix(df_pcr)
 class(file_pcrs_matrix)
 
 # Save file
-write.table(file_pcrs_matrix, file = "Olig01_Annelida_PCRs.txt", sep = "\t",
-            row.names = FALSE)
+write.table(
+  file_pcrs_matrix,
+  file = "Olig01_Annelida_PCRs.txt",
+  sep = "\t",
+  row.names = FALSE)
 
 ################################################################################
 # file samples
 
-file_samples <- suppressWarnings(as.matrix(phyloseq::sample_data(physeq_Olig01_Annelida_rar.rarefied.species)))
+file_samples <- suppressWarnings(
+  as.matrix(
+    phyloseq::sample_data(physeq_Olig01_Annelida_rar.rarefied.species)
+    )
+  )
 
 # create matrix
 file_samples_matrix <- as.matrix(file_samples)
 class(file_samples_matrix)
 
 # Save file
-write.table(file_samples_matrix, file = "Olig01_Annelida_sample_data2.txt", sep = "\t",
-            row.names = TRUE)
+write.table(
+  file_samples_matrix,
+  file = "Olig01_Annelida_sample_data2.txt",
+  sep = "\t",
+  row.names = TRUE)
 
 ################################################################################
 # File motus
@@ -125,7 +150,9 @@ write.table(file_samples_matrix, file = "Olig01_Annelida_sample_data2.txt", sep 
 
 
 # Read taxonomy table from physeq
-tax.tab <- as.data.frame(phyloseq::tax_table(physeq_Olig01_Annelida_rar.rarefied.species))
+tax.tab <- as.data.frame(
+  phyloseq::tax_table(physeq_Olig01_Annelida_rar.rarefied.species)
+  )
 
 # Create a taxonomy dictionary
 taxonomy_dict <- list()
@@ -171,9 +198,18 @@ while (length(line <- readLines(input_file, n = 1)) > 0) {
 }
 
 # Add the last record if it's in the taxonomy file and has a sequence
-if (!is.null(current_otu) && current_otu %in% names(taxonomy_dict) && !is.null(current_sequence)) {
+if (!is.null(current_otu) &&
+    current_otu %in% names(taxonomy_dict) &&
+    !is.null(current_sequence)) {
   # Write to file
-  writeLines(paste(current_otu, taxonomy_dict[[current_otu]], current_sequence, sep = "\t"), output_file)
+  writeLines(
+    paste(
+      current_otu,
+      taxonomy_dict[[current_otu]],
+      current_sequence,
+      sep = "\t"),
+    output_file
+  )
   # Add to dataframe
   new_row <- c(current_otu, taxonomy_dict[[current_otu]], current_sequence)
   output_df <- rbind(output_df, new_row)
@@ -215,7 +251,9 @@ sorted_data_motus <- sorted_data_motus %>%
 
 # Rename columns
 rownames(sorted_data_motus) <- rownames(sorted_data_motus)
-colnames(sorted_data_motus) <- c("phylum_name", "class_name", "order_name", "family_name", "genus_name", "species_name", "sequence")
+colnames(sorted_data_motus) <- c(
+  "phylum_name", "class_name", "order_name", "family_name", "genus_name",
+  "species_name", "sequence")
 
 # Rename to NA were needed Wanneer een OTU niet geïdentificeerd is op een bepaald niveau (manueel in google sheet)
 
@@ -237,13 +275,21 @@ motus_NA <- replace_names(motus_NA)
 motus_NA_matrix <- motus_NA
 
 
-write.table(motus_NA_matrix, file = "Olig01_Annelida_motus_NA.txt", sep = "\t",
-            row.names = TRUE)
+write.table(
+  motus_NA_matrix,
+  file = "Olig01_Annelida_motus_NA.txt", sep = "\t",
+  row.names = TRUE
+)
 
 
 ################################################################################
 # Create metabarlist
-Olig01_Annelida_metabarlist <- tabfiles_to_metabarlist(file_reads = "./Olig01_Annelida_ASV_table_transpose.txt", file_motus = "Olig01_Annelida_motus_NA.txt", file_pcrs = "./Olig01_Annelida_PCRs.txt", file_samples = "./Olig01_Annelida_sample_data2.txt", files_sep = "\t")
+Olig01_Annelida_metabarlist <- tabfiles_to_metabarlist(
+  file_reads = "./Olig01_Annelida_ASV_table_transpose.txt",
+  file_motus = "Olig01_Annelida_motus_NA.txt",
+  file_pcrs = "./Olig01_Annelida_PCRs.txt",
+  file_samples = "./Olig01_Annelida_sample_data2.txt",
+  files_sep = "\t")
 
 summary_metabarlist(Olig01_Annelida_metabarlist)
 
@@ -257,9 +303,10 @@ save(Olig01_Annelida_metabarlist,file = "metabarlist_Olig01_Annelida.Rdata")
 # Specify what you need
 indices <- grepl("Annelida", Olig01_Annelida_metabarlist$motus$phylum_name)
 
-Olig01_Annelida <- subset_metabarlist(Olig01_Annelida_metabarlist,
-                                      table = "motus",
-                                      indices = indices
+Olig01_Annelida <- subset_metabarlist(
+  Olig01_Annelida_metabarlist,
+  table = "motus",
+  indices = indices
 )
 
 
