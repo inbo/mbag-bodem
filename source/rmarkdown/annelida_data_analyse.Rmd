@@ -70,7 +70,7 @@ path_naar_bestand <- file.path(
     "data",
     "statistiek",
     "Annelida",
-    "phyloseq_Olig01_Annelida",
+    "phyloseq",
     "physeq_Olig01_Annelida_species.Rdata"
   )
 
@@ -98,6 +98,9 @@ Filter taxongroep:
 physeq <- subset_taxa(
   physeq,
   phylum == "Annelida")
+
+physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
+
 ```
 
 
@@ -127,6 +130,8 @@ veganobject <- psotu2veg(physeq)
 
 ```{r convert-tidytacos}
 tidy_physeq <- tidytacos::from_phyloseq(physeq)
+tidy_physeq_rarefied <- tidytacos::from_phyloseq(physeq_rarefied)
+
 tidy_physeq <- tidy_physeq %>%
   remove_empty_samples() %>%
   tidytacos::set_rank_names(
@@ -134,6 +139,15 @@ tidy_physeq <- tidy_physeq %>%
   ) %>%
   tidytacos::add_alpha() %>%
   tidytacos::add_total_count()
+
+tidy_physeq_rarefied <- tidy_physeq_rarefied %>%
+  remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = c("phylum", "class", "order", "family", "genus", "species")
+  ) %>%
+  tidytacos::add_alpha() %>%
+  tidytacos::add_total_count()
+
 ```
 
 
@@ -192,41 +206,76 @@ tidy_physeq$samples %>%
 ## OTU tabel
 
 ```{r verken-otu-data}
-glimpse(otu_table(physeq) %>% as.data.frame %>% as_tibble())
+
+
+glimpse(otu_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
 ```
 
 ## Taxonomie tabel
 
+
 ```{r verken-taxonomie-data}
-glimpse(tax_table(physeq) %>% as.data.frame %>% as_tibble())
+glimpse(tax_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
+```
+
+```{r GBIF-check-presence}
+
+species <- as.vector(tax_table(physeq)[, "species"])
+species <- species[!grepl("_otu", species)]
+species <- gsub("_", " ", species)
+source(here::here("source/r/check_presence.R"))
+gbif_check <- check_presence(species)
+gbif_check %>%
+filter(!present) %>%
+  kable(caption = "Not present according to GBIF in Western-Europe")
 ```
 
 Unieke en gedeelde taxa per diepte:
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_venn(Diepte)
 ```
 
 Unieke en gedeelde taxa per landgebruik:
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_venn(Landgebruik_MBAG)
 ```
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_stack()
 ```
 
 ```{r}
-tidy_physeq %>%
+# Create a new combined column
+combined_column <- paste(sample_data(physeq_rarefied)$Landgebruik_MBAG, sample_data(physeq_rarefied)$Diepte, sep = "_")
+
+# Add the new combined column to the sample metadata with the desired name
+sample_data(physeq_rarefied)$Landgebruik_MBAG_diepte <- combined_column
+
+# Update the phyloseq object with the modified sample data
+physeq_rarefied <- merge_phyloseq(physeq_rarefied, sample_data(physeq_rarefied))
+
+
+if (system(command = "which ktImportText",  intern = FALSE, ignore.stderr = TRUE,  ignore.stdout = TRUE) != 1) {
+  psadd::plot_krona(physeq_rarefied, "MBAG_Olig01_Annelida_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte", "Landgebruik_MBAG_diepte", trim = T)
+}
+
+
+
+```
+
+
+```{r}
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_stack(x = Landgebruik_MBAG)
 ```
 
 ```{r}
-tidy_physeq %>%
+tidy_physeq_rarefied %>%
   tidytacos::tacoplot_stack(x = Diepte)
 ```
 
@@ -437,7 +486,7 @@ tidy_physeq %>%
 ## Ordinatie
 
 ```{r physec-rarefied}
-physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
+
 ```
 
 ```{r ordination-vegan}
