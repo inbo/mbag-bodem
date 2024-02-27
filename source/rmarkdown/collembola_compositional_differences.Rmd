@@ -1,0 +1,520 @@
+---
+title: "Collembola: verschillen in taxonomische samenstelling tussen groepen van stalen"
+author: "Sam Lambrechts, Io Deflem, Emma Cartuyvels, Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: sentence
+bibliography: references.yaml
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(here)
+opts_chunk$set(echo = TRUE, out.width = "100%")
+opts_knit$set(root.dir = here::here())
+
+if (!"phyloseq" %in% rownames(installed.packages())) {
+  remotes::install_github("joey711/phyloseq")
+}
+library(phyloseq)
+library(vegan)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+if (!"tidytacos" %in% rownames(installed.packages())) {
+  remotes::install_github("lebeerlab/tidytacos")
+}
+library(tidytacos)
+library(lubridate)
+
+
+mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
+
+
+if (!"GenomeInfoDbData" %in% rownames(installed.packages())) {
+install.packages(
+  "GenomeInfoDbData",
+  repos = "https://bioconductor.org/packages/3.17/data/annotation")
+}
+if (!"sccomp" %in% rownames(installed.packages())) {
+  remotes::install_github("stemangiola/sccomp")
+}
+library(sccomp)
+library(inboggvegan)
+```
+
+# Inlezen data
+
+```{=html}
+<!--
+In plaats van een .Rdata object, zouden we hier beter de bronbestanden inlezen met de code die hiervoor nodig.
+Met bronbestanden bedoel ik hier gewoon de drie tabelletjes die samen het phyloseq object vormen.
+Deze tabelletjes kunnen best gewoon csv bestanden zijn die we inlezen.
+-->
+```
+```{r load-rdata-file}
+path_naar_bestand <- file.path(
+    mbag_folder,
+    "4c_bodembiodiversiteit",
+    "data",
+    "statistiek",
+    "Coll01",
+    "zonder_otu_legetaxonomie",
+    "phyloseq",
+    "physeq_Coll01_Collembola.Rdata"
+  )
+
+load(path_naar_bestand)
+```
+
+Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
+
+
+
+```{r create-tidytacos-object}
+physeq <- physeq_Coll01_Collembola
+
+ranks <- physeq %>%
+  phyloseq::rank_names()
+
+tidy_physeq <- tidytacos::from_phyloseq(physeq) %>%
+  tidytacos::remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = ranks
+  ) %>%
+  tidytacos::mutate_samples(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+```
+
+# Analyse van verschillen in samenstelling
+
+## Verkenning designvariabelen
+
+```{r}
+tidy_physeq %>%
+  samples() %>%
+  select(Datum_staalname, Staalnemer, Landgebruik_MBAG, Diepte) %>%
+  group_by(Landgebruik_MBAG, Diepte, Staalnemer) %>%
+  summarise(
+    n_samples = n(),
+    avg_month = round(mean(month(Datum_staalname)), 1),
+    top3_months = month(Datum_staalname, label = TRUE) %>%
+      forcats::fct_infreq() %>%
+      levels() %>%
+      paste(collapse = "; ") %>%
+      stringr::str_sub(start = 1, end = 13),
+    period = interval(start = min(Datum_staalname), end = max(Datum_staalname)),
+    ) %>%
+  kable()
+```
+
+
+## Verkenning verschillen in totaal aantal reads
+
+Indien er belangrijke verschillen zijn in totaal aantal reads tussen stalen die behoren tot verschillende groepen, dan zal dit ook (mogelijk artificiële) verschillen veroorzaken in ordinaties.
+
+```{r total-count-confounding}
+tidy_physeq %>%
+  add_total_count() %>%
+  samples() %>%
+  select(Diepte, Landgebruik_MBAG, total_count) %>%
+  ggplot() +
+  geom_boxplot(aes(x = Landgebruik_MBAG, y = total_count, fill = Diepte)) +
+  scale_y_log10()
+```
+
+Onder 10,000 zijn er een aantal outliers.
+We verwijderen deze en maken de figuur opnieuw:
+
+```{r remove-total-count-outliers}
+minimum_total_count <- 1e+04
+
+tidy_physeq <- tidy_physeq %>%
+  add_total_count() %>%
+  filter_samples(total_count > minimum_total_count)
+```
+
+
+```{r total-count-confounding-wo-outliers}
+tidy_physeq %>%
+  samples() %>%
+  select(Diepte, Landgebruik_MBAG, total_count) %>%
+  ggplot() +
+  geom_hline(aes(yintercept = exp(mean(log(total_count))))) +
+  geom_boxplot(aes(x = Landgebruik_MBAG, y = total_count, fill = Diepte)) +
+  scale_y_log10(breaks = c(1e+04, 1e+05, 3e+05, 1e+06))
+```
+
+Ook eens checken of er verschil is volgens datum staalname of staalnemer:
+
+```{r}
+tidy_physeq %>%
+  samples() %>%
+  select(Datum_staalname, Staalnemer, total_count) %>%
+  ggplot() +
+  geom_point(aes(x = Datum_staalname, y = total_count, colour = Staalnemer)) +
+  geom_smooth(aes(
+    x = Datum_staalname, y = total_count,
+    colour = Staalnemer, fill = Staalnemer)) +
+  scale_y_log10(breaks = c(1e+04, 1e+05, 3e+05, 1e+06))
+```
+
+## Ordinaties
+
+We definiëren een functie die volgende stappen uitvoert:
+
+-   (optioneel) We verwijderen taxa die minder dan `frequency_threshold` (instelbaar) voorkomen in de stalen
+    -   voordeel: dit zijn taxa die weinig informatie dragen
+    -   nadeel: indien zeldzame taxa geclusterd zitten in een groep, missen we dit patroon als we ze verwijderen
+-   (optioneel) "rarefy" de samples tot een gelijk aantal reads (instelbaar)
+    -   voordeel: eventueel vertekening door verschillen in totaal aantal reads tussen stalen wordt weggewerkt; kan zeker van belang zijn als er systematische verschillen in totaal aantal reads zitten tussen de groepen die we willen vergelijken (zie vorige sectie)
+    -   nadeel: dit is een randomisatieprocedure die in feite 10 - 100-tal keer zou herhaald moeten worden waarna de resultaten van elk van de random datasets gecombineerd worden (vergelijkbaar met "multiple imputation"); bij een ordinatie is er echter geen manier om tot een consensus ordinatie te komen
+-   We transformeren met de robuuste "centered-log-ratio" transformatie omdat we werken met compositionele data waar enkel relatieve verschillen in abundantie betekenisvol zijn
+-   Eerst voeren we een principale componenten analyse uit op deze data
+    -   de afstanden tussen samples in de ordinatieruimte zijn dan Euclidische afstanden tussen "centered-log-ratio" getransformeerde variabelen - dit is in de literatuur ook bekend als de Aitchinson afstand.
+-   Daarna behouden we de eerste `n` principale componenten die samen 90% (instelbaar) van de totale variatie verklaren. Deze stap zal helpen om ruis uit de dataset te verwijderen.
+-   Tot slot voeren we een *t*-SNE analyse uit met als input de getrimde PCA oplossing en visualiseren we de resultaten
+
+
+```{r function-ordinations}
+calc_ordinations <- function(
+    tacos_data,
+    rarefy_even_reads = NULL,
+    frequency_threshold = 0,
+    cumulative_prop_explained = 0.9,
+    use_rank = NULL
+) {
+  set.seed(20315)
+
+  data <- tacos_data %>%
+    {
+      if (!is.null(use_rank)) {
+        tidytacos::aggregate_taxa(., rank = use_rank) # nolint
+      } else {
+        . # nolint
+      }
+    } %>%
+    tidytacos::filter_counts(
+      .by = "taxon_id", n() > frequency_threshold)
+
+  
+  if (!is.null(rarefy_even_reads)) {
+    message(paste("samples rarefied to", rarefy_even_reads, "reads"))
+    data <- data %>%
+      tidytacos::rarefy(n = rarefy_even_reads, replace = TRUE)
+  }
+
+  print(tidytacos::tacosum(data))
+
+  counts <- data$counts %>%
+    pivot_wider(
+      id_cols = "sample_id",
+      names_from = "taxon_id",
+      values_from = "count",
+      values_fill = 0)
+
+  pca1 <- prcomp(
+    vegan::decostand(
+      counts %>% select(-"sample_id"),
+      method = "rclr"))
+  d <- pca1$sdev^2
+  truncate_axis <- sum(cumsum(d) / sum(d) < cumulative_prop_explained)
+  message(sprintf(
+    "Calculating tsne based on first %s axes from PCA solution",
+    truncate_axis))
+  tsne1 <- tsne::tsne(pca1$x[, 1:truncate_axis])
+
+  plotdata <-
+    bind_cols(
+      as_tibble(vegan::scores(pca1, display = "sites", choices = 1:2)),
+      as_tibble(tsne1),
+      counts %>%
+        dplyr::select(.data$sample_id)) %>%
+    left_join(data$samples, by = "sample_id")
+
+  return(list(pca = pca1, tsne = tsne1, plotdata = plotdata))
+}
+
+plot_pca <- function(plotdata, colour = NULL) {
+  ggpca <- plotdata %>%
+    ggplot() +
+    geom_point(
+      aes(x = .data$PC1, y = .data$PC2, colour = {{colour}})
+    ) +
+    geom_vline(xintercept = 0, alpha = 0.3) +
+    geom_hline(yintercept = 0, alpha = 0.3) +
+    stat_ellipse(aes(
+      x = .data$PC1, y = .data$PC2, colour = {{colour}}),
+      level = 0.95) +
+    labs(x = "Eerste principale component",
+         y = "Tweede principale component")
+    return(ggpca)
+}
+
+plot_tsne <- function(plotdata, colour = NULL) {
+  ggtsne <- plotdata %>%
+    ggplot() +
+    geom_point(
+      aes(x = .data$V1, y = .data$V2, colour = {{colour}})) +
+    geom_vline(xintercept = 0, alpha = 0.3) +
+    geom_hline(yintercept = 0, alpha = 0.3) +
+    stat_ellipse(aes(
+      x = .data$V1, y = .data$V2, colour = {{colour}}), level = 0.95) +
+    labs(x = "Eerste t-SNE as",
+         y = "Tweede t-SNE as")
+    return(ggtsne)
+}
+```
+
+### Zonder aggregatie van taxa:
+
+```{r}
+ordination <- calc_ordinations(
+  tacos_data = tidy_physeq,
+  frequency_threshold = 0,
+  rarefy_even_reads = 23033)
+```
+
+```{r}
+ggscreeplot(ordination$pca, type = "both")
+```
+
+
+```{r}
+plot_pca(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_pca(ordination$plotdata, colour = Diepte)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Diepte)
+```
+
+### Aggregatie op genus niveau
+
+```{r calc-ordinations}
+ordination <- calc_ordinations(
+  tacos_data = tidy_physeq,
+  use_rank = "genus",
+  frequency_threshold = 0,
+  rarefy_even_reads = 23033)
+```
+
+```{r}
+ggscreeplot(ordination$pca, type = "both")
+```
+
+```{r}
+plot_pca(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_pca(ordination$plotdata, colour = Diepte)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Diepte)
+```
+
+## `sccomp`: differentiële samenstelling en variabiliteitsanalyse
+
+We fitten een multivariaat beta-binomiaal regressiemodel met diepte en landgebruik als factoren en proefvlak als random intercept [@mangiola2023].
+
+```{r sccomp-inputs}
+max_taxa <- 10
+used_rank <- "genus"
+sccomp_data_Collembola <- tidy_physeq %>%
+  aggregate_taxa(rank = used_rank) %>%
+  tidytacos::add_prevalence() %>%
+  tidytacos::mutate_taxa(
+    keep = min_rank(desc(occurrence)) < max_taxa
+  ) %>%
+  filter_taxa(
+    keep,
+    !is.na(genus)
+  ) %>%
+  tidytacos::everything() %>%
+  mutate(count = as.integer(count)) %>%
+  select(taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
+         Landgebruik_MBAG, genus, occurrence) %>%
+  filter(
+    complete.cases(.)
+  )
+```
+
+Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
+Dit is goed voor `r round(sum(sccomp_data_Collembola$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
+
+```{r sccomp-Collembola}
+fs::dir_create(here("source", "brms_models"))
+if (!file.exists(here("source", "brms_models", "s_Collembola.rds"))) {
+  s_Collembola <- sccomp_estimate(
+    .data = sccomp_data_Collembola,
+    formula_composition = ~
+      Landgebruik_MBAG
+    + Diepte
+    + Landgebruik_MBAG:Diepte
+    + (1 | Cmon_PlotID),
+    .sample = sample_id,
+    .cell_group = taxon_id,
+    .count = count,
+    verbose = TRUE,
+    max_sampling_iterations = 2000,
+    bimodal_mean_variability_association = FALSE
+  )
+  saveRDS(s_Collembola,
+          here("source", "brms_models", "s_Collembola.rds"))
+}
+
+s_Collembola <- readRDS(here("source", "brms_models", "s_Collembola.rds"))
+```
+
+### Model evaluatie
+
+```{r sccomp-test}
+sctest <- sccomp::sccomp_test(s_Collembola)
+plots <- plot(sctest)
+```
+
+```{r sccomp-taxon-info}
+sccomp_data_Collembola %>%
+  group_by(taxon_id, genus, occurrence) %>%
+  summarise(sum_reads = sum(count)) %>%
+  kable()
+```
+
+Hier volgen de standaard geproduceerde figuren.
+
+De boxplots geven aan of het model de data goed beschrijven.
+De blauwe boxen in de achtergrond zijn simulaties van het model (voorspellingen uit de _a posteriori_ kansverdeling).
+De gekleurde boxen in de voorgrond zijn op basis van de geobserveerde data, die ook getoond worden als punten.
+Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is het model goed in staat om de data te beschrijven.
+
+Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
+
+-   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
+-   in `t3` (en eventueel `t6`) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+
+```{r sccomp-boxplot-landgebruik}
+plots$boxplot[[1]]
+```
+
+```{r sccomp-boxplot-diepte}
+plots$boxplot[[2]]
+```
+
+De volgende figuren tonen een parameterschattingen (gemiddelde) met 95% credibiliteitsinterval voor elk van de taxa in functie van covariaten.
+Omdat meerdere taxa in het model zitten, is een correctie nodig voor meervoudige testen.
+In de figuur is dit met kleur aangeduid: de blauwe intervallen zijn significant verschillend van een zone van +/- 0.2 rond de nul in de logit schaal na rekening te houden met een correctie waarbij maximum 5% vals positieve gevallen worden toegelaten (`False discovery rate`).
+
+```{r sccomp-ci1d, fig.height = 200/25.4}
+plots$credible_intervals_1D
+```
+
+Tot slot tonen we nog een figuur die de relatie tussen gemiddelde en variantie toont voor elk van de taxa in het model.
+De figuur laat toe om in te schatten of deze relatie goed gemodelleerd werd.
+We willen hier geen sterke associatie zien tussen de x (gemiddelden) en de y (varianties) as.
+
+```{r sccomp-mean-variance}
+plots$credible_intervals_2D
+```
+
+### Model predicties
+
+
+```{r calc-sccomp-predictions}
+# maak data.frame voor nieuwe predicties
+my_new_data <- sccomp_data_Collembola %>%
+  distinct(Landgebruik_MBAG, Diepte)
+my_new_data$sample_id <- paste0("newsample", seq_len(nrow(my_new_data)))
+
+# make predictions for these new data, without the random effect
+# this returns a df with 4 times number of taxa rows
+s_Collembola_predictions <- sccomp::sccomp_predict(
+  s_Collembola,
+  formula_composition = ~
+    Landgebruik_MBAG +
+    Diepte +
+    Landgebruik_MBAG:Diepte,
+  new_data = my_new_data,
+  number_of_draws = 2000,
+  mcmc_seed = 1254)
+
+sortering <- s_Collembola %>%
+  filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
+  select(taxon_id, c_lower) %>%
+  left_join(sccomp_data_Collembola %>%
+              distinct(taxon_id, genus),
+            by = join_by(taxon_id)) %>%
+  arrange(c_lower)
+
+s_Collembola_predictions <- s_Collembola_predictions %>%
+  left_join(my_new_data, by = join_by(sample_id)) %>%
+  left_join(sccomp_data_Collembola %>%
+              distinct(taxon_id, genus),
+            by = join_by(taxon_id)) %>%
+  mutate(
+    taxon_id = factor(taxon_id, levels = sortering$taxon_id),
+    genus = factor(genus, levels = sortering$genus)
+  )
+```
+
+De volgende figuur toont de modelvoorspellingen.
+We zien een duidelijke toename van _Achaeta_, _Lumbricus_ en _Marionina_ met afnemende landgebruiksintensiteit.
+_Henlea_ soorten komen meer voor in 0-10 cm dan 10-30 cm.
+
+```{r plot-sccomp-predictions}
+s_Collembola_predictions %>%
+  ggplot() +
+  geom_pointrange(
+    aes(
+      x = Landgebruik_MBAG,
+      y = proportion_mean,
+      ymin = proportion_lower,
+      ymax = proportion_upper,
+      colour = Diepte),
+    position = position_dodge(width = 0.4),
+    alpha = 0.7
+  ) +
+  facet_wrap(~ genus, scales = "free_y") +
+  scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
+  theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
+```
+
+We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
+
+```{r}
+s_Collembola_predictions %>%
+  ggplot() +
+  geom_col(
+    aes(x = Landgebruik_MBAG,
+        y = proportion_mean,
+        fill = genus)) +
+  facet_grid(~Diepte) +
+  theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
+```
+
+
+# Referenties
