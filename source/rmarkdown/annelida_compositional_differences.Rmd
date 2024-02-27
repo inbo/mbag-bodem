@@ -281,13 +281,43 @@ plot_tsne <- function(plotdata, colour = NULL) {
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   frequency_threshold = 0,
-  rarefy_even_reads = 100000)
+  rarefy_even_reads = 30780)
 ```
 
 ```{r}
 ggscreeplot(ordination$pca, type = "both")
 ```
 
+
+```{r}
+plot_pca(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_pca(ordination$plotdata, colour = Diepte)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Diepte)
+```
+
+### Aggregatie op species niveau
+
+```{r calc-ordinations}
+ordination <- calc_ordinations(
+  tacos_data = tidy_physeq,
+  use_rank = "species",
+  frequency_threshold = 0,
+  rarefy_even_reads = 30780)
+```
+
+```{r}
+ggscreeplot(ordination$pca, type = "both")
+```
 
 ```{r}
 plot_pca(ordination$plotdata, colour = Landgebruik_MBAG)
@@ -312,7 +342,7 @@ ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   use_rank = "genus",
   frequency_threshold = 0,
-  rarefy_even_reads = 100000)
+  rarefy_even_reads = 30780)
 ```
 
 ```{r}
