@@ -47,6 +47,14 @@ if (!"ggVennDiagram" %in% rownames(installed.packages())) {
   install.packages("ggVennDiagram")
 }
 
+if (!"microViz" %in% rownames(installed.packages())) {
+  install.packages(
+  "microViz",
+  repos = c(davidbarnett = "https://david-barnett.r-universe.dev",
+            getOption("repos"))
+)
+}
+
 library(tidytacos)
 library(glmmTMB)
 library(marginaleffects)
@@ -86,6 +94,18 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
 ```{r hernoem-object}
 physeq <- physeq_Coll01_Collembola
+```
+
+```{r}
+physeq <- physeq %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
 ```
 
 
@@ -136,19 +156,17 @@ tidy_physeq_rarefied <- tidytacos::from_phyloseq(physeq_rarefied)
 tidy_physeq <- tidy_physeq %>%
   remove_empty_samples() %>%
   tidytacos::set_rank_names(
-    rank_names = c("phylum", "class", "order", "family", "genus", "species")
+    rank_names = phyloseq::rank_names(physeq)
   ) %>%
   tidytacos::add_alpha() %>%
   tidytacos::add_total_count()
-
 tidy_physeq_rarefied <- tidy_physeq_rarefied %>%
   remove_empty_samples() %>%
   tidytacos::set_rank_names(
-    rank_names = c("phylum", "class", "order", "family", "genus", "species")
+    rank_names = phyloseq::rank_names(physeq_rarefied)
   ) %>%
   tidytacos::add_alpha() %>%
   tidytacos::add_total_count()
-
 ```
 
 
@@ -241,6 +259,7 @@ glimpse(tax_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
 species <- as.vector(tax_table(physeq)[, "species"])
 species <- species[!grepl("_otu", species)]
 species <- gsub("_", " ", species)
+species <- species[nchar(species) > 0]
 source(here::here("source/r/check_presence.R"))
 gbif_check <- check_presence(species)
 gbif_check %>%
@@ -267,7 +286,7 @@ tidy_physeq_rarefied %>%
   tidytacos::tacoplot_stack()
 ```
 
-```{r}
+```{r krona-plot}
 # Create a new combined column
 combined_column <- paste(sample_data(physeq_rarefied)$Landgebruik_MBAG, sample_data(physeq_rarefied)$Diepte, sep = "_")
 
@@ -281,9 +300,6 @@ physeq_rarefied <- merge_phyloseq(physeq_rarefied, sample_data(physeq_rarefied))
 if (system(command = "which ktImportText",  intern = FALSE, ignore.stderr = TRUE,  ignore.stdout = TRUE) != 1) {
   psadd::plot_krona(physeq_rarefied, "MBAG_Olig01_collembola_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte", "Landgebruik_MBAG_diepte", trim = T)
 }
-
-
-
 ```
 
 
@@ -317,13 +333,13 @@ tidy_physeq$samples %>%
 We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
-Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+3$).
 
 We modelleren de soortenrijkdom als een Negatief Binomiaal model omdat we verwachten dat deze data overdispersie vertonen ten opzichte van een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde).
 
 ```{r m-collembola-richness}
-samples_totcount_10k <- tidy_physeq$samples %>%
-  filter(total_count > 1e+4)
+samples_totcount_filtered <- tidy_physeq$samples %>%
+  filter(total_count > 1e+3)
 
 form_collembola_richness <- formula(
   observed ~
@@ -336,7 +352,7 @@ form_collembola_richness <- formula(
 
 m_collembola_richness <- glmmTMB::glmmTMB(
   formula = form_collembola_richness,
-  data = samples_totcount_10k,
+  data = samples_totcount_filtered,
   family = glmmTMB::nbinom2())
 ```
 
@@ -458,7 +474,8 @@ tax_table(physeq) %>%
   as.data.frame() %>%
   as_tibble() %>%
   group_by(family) %>%
-  summarise(OTU_Count = n()) %>%
+  summarise(otu_count = n()) %>%
+  arrange(desc(otu_count)) %>%
   kable()
 ```
 
@@ -468,8 +485,8 @@ Per genus
 tax_table(physeq) %>%
   as.data.frame() %>%
   group_by(genus) %>%
-  summarise(OTU_Count = n()) %>%
-  arrange(desc(OTU_Count)) %>%
+  summarise(otu_count = n()) %>%
+  arrange(desc(otu_count)) %>%
   kable()
 ```
 
@@ -479,8 +496,9 @@ Per species (check of er species zijn met meer dan 1 OTU)
 tax_table(physeq) %>%
   as.data.frame() %>%
   group_by(species) %>%
-  summarise(OTU_Count = n()) %>%
-  filter(OTU_Count > 1) %>%
+  summarise(otu_count = n()) %>%
+  filter(otu_count > 1) %>%
+  arrange(desc(otu_count)) %>%
   kable()
 ```
 
@@ -503,9 +521,6 @@ tidy_physeq %>%
 
 ## Ordinatie
 
-```{r physec-rarefied}
-
-```
 
 ```{r ordination-vegan}
 ordmat <- psotu2veg(physeq_rarefied)
