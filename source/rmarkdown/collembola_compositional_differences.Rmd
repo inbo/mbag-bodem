@@ -135,11 +135,11 @@ tidy_physeq %>%
   scale_y_log10()
 ```
 
-Onder 10,000 zijn er een aantal outliers.
+Onder 1,000 zijn er een aantal outliers.
 We verwijderen deze en maken de figuur opnieuw:
 
 ```{r remove-total-count-outliers}
-minimum_total_count <- 1e+04
+minimum_total_count <- 1e+03
 
 tidy_physeq <- tidy_physeq %>%
   add_total_count() %>%
@@ -154,7 +154,7 @@ tidy_physeq %>%
   ggplot() +
   geom_hline(aes(yintercept = exp(mean(log(total_count))))) +
   geom_boxplot(aes(x = Landgebruik_MBAG, y = total_count, fill = Diepte)) +
-  scale_y_log10(breaks = c(1e+04, 1e+05, 3e+05, 1e+06))
+  scale_y_log10(breaks = c(1e+03, 1e+04, 1e+05, 3e+05, 1e+06))
 ```
 
 Ook eens checken of er verschil is volgens datum staalname of staalnemer:
@@ -168,7 +168,7 @@ tidy_physeq %>%
   geom_smooth(aes(
     x = Datum_staalname, y = total_count,
     colour = Staalnemer, fill = Staalnemer)) +
-  scale_y_log10(breaks = c(1e+04, 1e+05, 3e+05, 1e+06))
+  scale_y_log10(breaks = c(1e+03, 1e+04, 1e+05, 3e+05, 1e+06))
 ```
 
 ## Ordinaties
@@ -284,7 +284,7 @@ plot_tsne <- function(plotdata, colour = NULL) {
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   frequency_threshold = 0,
-  rarefy_even_reads = 23033)
+  rarefy_even_reads = 1e+05)
 ```
 
 ```{r}
@@ -315,7 +315,7 @@ ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   use_rank = "genus",
   frequency_threshold = 0,
-  rarefy_even_reads = 23033)
+  rarefy_even_reads = 1e+05)
 ```
 
 ```{r}
@@ -345,7 +345,7 @@ We fitten een multivariaat beta-binomiaal regressiemodel met diepte en landgebru
 ```{r sccomp-inputs}
 max_taxa <- 10
 used_rank <- "genus"
-sccomp_data_Collembola <- tidy_physeq %>%
+sccomp_data_collembola <- tidy_physeq %>%
   aggregate_taxa(rank = used_rank) %>%
   tidytacos::add_prevalence() %>%
   tidytacos::mutate_taxa(
@@ -369,9 +369,9 @@ Dit is goed voor `r round(sum(sccomp_data_Collembola$count) / sum(tidy_physeq$co
 
 ```{r sccomp-Collembola}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_Collembola.rds"))) {
-  s_Collembola <- sccomp_estimate(
-    .data = sccomp_data_Collembola,
+if (!file.exists(here("source", "brms_models", "s_collembola.rds"))) {
+  s_collembola <- sccomp_estimate(
+    .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
     + Diepte
@@ -384,22 +384,22 @@ if (!file.exists(here("source", "brms_models", "s_Collembola.rds"))) {
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_Collembola,
-          here("source", "brms_models", "s_Collembola.rds"))
+  saveRDS(s_collembola,
+          here("source", "brms_models", "s_collembola.rds"))
 }
 
-s_Collembola <- readRDS(here("source", "brms_models", "s_Collembola.rds"))
+s_collembola <- readRDS(here("source", "brms_models", "s_collembola.rds"))
 ```
 
 ### Model evaluatie
 
 ```{r sccomp-test}
-sctest <- sccomp::sccomp_test(s_Collembola)
+sctest <- sccomp::sccomp_test(s_collembola)
 plots <- plot(sctest)
 ```
 
 ```{r sccomp-taxon-info}
-sccomp_data_Collembola %>%
+sccomp_data_collembola %>%
   group_by(taxon_id, genus, occurrence) %>%
   summarise(sum_reads = sum(count)) %>%
   kable()
@@ -446,14 +446,14 @@ plots$credible_intervals_2D
 
 ```{r calc-sccomp-predictions}
 # maak data.frame voor nieuwe predicties
-my_new_data <- sccomp_data_Collembola %>%
+my_new_data <- sccomp_data_collembola %>%
   distinct(Landgebruik_MBAG, Diepte)
 my_new_data$sample_id <- paste0("newsample", seq_len(nrow(my_new_data)))
 
 # make predictions for these new data, without the random effect
 # this returns a df with 4 times number of taxa rows
-s_Collembola_predictions <- sccomp::sccomp_predict(
-  s_Collembola,
+s_collembola_predictions <- sccomp::sccomp_predict(
+  s_collembola,
   formula_composition = ~
     Landgebruik_MBAG +
     Diepte +
@@ -462,17 +462,17 @@ s_Collembola_predictions <- sccomp::sccomp_predict(
   number_of_draws = 2000,
   mcmc_seed = 1254)
 
-sortering <- s_Collembola %>%
+sortering <- s_collembola %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
-  left_join(sccomp_data_Collembola %>%
+  left_join(sccomp_data_collembola %>%
               distinct(taxon_id, genus),
             by = join_by(taxon_id)) %>%
   arrange(c_lower)
 
-s_Collembola_predictions <- s_Collembola_predictions %>%
+s_collembola_predictions <- s_collembola_predictions %>%
   left_join(my_new_data, by = join_by(sample_id)) %>%
-  left_join(sccomp_data_Collembola %>%
+  left_join(sccomp_data_collembola %>%
               distinct(taxon_id, genus),
             by = join_by(taxon_id)) %>%
   mutate(
@@ -486,7 +486,7 @@ We zien een duidelijke toename van _Achaeta_, _Lumbricus_ en _Marionina_ met afn
 _Henlea_ soorten komen meer voor in 0-10 cm dan 10-30 cm.
 
 ```{r plot-sccomp-predictions}
-s_Collembola_predictions %>%
+s_collembola_predictions %>%
   ggplot() +
   geom_pointrange(
     aes(
@@ -506,7 +506,7 @@ s_Collembola_predictions %>%
 We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
 
 ```{r}
-s_Collembola_predictions %>%
+s_collembola_predictions %>%
   ggplot() +
   geom_col(
     aes(x = Landgebruik_MBAG,
