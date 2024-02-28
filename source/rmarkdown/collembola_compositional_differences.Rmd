@@ -65,9 +65,9 @@ path_naar_bestand <- file.path(
     "data",
     "statistiek",
     "Coll01",
-    "zonder_otu_legetaxonomie",
+    "met_otu_legetaxonomie",
     "phyloseq",
-    "physeq_Coll01_Collembola.Rdata"
+    "physeq_Coll01_Collembola_species.Rdata"
   )
 
 load(path_naar_bestand)
@@ -78,7 +78,7 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
 
 ```{r create-tidytacos-object}
-physeq <- physeq_Coll01_Collembola
+physeq <- physeq_Coll01_Collembola.species
 
 ranks <- physeq %>%
   phyloseq::rank_names()
