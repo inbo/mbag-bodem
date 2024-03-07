@@ -78,13 +78,53 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
 
 
-```{r create-tidytacos-object}
+```{r create-tidytacos-objects}
 physeq <- physeq_Coll01_Collembola.species
+
+physeq_known_species <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "species"]))
+
+physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "genus"]))
+
+
 
 ranks <- physeq %>%
   phyloseq::rank_names()
 
 tidy_physeq <- tidytacos::from_phyloseq(physeq) %>%
+  tidytacos::remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = ranks
+  ) %>%
+  tidytacos::mutate_samples(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+
+ranks <- physeq_known_species %>%
+  phyloseq::rank_names()
+
+tidy_physeq_known_species <- tidytacos::from_phyloseq(physeq_known_species) %>%
+  tidytacos::remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = ranks
+  ) %>%
+  tidytacos::mutate_samples(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+
+ranks <- physeq_known_genera %>%
+  phyloseq::rank_names()
+
+tidy_physeq_known_genera <- tidytacos::from_phyloseq(physeq_known_genera) %>%
   tidytacos::remove_empty_samples() %>%
   tidytacos::set_rank_names(
     rank_names = ranks
