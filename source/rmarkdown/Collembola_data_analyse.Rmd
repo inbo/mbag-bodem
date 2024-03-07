@@ -94,10 +94,34 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
 ```{r hernoem-object}
 physeq <- physeq_Coll01_Collembola
+
+physeq_known_species <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "species"]))
+physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "genus"]))
 ```
 
 ```{r}
 physeq <- physeq %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+
+physeq_known_species <- physeq_known_species %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+
+
+physeq_known_genera <- physeq_known_genera %>%
   microViz::ps_mutate(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
     Landgebruik_MBAG = factor(
@@ -395,6 +419,19 @@ marginaleffects::plot_predictions(
   re.form = NA,
   type = "response") +
   labs(y = "Voorspelde aantal taxa")
+```
+
+
+### Shannon diversity index analyse
+
+Dit is een alternatief voor voorgaande analyse.
+
+Shannon diversity index modelleren als een Negatief Binomiaal model zoals hierboven?
+
+```{r m-collembola-shannon-diversity-predictions}
+shannon_diversity_data <- estimate_richness(physeq, measures = "Shannon")
+
+
 ```
 
 
