@@ -406,12 +406,12 @@ sccomp_data_collembola <- tidy_physeq %>%
 ```
 
 Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
-Dit is goed voor `r round(sum(sccomp_data_Collembola$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
+Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
 
 ```{r sccomp-Collembola}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola.rds"))) {
-  s_collembola <- sccomp_estimate(
+if (!file.exists(here("source", "brms_models", "s_collembola_genus.rds"))) {
+  s_collembola_genus <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
@@ -425,17 +425,17 @@ if (!file.exists(here("source", "brms_models", "s_collembola.rds"))) {
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_collembola,
-          here("source", "brms_models", "s_collembola.rds"))
+  saveRDS(s_collembola_genus,
+          here("source", "brms_models", "s_collembola_genus.rds"))
 }
 
-s_collembola <- readRDS(here("source", "brms_models", "s_collembola.rds"))
+s_collembola_genus <- readRDS(here("source", "brms_models", "s_collembola_genus.rds"))
 ```
 
 ### Model evaluatie
 
 ```{r sccomp-test}
-sctest <- sccomp::sccomp_test(s_collembola)
+sctest <- sccomp::sccomp_test(s_collembola_genus)
 plots <- plot(sctest)
 ```
 
@@ -494,7 +494,7 @@ my_new_data$sample_id <- paste0("newsample", seq_len(nrow(my_new_data)))
 # make predictions for these new data, without the random effect
 # this returns a df with 4 times number of taxa rows
 s_collembola_predictions <- sccomp::sccomp_predict(
-  s_collembola,
+  s_collembola_genus,
   formula_composition = ~
     Landgebruik_MBAG +
     Diepte +
@@ -503,7 +503,7 @@ s_collembola_predictions <- sccomp::sccomp_predict(
   number_of_draws = 2000,
   mcmc_seed = 1254)
 
-sortering <- s_collembola %>%
+sortering <- s_collembola_genus %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
   left_join(sccomp_data_collembola %>%
@@ -523,8 +523,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-We zien een duidelijke toename van _Achaeta_, _Lumbricus_ en _Marionina_ met afnemende landgebruiksintensiteit.
-_Henlea_ soorten komen meer voor in 0-10 cm dan 10-30 cm.
+We zien een duidelijke toename van _Megalothorax_, __ en __ met afnemende landgebruiksintensiteit.
+ soorten komen meer voor in 0-10 cm dan 10-30 cm.
 
 ```{r plot-sccomp-predictions}
 s_collembola_predictions %>%
@@ -588,7 +588,7 @@ sccomp_data_collembola <- tidy_physeq %>%
 ```
 
 Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
-Dit is goed voor `r round(sum(sccomp_data_Collembola$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
+Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
 
 ```{r sccomp-Collembola-species}
 fs::dir_create(here("source", "brms_models"))
@@ -652,7 +652,7 @@ De volgende figuren tonen een parameterschattingen (gemiddelde) met 95% credibil
 Omdat meerdere taxa in het model zitten, is een correctie nodig voor meervoudige testen.
 In de figuur is dit met kleur aangeduid: de blauwe intervallen zijn significant verschillend van een zone van +/- 0.2 rond de nul in de logit schaal na rekening te houden met een correctie waarbij maximum 5% vals positieve gevallen worden toegelaten (`False discovery rate`).
 
-```{r sccomp-ci1d, fig.height = 200/25.4 species}
+```{r sccomp-ci1d-species, fig.height = 200/25.4}
 plots$credible_intervals_1D
 ```
 
