@@ -557,7 +557,12 @@ s_collembola_predictions %>%
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
 
+
+
+
+
 ## `sccomp`: differentiële samenstelling en variabiliteitsanalyse op soortniveau
+
 
 
 ```{r sccomp-inputs-species}
@@ -587,8 +592,8 @@ Dit is goed voor `r round(sum(sccomp_data_Collembola$count) / sum(tidy_physeq$co
 
 ```{r sccomp-Collembola-species}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola.rds"))) {
-  s_collembola <- sccomp_estimate(
+if (!file.exists(here("source", "brms_models", "s_collembola_species.rds"))) {
+  s_collembola_species <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
@@ -602,17 +607,17 @@ if (!file.exists(here("source", "brms_models", "s_collembola.rds"))) {
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_collembola,
-          here("source", "brms_models", "s_collembola.rds"))
+  saveRDS(s_collembola_species,
+          here("source", "brms_models", "s_collembola_species.rds"))
 }
 
-s_collembola <- readRDS(here("source", "brms_models", "s_collembola.rds"))
+s_collembola_species <- readRDS(here("source", "brms_models", "s_collembola_species.rds"))
 ```
 
 ### Model evaluatie
 
 ```{r sccomp-test-species}
-sctest <- sccomp::sccomp_test(s_collembola)
+sctest <- sccomp::sccomp_test(s_collembola_species)
 plots <- plot(sctest)
 ```
 
@@ -671,7 +676,7 @@ my_new_data$sample_id <- paste0("newsample", seq_len(nrow(my_new_data)))
 # make predictions for these new data, without the random effect
 # this returns a df with 4 times number of taxa rows
 s_collembola_predictions <- sccomp::sccomp_predict(
-  s_collembola,
+  s_collembola_species,
   formula_composition = ~
     Landgebruik_MBAG +
     Diepte +
@@ -680,7 +685,7 @@ s_collembola_predictions <- sccomp::sccomp_predict(
   number_of_draws = 2000,
   mcmc_seed = 1254)
 
-sortering <- s_collembola %>%
+sortering <- s_collembola_species %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
   left_join(sccomp_data_collembola %>%
