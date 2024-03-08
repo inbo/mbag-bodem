@@ -456,7 +456,8 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   in `t3` (en eventueel `t6`) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+-   in `t3` (meest abundante genus Megalothorax) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+
 
 ```{r sccomp-boxplot-landgebruik}
 plots$boxplot[[1]]
@@ -523,8 +524,7 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-We zien een duidelijke toename van _Megalothorax_, __ en __ met afnemende landgebruiksintensiteit.
- soorten komen meer voor in 0-10 cm dan 10-30 cm.
+We zien een duidelijke toename van _Megalothorax_, en een afname van _Isotomidae_ (inclusief Isotomurus) met afnemende landgebruiksintensiteit? Ook zien we een duidelijke toename van verschillende Entomobryidae soorten van akker en tijdelijke grasland naar blijvend grasland. Sommige genera lijken meer voor te komen in 0-10 cm, anderen dan weer in 10-30 cm?
 
 ```{r plot-sccomp-predictions}
 s_collembola_predictions %>%
@@ -545,6 +545,8 @@ s_collembola_predictions %>%
 ```
 
 We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
+
+We zien een duidelijke toename van _Megalothorax_, en een duidelijke afname van _Folsomia_ en _Isotomurus_ met afnemende landgebruiksintensiteit.   
 
 ```{r}
 s_collembola_predictions %>%
@@ -636,7 +638,7 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   in `t3` (en eventueel `t6`) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+-   in `t1` :Megalothorax (en eventueel ``) bij natuurgrasland (en deze keer ook bij tijdelijk grasland?) is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
 
 ```{r sccomp-boxplot-landgebruik-known-genus}
 plots$boxplot[[1]]
@@ -703,8 +705,7 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-We zien een duidelijke toename van _Achaeta_, _Lumbricus_ en _Marionina_ met afnemende landgebruiksintensiteit.
-_Henlea_ soorten komen meer voor in 0-10 cm dan 10-30 cm.
+We zien een duidelijke toename van _Megalothorax_, en een duidelijke afname van _Folsomia_ en _Isotomurus_ met afnemende landgebruiksintensiteit. Ook zien we een duidelijke toename van _Dicranocentrus_ van akkers en tijdelijke graslanden naar blijvend grasland. En een significant hogere kans op _Protaphorura_ in blijvend grasland en natuurgrasland? Sommige genera lijken meer voor te komen in 0-10 cm, anderen dan weer in 10-30 cm?
 
 ```{r plot-sccomp-predictions-known-genus}
 s_collembola_predictions %>%
@@ -725,6 +726,8 @@ s_collembola_predictions %>%
 ```
 
 We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
+
+We zien een duidelijke toename van _Megalothorax_, _Protaphorura_, en een duidelijke afname van _Folsomia_ en _Isotomurus_ met afnemende landgebruiksintensiteit. En de duidelijke toename van _Dicranocentrus_ van akkers en tijdelijke graslanden naar blijvend grasland. 
 
 ```{r}
 s_collembola_predictions %>%
@@ -816,7 +819,8 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   in `t3` (en eventueel `t6`) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+-   Sprake van bimodaliteit? In 't292' ( _Megalothorax_ _incertus_) akker? Maar wel verdwenen voor _Megalothorax_ ( _incertus_) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tusen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
+-   Idem voor _Folsomia_ _candida_ 't298' in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
 
 ```{r sccomp-boxplot-landgebruik-species}
 plots$boxplot[[1]]
