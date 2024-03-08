@@ -887,8 +887,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-We zien een duidelijke toename van _Achaeta_, _Lumbricus_ en _Marionina_ met afnemende landgebruiksintensiteit.
-_Henlea_ soorten komen meer voor in 0-10 cm dan 10-30 cm.
+Duidelijk geen toename van _Megalothorax_ _incertus_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van _Megalothorax_ met afnemende landgebruiksintensiteit moet dus aan andere _Megalothorax_ soorten te wijten zijn? Duidelijke afname van _Folsomia_ _candida_ en _Isotomurus_ _maculatus_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
+_Megalothorax_ _incertus_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
 
 ```{r plot-sccomp-predictions-species}
 s_collembola_predictions %>%
@@ -1001,7 +1001,7 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   in `t3` (en eventueel `t6`) bij natuurgrasland is er sprake van bimodaliteit: de boxplot zit in de zone met proporties tussen 0 en 0.5, terwijl er een groep van punten is die clustert tussen 0.75 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+-   Op het eerste zicht geen sprake van bimodaliteit??? : de boxplot zit in de zone met proporties tussen x en x.x, terwijl er een groep van punten is die clustert tussen y.y en y. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
 
 ```{r sccomp-boxplot-landgebruik-known-species}
 plots$boxplot[[1]]
@@ -1068,8 +1068,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-We zien een duidelijke toename van _Achaeta_, _Lumbricus_ en _Marionina_ met afnemende landgebruiksintensiteit.
-_Henlea_ soorten komen meer voor in 0-10 cm dan 10-30 cm.
+Duidelijk geen toename van _Megalothorax_ _incertus_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. Wel een duidelijke toename van _Megalothorax_ _minimus_, _Isotoma_ _viridis_, _Protaphorura_ _armata_, en _Megalothorax_ _willemi_ (deze laatste enkel in de 10-30) met afnemende landgebruiksintensiteit. Duidelijke afname van _Folsomia_ _candida_ en _Isotomurus_ _maculatus_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit.
+_Megalothorax_ _incertus_, _Megalothorax_ _willemi_, en _Folsomia_ _candida_ lijken meer voor te komen in 10-30 cm dan 0-10 cm, terwijl _Willowsia_ _nigromaculata_, _Isotomurus_ _maculatus_, en _Sminthurus_ _viridis_ meer voor lijken te komen in 0-10 cm, dan 10-30 cm.
 
 ```{r plot-sccomp-predictions-known-species}
 s_collembola_predictions %>%
