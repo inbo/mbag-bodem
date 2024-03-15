@@ -281,7 +281,7 @@ plot_tsne <- function(plotdata, colour = NULL) {
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   frequency_threshold = 0,
-  rarefy_even_reads = 30780)
+  rarefy_even_reads = 100000)
 ```
 
 ```{r}
@@ -312,7 +312,7 @@ ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   use_rank = "species",
   frequency_threshold = 0,
-  rarefy_even_reads = 30780)
+  rarefy_even_reads = 100000)
 ```
 
 ```{r}
