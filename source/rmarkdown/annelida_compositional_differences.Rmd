@@ -548,7 +548,7 @@ s_annelida_predictions %>%
 
 
 ```{r sccomp-inputs-species}
-max_taxa <- 10
+max_taxa <- 407
 used_rank <- "species"
 sccomp_data_annelida <- tidy_physeq %>%
   aggregate_taxa(rank = used_rank) %>%
@@ -572,10 +572,12 @@ sccomp_data_annelida <- tidy_physeq %>%
 Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
 Dit is goed voor `r round(sum(sccomp_data_annelida$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
 
-```{r sccomp-annelida-species}
+Hier dus eens getest met alle OTUs (407)
+
+```{r sccomp-annelida-all-species}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_annelida_species.rds"))) {
-  s_annelida_species <- sccomp_estimate(
+if (!file.exists(here("source", "brms_models", "s_annelida_407_species.rds"))) {
+  s_annelida_407_species <- sccomp_estimate(
     .data = sccomp_data_annelida,
     formula_composition = ~
       Landgebruik_MBAG
@@ -589,17 +591,17 @@ if (!file.exists(here("source", "brms_models", "s_annelida_species.rds"))) {
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_annelida_species,
-          here("source", "brms_models", "s_annelida_species.rds"))
+  saveRDS(s_annelida_407_species,
+          here("source", "brms_models", "s_annelida_407_species.rds"))
 }
 
-s_annelida_species <- readRDS(here("source", "brms_models", "s_annelida_species.rds"))
+s_annelida_407_species <- readRDS(here("source", "brms_models", "s_annelida_407_species.rds"))
 ```
 
 ### Model evaluatie
 
 ```{r sccomp-test-species}
-sctest <- sccomp::sccomp_test(s_annelida_species)
+sctest <- sccomp::sccomp_test(s_annelida_407_species)
 plots <- plot(sctest)
 ```
 
@@ -659,7 +661,7 @@ my_new_data$sample_id <- paste0("newsample", seq_len(nrow(my_new_data)))
 # make predictions for these new data, without the random effect
 # this returns a df with 4 times number of taxa rows
 s_annelida_predictions <- sccomp::sccomp_predict(
-  s_annelida_species,
+  s_annelida_407_species,
   formula_composition = ~
     Landgebruik_MBAG +
     Diepte +
@@ -668,7 +670,7 @@ s_annelida_predictions <- sccomp::sccomp_predict(
   number_of_draws = 2000,
   mcmc_seed = 1254)
 
-sortering <- s_annelida_species %>%
+sortering <- s_annelida_407_species %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
   left_join(sccomp_data_annelida %>%
@@ -692,21 +694,82 @@ Duidelijk geen toename van _xx_ _xx_ met afnemende landgebruiksintensiteit. Inte
 _xx_ _xx_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
 
 ```{r plot-sccomp-predictions-species}
-s_annelida_predictions %>%
-  ggplot() +
-  geom_pointrange(
-    aes(
-      x = Landgebruik_MBAG,
-      y = proportion_mean,
-      ymin = proportion_lower,
-      ymax = proportion_upper,
-      colour = Diepte),
-    position = position_dodge(width = 0.4),
-    alpha = 0.7
-  ) +
-  facet_wrap(~ species, scales = "free_y") +
-  scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
-  theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
+# Filter out species with "_otu" in their names
+filtered_species_data <- s_annelida_predictions %>%
+  filter(!grepl("_otu", species))
+
+# Find unique species from the filtered data and split them into chunks of 9
+unique_species <- unique(filtered_species_data$species)
+species_chunks <- split(unique_species, ceiling(seq_along(unique_species)/9))
+
+# Loop through each chunk and create a plot
+plots <- list() # To store the plots
+for (i in seq_along(species_chunks)) {
+  # Subset the data for the current chunk of species
+  subset_data <- filtered_species_data %>% 
+    filter(species %in% species_chunks[[i]])
+  
+  # Create the plot for the current subset
+  p <- subset_data %>%
+    ggplot() +
+    geom_pointrange(
+      aes(
+        x = Landgebruik_MBAG,
+        y = proportion_mean,
+        ymin = proportion_lower,
+        ymax = proportion_upper,
+        colour = Diepte),
+      position = position_dodge(width = 0.4),
+      alpha = 0.7
+    ) +
+    facet_wrap(~ species, scales = "free_y", ncol = 3) +
+    scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
+    theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
+  
+  # Save the plot in the list
+  plots[[i]] <- p
+}
+
+# Now you can print or save each plot separately
+# For example, to view the first set of plots, you can do:
+# print(plots[[1]])
+# And so on for each plot in 'plots'
+```
+
+```{r}
+print(plots[[1]])
+```
+
+```{r}
+print(plots[[2]])
+```
+
+```{r}
+print(plots[[3]])
+```
+
+```{r}
+print(plots[[4]])
+```
+
+```{r}
+print(plots[[5]])
+```
+
+```{r}
+print(plots[[6]])
+```
+
+```{r}
+print(plots[[7]])
+```
+
+```{r}
+print(plots[[8]])
+```
+
+```{r}
+print(plots[[9]])
 ```
 
 We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
