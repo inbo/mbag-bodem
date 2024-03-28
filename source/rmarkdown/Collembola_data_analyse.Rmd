@@ -25,15 +25,16 @@ library(phyloseq)
 library(vegan)
 library(ggplot2)
 library(ggrepel)
-library(ggpubr)
+library(ggpubr) #installatie was nodig op hpc
 library(gridExtra)
-library(ggbiplot)
-library(factoextra)
+library(ggbiplot) #installatie was nodig op hpc
+library(factoextra) #installatie was nodig op hpc
 library(dplyr)
 library(rstatix)
-library(dunn.test)
-library(compositions)
-library(sf)
+library(dunn.test) # installatie was nodig op hpc
+library(compositions) # installatie was nodig op hpc
+library(sf) # installatie nodig op hpc, alsook van de dependcy "units", voor units was ook installatie texinfo nodig, installatie units en dus ook sf niet gelukt op hpc
+
 #### Handig pakket met veel phyloseq add-ons
 if (!"psadd" %in% rownames(installed.packages())) {
   remotes::install_github("cpauvert/psadd")
@@ -55,10 +56,12 @@ if (!"microViz" %in% rownames(installed.packages())) {
 )
 }
 
-library(tidytacos)
-library(glmmTMB)
-library(marginaleffects)
-library(performance)
+# voor microviz was het ook nodig om de microbiome en ComplexHeatmap packages te installeren via biocmanager op hpc
+
+library(tidytacos) #installatie was nodig op hpc
+library(glmmTMB) #installatie was nodig op hpc
+library(marginaleffects) #installatie was nodig op hpc
+library(performance) #installatie was nodig op hpc
 
 mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
 ```
