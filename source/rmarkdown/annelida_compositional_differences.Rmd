@@ -65,7 +65,7 @@ path_naar_bestand <- file.path(
     "data",
     "statistiek",
     "Annelida",
-    "phyloseq_Olig01_Annelida",
+    "phyloseq",
     "physeq_Olig01_Annelida_species.Rdata"
   )
 
@@ -305,14 +305,44 @@ plot_tsne(ordination$plotdata, colour = Landgebruik_MBAG)
 plot_tsne(ordination$plotdata, colour = Diepte)
 ```
 
+### Aggregatie op species niveau
+
+```{r calc-ordinations-species}
+ordination <- calc_ordinations(
+  tacos_data = tidy_physeq,
+  use_rank = "species",
+  frequency_threshold = 0,
+  rarefy_even_reads = 100000)
+```
+
+```{r}
+ggscreeplot(ordination$pca, type = "both")
+```
+
+```{r}
+plot_pca(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_pca(ordination$plotdata, colour = Diepte)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Landgebruik_MBAG)
+```
+
+```{r}
+plot_tsne(ordination$plotdata, colour = Diepte)
+```
+
 ### Aggregatie op genus niveau
 
-```{r calc-ordinations}
+```{r calc-ordinations-genus}
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   use_rank = "genus",
   frequency_threshold = 0,
-  rarefy_even_reads = 100000)
+  rarefy_even_reads = 30780)
 ```
 
 ```{r}
@@ -513,5 +543,246 @@ s_annelida_predictions %>%
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
 
+## `sccomp`: differentiële samenstelling en variabiliteitsanalyse op soortniveau
+
+
+
+```{r sccomp-inputs-species}
+max_taxa <- 293
+used_rank <- "species"
+sccomp_data_annelida <- tidy_physeq %>%
+  aggregate_taxa(rank = used_rank) %>%
+  tidytacos::add_prevalence() %>%
+  tidytacos::mutate_taxa(
+    keep = min_rank(desc(occurrence)) < max_taxa
+  ) %>%
+  filter_taxa(
+    keep,
+    !is.na(species)
+  ) %>%
+  tidytacos::everything() %>%
+  mutate(count = as.integer(count)) %>%
+  select(taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
+         Landgebruik_MBAG, species, occurrence) %>%
+  filter(
+    complete.cases(.)
+  )
+```
+
+Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
+Dit is goed voor `r round(sum(sccomp_data_annelida$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
+
+Hier dus eens getest met de 293 meest prevalente OTUs
+
+```{r sccomp-annelida-all-species}
+fs::dir_create(here("source", "brms_models"))
+if (!file.exists(here("source", "brms_models", "s_annelida_293_species.rds"))) {
+  s_annelida_293_species <- sccomp_estimate(
+    .data = sccomp_data_annelida,
+    formula_composition = ~
+      Landgebruik_MBAG
+    + Diepte
+    + Landgebruik_MBAG:Diepte
+    + (1 | Cmon_PlotID),
+    .sample = sample_id,
+    .cell_group = taxon_id,
+    .count = count,
+    verbose = TRUE,
+    max_sampling_iterations = 2000,
+    bimodal_mean_variability_association = FALSE
+  )
+  saveRDS(s_annelida_293_species,
+          here("source", "brms_models", "s_annelida_293_species.rds"))
+}
+
+s_annelida_293_species <- readRDS(here("source", "brms_models", "s_annelida_293_species.rds"))
+```
+
+### Model evaluatie
+
+```{r sccomp-test-species}
+sctest <- sccomp::sccomp_test(s_annelida_293_species)
+plots <- plot(sctest)
+```
+
+```{r sccomp-taxon-info-species}
+sccomp_data_annelida %>%
+  group_by(taxon_id, species, occurrence) %>%
+  summarise(sum_reads = sum(count)) %>%
+  kable()
+```
+
+Hier volgen de standaard geproduceerde figuren.
+
+De boxplots geven aan of het model de data goed beschrijven.
+De blauwe boxen in de achtergrond zijn simulaties van het model (voorspellingen uit de _a posteriori_ kansverdeling).
+De gekleurde boxen in de voorgrond zijn op basis van de geobserveerde data, die ook getoond worden als punten.
+Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is het model goed in staat om de data te beschrijven.
+
+Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
+
+-   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
+-   Sprake van bimodaliteit? In 't292' ( _xx_ _xx_) akker? Maar wel verdwenen voor _xx_ ( _xx_) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tusen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
+-   Idem voor _xx_ _xx_ 't298' in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
+
+```{r sccomp-boxplot-landgebruik-species}
+plots$boxplot[[1]]
+```
+
+```{r sccomp-boxplot-diepte-species}
+plots$boxplot[[2]]
+```
+
+De volgende figuren tonen een parameterschattingen (gemiddelde) met 95% credibiliteitsinterval voor elk van de taxa in functie van covariaten.
+Omdat meerdere taxa in het model zitten, is een correctie nodig voor meervoudige testen.
+In de figuur is dit met kleur aangeduid: de blauwe intervallen zijn significant verschillend van een zone van +/- 0.2 rond de nul in de logit schaal na rekening te houden met een correctie waarbij maximum 5% vals positieve gevallen worden toegelaten (`False discovery rate`).
+
+```{r sccomp-ci1d-species, fig.height = 200/25.4}
+plots$credible_intervals_1D
+```
+
+Tot slot tonen we nog een figuur die de relatie tussen gemiddelde en variantie toont voor elk van de taxa in het model.
+De figuur laat toe om in te schatten of deze relatie goed gemodelleerd werd.
+We willen hier geen sterke associatie zien tussen de x (gemiddelden) en de y (varianties) as.
+
+```{r sccomp-mean-variance-species}
+plots$credible_intervals_2D
+```
+
+### Model predicties
+
+
+```{r calc-sccomp-predictions-species}
+# maak data.frame voor nieuwe predicties
+my_new_data <- sccomp_data_annelida %>%
+  distinct(Landgebruik_MBAG, Diepte)
+my_new_data$sample_id <- paste0("newsample", seq_len(nrow(my_new_data)))
+
+# make predictions for these new data, without the random effect
+# this returns a df with 4 times number of taxa rows
+s_annelida_predictions <- sccomp::sccomp_predict(
+  s_annelida_293_species,
+  formula_composition = ~
+    Landgebruik_MBAG +
+    Diepte +
+    Landgebruik_MBAG:Diepte,
+  new_data = my_new_data,
+  number_of_draws = 2000,
+  mcmc_seed = 1254)
+
+sortering <- s_annelida_293_species %>%
+  filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
+  select(taxon_id, c_lower) %>%
+  left_join(sccomp_data_annelida %>%
+              distinct(taxon_id, species),
+            by = join_by(taxon_id)) %>%
+  arrange(c_lower)
+
+s_annelida_predictions <- s_annelida_predictions %>%
+  left_join(my_new_data, by = join_by(sample_id)) %>%
+  left_join(sccomp_data_annelida %>%
+              distinct(taxon_id, species),
+            by = join_by(taxon_id)) %>%
+  mutate(
+    taxon_id = factor(taxon_id, levels = sortering$taxon_id),
+    species = factor(species, levels = sortering$species)
+  )
+```
+
+De volgende figuur toont de modelvoorspellingen.
+Duidelijk geen toename van _xx_ _xx_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van _xx_ met afnemende landgebruiksintensiteit moet dus aan andere _xx_ soorten te wijten zijn? Duidelijke afname van _xx_ _xx_ en _xx_ _xx_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
+_xx_ _xx_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
+
+```{r plot-sccomp-predictions-species}
+# Filter out species with "_otu" in their names
+filtered_species_data <- s_annelida_predictions %>%
+  filter(!grepl("_otu", species))
+
+# Find unique species from the filtered data and split them into chunks of 9
+unique_species <- unique(filtered_species_data$species)
+species_chunks <- split(unique_species, ceiling(seq_along(unique_species)/9))
+
+# Loop through each chunk and create a plot
+plots <- list() # To store the plots
+for (i in seq_along(species_chunks)) {
+  # Subset the data for the current chunk of species
+  subset_data <- filtered_species_data %>% 
+    filter(species %in% species_chunks[[i]])
+  
+  # Create the plot for the current subset
+  p <- subset_data %>%
+    ggplot() +
+    geom_pointrange(
+      aes(
+        x = Landgebruik_MBAG,
+        y = proportion_mean,
+        ymin = proportion_lower,
+        ymax = proportion_upper,
+        colour = Diepte),
+      position = position_dodge(width = 0.4),
+      alpha = 0.7
+    ) +
+    facet_wrap(~ species, scales = "free_y", ncol = 3) +
+    scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
+    theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
+  
+  # Save the plot in the list
+  plots[[i]] <- p
+}
+
+# Now you can print or save each plot separately
+# For example, to view the first set of plots, you can do:
+# print(plots[[1]])
+# And so on for each plot in 'plots'
+```
+
+```{r}
+print(plots[[1]])
+```
+
+```{r}
+print(plots[[2]])
+```
+
+```{r}
+print(plots[[3]])
+```
+
+```{r}
+print(plots[[4]])
+```
+
+```{r}
+print(plots[[5]])
+```
+
+```{r}
+print(plots[[6]])
+```
+
+```{r}
+print(plots[[7]])
+```
+
+```{r}
+print(plots[[8]])
+```
+
+```{r}
+print(plots[[9]])
+```
+
+We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
+
+```{r}
+s_annelida_predictions %>%
+  ggplot() +
+  geom_col(
+    aes(x = Landgebruik_MBAG,
+        y = proportion_mean,
+        fill = species)) +
+  facet_grid(~Diepte) +
+  theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
+```
 
 # Referenties
