@@ -1154,13 +1154,18 @@ if (!file.exists(here("source", "brms_models", "s_collembola_207_species.rds")))
           here("source", "brms_models", "s_collembola_207_species.rds"))
 }
 
+
+```
+
+```{r sccomp-collembola-all-species-load, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 s_collembola_207_species <- readRDS(here("source", "brms_models", "s_collembola_207_species.rds"))
 ```
+
 
 ### Model predicties
 
 
-```{r calc-sccomp-predictions-all-species, eval=FALSE}
+```{r calc-sccomp-predictions-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 # maak data.frame voor nieuwe predicties
 my_new_data <- sccomp_data_collembola %>%
   distinct(Landgebruik_MBAG, Diepte)
@@ -1201,7 +1206,7 @@ De volgende figuur toont de modelvoorspellingen.
 Duidelijk geen toename van _xx_ _xx_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van _xx_ met afnemende landgebruiksintensiteit moet dus aan andere _xx_ soorten te wijten zijn? Duidelijke afname van _xx_ _xx_ en _xx_ _xx_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
 _xx_ _xx_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
 
-```{r plot-sccomp-predictions-all-species, eval=FALSE}
+```{r plot-sccomp-predictions-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 # Filter out species with "_otu" in their names
 filtered_species_data <- s_collembola_predictions %>%
   filter(!grepl("_otu", species))
@@ -1244,7 +1249,7 @@ for (i in seq_along(species_chunks)) {
 # And so on for each plot in 'plots'
 ```
 
-```{r print-all-plots, eval=FALSE}
+```{r print-all-plots, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 plots
 ```
 
@@ -1252,12 +1257,12 @@ plots
 
 ### Model evaluatie
 
-```{r sccomp-test-all-species, eval=FALSE}
+```{r sccomp-test-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 sctest <- sccomp::sccomp_test(s_collembola_207_species)
 plots <- plot(sctest)
 ```
 
-```{r sccomp-taxon-info-all-species, eval=FALSE}
+```{r sccomp-taxon-info-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 sccomp_data_collembola %>%
   group_by(taxon_id, species, occurrence) %>%
   summarise(sum_reads = sum(count)) %>%
@@ -1277,11 +1282,11 @@ Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar 
 -   Sprake van bimodaliteit? In 't292' ( _xx_ _xx_) akker? Maar wel verdwenen voor _xx_ ( _xx_) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tusen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
 -   Idem voor _xx_ _xx_ 't298' in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
 
-```{r sccomp-boxplot-landgebruik-all-species, eval=FALSE}
+```{r sccomp-boxplot-landgebruik-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 plots$boxplot[[1]]
 ```
 
-```{r sccomp-boxplot-diepte-all-species, eval=FALSE}
+```{r sccomp-boxplot-diepte-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 plots$boxplot[[2]]
 ```
 
@@ -1289,7 +1294,7 @@ De volgende figuren tonen een parameterschattingen (gemiddelde) met 95% credibil
 Omdat meerdere taxa in het model zitten, is een correctie nodig voor meervoudige testen.
 In de figuur is dit met kleur aangeduid: de blauwe intervallen zijn significant verschillend van een zone van +/- 0.2 rond de nul in de logit schaal na rekening te houden met een correctie waarbij maximum 5% vals positieve gevallen worden toegelaten (`False discovery rate`).
 
-```{r sccomp-ci1d-all-species, fig.height = 200/25.4, eval=FALSE}
+```{r sccomp-ci1d-all-species, fig.height = 200/25.4, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 plots$credible_intervals_1D
 ```
 
@@ -1297,7 +1302,7 @@ Tot slot tonen we nog een figuur die de relatie tussen gemiddelde en variantie t
 De figuur laat toe om in te schatten of deze relatie goed gemodelleerd werd.
 We willen hier geen sterke associatie zien tussen de x (gemiddelden) en de y (varianties) as.
 
-```{r sccomp-mean-variance-all-species, eval=FALSE}
+```{r sccomp-mean-variance-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 plots$credible_intervals_2D
 ```
 
