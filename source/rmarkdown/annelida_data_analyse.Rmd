@@ -221,11 +221,36 @@ tidy_physeq$samples %>%
   kable()
 ```
 
+Inclusief moment (maand) van staalname:
+
+```{r designvars}
+tidy_physeq$samples %>%
+  count(Diepte, Landgebruik_MBAG, Maand_staalname) %>%
+  kable()
+```
+
+Zonder diepte:
+
+```{r designvars}
+tidy_physeq$samples %>%
+  count(Landgebruik_MBAG, Maand_staalname) %>%
+  kable()
+```
+
 Aantal bodemlocaties:
 
 ```{r}
 tidy_physeq$samples %>%
   group_by(Landgebruik_MBAG) %>%
+  summarise(n_locaties = n_distinct(Cmon_PlotID)) %>%
+  kable()
+```
+
+Aantal per maand:
+
+```{r}
+tidy_physeq$samples %>%
+  group_by(Maand_staalname) %>%
   summarise(n_locaties = n_distinct(Cmon_PlotID)) %>%
   kable()
 ```
