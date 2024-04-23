@@ -85,7 +85,47 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 
 ```{r hernoem-object}
 physeq <- physeq_Olig01_Annelida_species
+
+physeq_known_species <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "species"]))
+physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "genus"]))
 ```
+
+```{r}
+physeq <- physeq %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Maand_staalname = factor(month(Datum_staalname)),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+
+physeq_known_species <- physeq_known_species %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Maand_staalname = factor(month(Datum_staalname)),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+
+
+physeq_known_genera <- physeq_known_genera %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Maand_staalname = factor(month(Datum_staalname)),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+```
+
 
 
 ## Filter en selectie stappen
@@ -428,6 +468,68 @@ conditional_effects(
   m_rarefaction,
     effects = c("Landgebruik_MBAG:Diepte"),
   re.form = NA)
+```
+
+## Test staalname maand ipv landgebruik als verklarende variabele
+
+```{r m-annelida-richness-maand}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 1e+4)
+
+form_annelida_richness <- formula(
+  observed ~
+    log(total_count)
+  + Maand_staalname
+  + Diepte
+  + Maand_staalname:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_10k,
+  family = glmmTMB::nbinom2())
+```
+
+Model validatie toont dat er problemen zijn met de residuele variabiliteit.
+Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
+
+
+```{r}
+performance::check_model(m_annelida_richness)
+```
+
+
+```{r m-annelida-richness-summary-maand}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-richness-anova-maand}
+car::Anova(m_annelida_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_annelida_richness)) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-annelida-richness-predictions-maand}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Maand_staalname", "Diepte"),
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
 ```
 
 ## OTU counts 
