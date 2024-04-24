@@ -429,6 +429,70 @@ marginaleffects::plot_predictions(
 ```
 
 
+### Poisson model met correctie voor totaal aantal reads
+
+```{r m-annelida-richness-poisson}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 1e+4)
+
+form_annelida_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_10k,
+  family = poisson())
+```
+
+Model validatie toont dat er problemen zijn met de residuele variabiliteit.
+Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
+
+
+```{r}
+performance::check_model(m_annelida_richness)
+```
+
+
+```{r m-annelida-richness-summary-poisson}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-richness-anova-poisson}
+car::Anova(m_annelida_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_annelida_richness)) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-annelida-richness-predictions-poisson}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
+
+
 ### Rarefaction analyse 
 
 Dit is een alternatief voor voorgaande analyse.
