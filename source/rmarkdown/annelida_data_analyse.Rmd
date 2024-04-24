@@ -431,6 +431,8 @@ marginaleffects::plot_predictions(
 
 ### Poisson model met correctie voor totaal aantal reads
 
+Poisson distributie lijk toch een betere fit voor alfa-diversiteit Annelida (zie notes meeting 18/04/2024)?
+
 ```{r m-annelida-richness-poisson}
 samples_totcount_10k <- tidy_physeq$samples %>%
   filter(total_count > 1e+4)
