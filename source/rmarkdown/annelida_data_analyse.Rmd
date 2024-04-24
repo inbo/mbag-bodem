@@ -557,6 +557,77 @@ marginaleffects::plot_predictions(
   labs(y = "Voorspelde aantal taxa")
 ```
 
+## staalname maand meenemen in de modellering van effect landgebruik
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+
+We modelleren de soortenrijkdom als een Negatief Binomiaal model omdat we verwachten dat deze data overdispersie vertonen ten opzichte van een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde).
+
+```{r m-annelida-richness-2}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 1e+4)
+
+form_annelida_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Maand_staalname
+  + Landgebruik_MBAG:Diepte
+  + Landgebruik_MBAG:Maand_staalname
+  + (1 | Cmon_PlotID)
+  )
+
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_10k,
+  family = glmmTMB::nbinom2())
+```
+
+Model validatie toont dat er problemen zijn met de residuele variabiliteit.
+Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
+
+
+```{r}
+performance::check_model(m_annelida_richness)
+```
+
+
+```{r m-annelida-richness-summary-2}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-richness-anova-2}
+car::Anova(m_annelida_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_annelida_richness)) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-annelida-richness-predictions-2}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
 ## OTU counts 
 
 per phylum
