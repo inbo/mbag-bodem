@@ -94,7 +94,10 @@ physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "g
 physeq <- physeq %>%
   microViz::ps_mutate(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
-    Maand_staalname = factor(month(Datum_staalname)),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
     Landgebruik_MBAG = factor(
     Landgebruik_MBAG,
     levels = c(
@@ -105,7 +108,10 @@ physeq <- physeq %>%
 physeq_known_species <- physeq_known_species %>%
   microViz::ps_mutate(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
-    Maand_staalname = factor(month(Datum_staalname)),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
     Landgebruik_MBAG = factor(
     Landgebruik_MBAG,
     levels = c(
@@ -117,7 +123,10 @@ physeq_known_species <- physeq_known_species %>%
 physeq_known_genera <- physeq_known_genera %>%
   microViz::ps_mutate(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
-    Maand_staalname = factor(month(Datum_staalname)),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
     Landgebruik_MBAG = factor(
     Landgebruik_MBAG,
     levels = c(
@@ -229,11 +238,34 @@ tidy_physeq$samples %>%
   kable()
 ```
 
-Zonder diepte:
+Aantal stalen per maand en landgebruik:
 
-```{r designvars}
+```{r}
 tidy_physeq$samples %>%
-  count(Landgebruik_MBAG, Maand_staalname) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
+```
+
+Aantal bodemlocaties per maand en landgebruik:
+
+```{r}
+tidy_physeq$samples %>%
+  distinct(Landgebruik_MBAG, Maand_staalname, Cmon_PlotID) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
   kable()
 ```
 
@@ -254,6 +286,7 @@ tidy_physeq$samples %>%
   summarise(n_locaties = n_distinct(Cmon_PlotID)) %>%
   kable()
 ```
+
 
 De meeste 0-10 cm en 10-30 cm stalen zijn van dezelfde locatie.
 Met deze gepaardheid moeten we rekening houden in analyses.
