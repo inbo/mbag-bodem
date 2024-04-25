@@ -94,7 +94,10 @@ physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "g
 physeq <- physeq %>%
   microViz::ps_mutate(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
-    Maand_staalname = factor(month(Datum_staalname)),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
     Landgebruik_MBAG = factor(
     Landgebruik_MBAG,
     levels = c(
@@ -105,7 +108,10 @@ physeq <- physeq %>%
 physeq_known_species <- physeq_known_species %>%
   microViz::ps_mutate(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
-    Maand_staalname = factor(month(Datum_staalname)),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
     Landgebruik_MBAG = factor(
     Landgebruik_MBAG,
     levels = c(
@@ -117,7 +123,10 @@ physeq_known_species <- physeq_known_species %>%
 physeq_known_genera <- physeq_known_genera %>%
   microViz::ps_mutate(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
-    Maand_staalname = factor(month(Datum_staalname)),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
     Landgebruik_MBAG = factor(
     Landgebruik_MBAG,
     levels = c(
@@ -229,11 +238,34 @@ tidy_physeq$samples %>%
   kable()
 ```
 
-Zonder diepte:
+Aantal stalen per maand en landgebruik:
 
-```{r designvars}
+```{r}
 tidy_physeq$samples %>%
-  count(Landgebruik_MBAG, Maand_staalname) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
+```
+
+Aantal bodemlocaties per maand en landgebruik:
+
+```{r}
+tidy_physeq$samples %>%
+  distinct(Landgebruik_MBAG, Maand_staalname, Cmon_PlotID) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
   kable()
 ```
 
@@ -255,6 +287,7 @@ tidy_physeq$samples %>%
   kable()
 ```
 
+
 De meeste 0-10 cm en 10-30 cm stalen zijn van dezelfde locatie.
 Met deze gepaardheid moeten we rekening houden in analyses.
 
@@ -271,8 +304,6 @@ tidy_physeq$samples %>%
 ## OTU tabel
 
 ```{r verken-otu-data}
-
-
 glimpse(otu_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
 ```
 
@@ -388,7 +419,8 @@ m_annelida_richness <- glmmTMB::glmmTMB(
 ```
 
 Model validatie toont dat er problemen zijn met de residuele variabiliteit.
-Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
+Er lijkt vooral onderdispersie (variabiliteit kleiner dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
+Dit betekent dat een Poisson model wellicht beter geschikt is.
 
 
 ```{r}
@@ -431,7 +463,7 @@ marginaleffects::plot_predictions(
 
 ### Poisson model met correctie voor totaal aantal reads
 
-Poisson distributie lijk toch een betere fit voor alfa-diversiteit Annelida (zie notes meeting 18/04/2024)?
+Poisson distributie lijkt toch een betere fit voor alfa-diversiteit Annelida (zie notes meeting 18/04/2024)?
 
 ```{r m-annelida-richness-poisson}
 samples_totcount_10k <- tidy_physeq$samples %>%
@@ -452,9 +484,7 @@ m_annelida_richness <- glmmTMB::glmmTMB(
   family = poisson())
 ```
 
-Model validatie toont dat er problemen zijn met de residuele variabiliteit.
-Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
-
+Model validatie is nu veel beter.
 
 ```{r}
 performance::check_model(m_annelida_richness)
@@ -579,11 +609,10 @@ form_annelida_richness <- formula(
 m_annelida_richness <- glmmTMB::glmmTMB(
   formula = form_annelida_richness,
   data = samples_totcount_10k,
-  family = glmmTMB::nbinom2())
+  family = poisson())
 ```
 
-Model validatie toont dat er problemen zijn met de residuele variabiliteit.
-Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
+Model validatie OK.
 
 
 ```{r}
@@ -623,14 +652,14 @@ marginaleffects::plot_predictions(
   labs(y = "Voorspelde aantal taxa")
 ```
 
-## staalname maand meenemen in de modellering van effect landgebruik
+## Staalname maand meenemen in de modellering van effect landgebruik
 
 We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
 Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
 
-We modelleren de soortenrijkdom als een Negatief Binomiaal model omdat we verwachten dat deze data overdispersie vertonen ten opzichte van een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde).
+We modelleren de soortenrijkdom als een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde) en controleren of er geen overdispersie is.
 
 ```{r m-annelida-richness-2}
 samples_totcount_10k <- tidy_physeq$samples %>%
@@ -650,49 +679,32 @@ form_annelida_richness <- formula(
 m_annelida_richness <- glmmTMB::glmmTMB(
   formula = form_annelida_richness,
   data = samples_totcount_10k,
-  family = glmmTMB::nbinom2())
+  family = poisson())
 ```
 
-Model validatie toont dat er problemen zijn met de residuele variabiliteit.
-Er lijkt vooral overdispersie (variabiliteit groter dan verwacht) te zijn bij grote waarden van de soortenrijkdom.
-
+Er zijn waarschuwingen die aangeven dat de interactie tussen maand en landgebruik niet mogelijk is.
+Dit is te verwachten omdat landgebruik en maand niet volledig gekruist zijn.
+Het is dus niet zinvol om bovenstaand model te fitten.
+Dit is ook duidelijk uit de al eerder getoonde tabel:
 
 ```{r}
-performance::check_model(m_annelida_richness)
+tidy_physeq$samples %>%
+  filter(total_count > 1e+4) %>%
+  distinct(Landgebruik_MBAG, Maand_staalname, Cmon_PlotID) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
 ```
 
+In deze tabel kunnen we zien dat akker en tijdelijk grasland nagenoeg enkel in maanden 1 tot en met 4 gesampled werden, terwijl de andere landgebruiken eerder in de andere maanden werden bemonsterd.
+Het model met interactie tussen deze variabelen heeft dus bijvoorbeeld geen informatie om het effect van maanden 5 tot en met 12 te fitten voor akker en tijdelijk grasland en dus ook geen informatie waarmee kan nagegaan worden of deze effecten verschillen van de andere landgebruiken.
 
-```{r m-annelida-richness-summary-2}
-summary(m_annelida_richness)
-```
-
-```{r m-annelida-richness-anova-2}
-car::Anova(m_annelida_richness)
-```
-
-Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
-
-```{r}
-marginaleffects::plot_predictions(
-  m_annelida_richness,
-  condition = c("total_count"),
-  vcov = vcov(m_annelida_richness)) +
-  labs(y = "Voorspeld aantal taxa") +
-  scale_x_log10()
-```
-
-
-We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
-
-```{r m-annelida-richness-predictions-2}
-marginaleffects::plot_predictions(
-  m_annelida_richness,
-  condition = c("Landgebruik_MBAG", "Diepte"),
-  vcov = vcov(m_annelida_richness),
-  re.form = NA,
-  type = "response") +
-  labs(y = "Voorspelde aantal taxa")
-```
 
 ## OTU counts 
 
