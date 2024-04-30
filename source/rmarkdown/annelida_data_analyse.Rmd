@@ -376,7 +376,7 @@ tidy_physeq_rarefied %>%
 ```
 
 
-## Alfa-diversiteit
+## Alfa-diversiteit: genetische diversiteit
 
 ### Poisson model met correctie voor totaal aantal reads
 
@@ -528,7 +528,9 @@ conditional_effects(
   re.form = NA)
 ```
 
-### Test staalname maand ipv landgebruik als verklarende variabele
+### Staalname maand als verklarende variabele
+
+test
 
 ```{r m-annelida-richness-maand}
 samples_totcount_10k <- tidy_physeq$samples %>%
@@ -589,7 +591,7 @@ marginaleffects::plot_predictions(
   labs(y = "Voorspelde aantal taxa")
 ```
 
-### Staalname maand meenemen in de modellering van effect landgebruik
+### Staalname maand als covariaat
 
 We fitten een model waarbij we de log van het totaal aantal reads in een staal en de maand van staalname als covariaten toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
@@ -623,7 +625,7 @@ m_annelida_richness <- glmmTMB::glmmTMB(
 
 Er zijn waarschuwingen die aangeven dat de interactie tussen maand en landgebruik niet mogelijk is.
 Dit is te verwachten omdat landgebruik en maand niet volledig gekruist zijn.
-Het is dus niet zinvol om bovenstaand model te fitten.
+We verwijderen deze interactie tussen maand en landgebruik dus uit het model.
 Dit is ook duidelijk uit de al eerder getoonde tabel:
 
 ```{r}
@@ -657,7 +659,7 @@ summary(m_annelida_richness)
 car::Anova(m_annelida_richness)
 ```
 
-We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal en de maand waarin het staal genomen is:
 
 ```{r m-annelida-richness-predictions-2}
 marginaleffects::plot_predictions(
@@ -669,6 +671,261 @@ marginaleffects::plot_predictions(
   labs(y = "Voorspelde aantal taxa")
 ```
 
+
+### Shannon diversity index analyse
+
+Dit is een alternatief voor voorgaande analyse.
+
+Shannon diversity index modelleren als een gamma verdeling met link is log
+
+Neemt de Shannon diversity index toe met het aantal reads in een staal?
+
+```{r}
+tidy_physeq$samples %>%
+  filter(total_count > 0) %>%
+  ggplot(
+    aes(x = total_count, y = Shannon)) +
+  geom_point() +
+  scale_x_log10() +
+  labs(y = "Shannon diversity index")
+```
+
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+
+We modelleren de shannon diversity index als een gamma verdeling met log link.
+
+
+```{r m-annelida-shannon}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 1e+4, Shannon > 0)
+
+form_annelida_richness <- formula(
+  Shannon ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_10k,
+  family = Gamma(link = "log"))
+```
+
+Model validatie
+
+```{r}
+performance::check_model(m_annelida_richness)
+```
+
+
+```{r m-annelida-shannon-summary-gamma}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-shannon-anova-gamma}
+car::Anova(m_annelida_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_annelida_richness)) +
+  labs(y = "Shannon diversity index") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-annelida-shannon-predictions-gamma}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Shannon diversity index")
+```
+
+### Shannon diversity incl staalname maand als covariaat
+
+nog aan te vullen
+
+## Alfa-diversiteit: taxonomische diversiteit
+
+op basis van enkel de data van de gekende soorten (tidy_physeq_known_species)
+
+Dit is dus op basis van enkel de OTUs waarvan we weten tot welke soort ze behoren, de 'unknown' OTUs zijn voor deze analyse verwijderd uit de dataset.
+
+Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
+
+```{r}
+tidy_physeq_known_species$samples %>%
+  filter(total_count > 0) %>%
+  ggplot(
+    aes(x = total_count, y = observed)) +
+  geom_point() +
+  scale_x_log10() +
+  labs(y = "Observed number of taxa")
+```
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+3$).
+
+We modelleren de soortenrijkdom als een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde) en controleren of er geen overdispersie is.
+
+```{r m-annelida-richness-known-species}
+samples_totcount_filtered <- tidy_physeq_known_species$samples %>%
+  filter(total_count > 1e+4)
+
+form_annelida_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_filtered,
+  family = poisson())
+```
+
+Zijn er problemen met de residuele variabiliteit op basis van de model validatie?
+Is er overdispersie (variabiliteit groter dan verwacht)? Zoals bijvoorbeeld bij grote waarden van de soortenrijkdom?
+
+
+```{r}
+performance::check_model(m_annelida_richness)
+```
+
+
+```{r m-annelida-richness-summary-known-species}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-richness-anova-known-species}
+car::Anova(m_annelida_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r known-species}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_annelida_richness)) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-annelida-richness-predictions-known-species}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
+
+### Staalname maand als covariaat
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal en de maand van staalname als covariaten toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+
+We modelleren de soortenrijkdom als een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde) en controleren of er geen overdispersie is.
+
+Poisson distributie lijkt een goede fit voor alfa-diversiteit Annelida (zie notes meeting 18/04/2024).
+
+
+```{r m-annelida-richness-knownspecies2}
+samples_totcount_10k <- tidy_physeq_known_species$samples %>%
+  filter(total_count > 1e+4)
+
+form_annelida_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Maand_staalname
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_10k,
+  family = poisson())
+```
+
+Er zijn waarschuwingen die aangeven dat de interactie tussen maand en landgebruik niet mogelijk is.
+Dit is te verwachten omdat landgebruik en maand niet volledig gekruist zijn.
+We verwijderen deze interactie tussen maand en landgebruik dus uit het model.
+Dit is ook duidelijk uit de al eerder getoonde tabel:
+
+```{r}
+tidy_physeq_known_species$samples %>%
+  filter(total_count > 1e+4) %>%
+  distinct(Landgebruik_MBAG, Maand_staalname, Cmon_PlotID) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
+```
+
+In deze tabel kunnen we zien dat akker en tijdelijk grasland nagenoeg enkel in maanden 1 tot en met 4 gesampled werden, terwijl de andere landgebruiken eerder in de andere maanden werden bemonsterd.
+Het model met interactie tussen deze variabelen heeft dus bijvoorbeeld geen informatie om het effect van maanden 5 tot en met 12 te fitten voor akker en tijdelijk grasland en dus ook geen informatie waarmee kan nagegaan worden of deze effecten verschillen van de andere landgebruiken.
+
+```{r}
+performance::check_model(m_annelida_richness)
+```
+
+
+```{r m-annelida-richness-knownspecies-summary-2}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-richness-knownspecies-anova-2}
+car::Anova(m_annelida_richness)
+```
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal en de maand waarin het staal genomen is:
+
+```{r m-annelida-richness-predictions-known-species-2}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
 
 
 ## OTU counts 
