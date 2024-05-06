@@ -1,0 +1,1181 @@
+---
+title: "Protista data analyse"
+author: "Sam Lambrechts, Io Deflem, Emma Cartuyvels, Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(here)
+
+
+opts_chunk$set(echo = TRUE, out.width = "100%")
+opts_knit$set(root.dir = here::here())
+
+if (!"phyloseq" %in% rownames(installed.packages())) {
+  remotes::install_github("joey711/phyloseq")
+}
+library(phyloseq)
+library(vegan)
+library(ggplot2)
+library(ggrepel)
+library(ggpubr)
+library(gridExtra)
+library(ggbiplot)
+library(factoextra)
+library(dplyr)
+library(rstatix)
+library(dunn.test)
+library(compositions)
+#library(sf) # installatie nodig op hpc, alsook van de dependcy "units", voor units was ook installatie texinfo nodig, installatie units en dus ook sf niet gelukt op hpc
+
+#### Handig pakket met veel phyloseq add-ons
+if (!"psadd" %in% rownames(installed.packages())) {
+  remotes::install_github("cpauvert/psadd")
+}
+
+library(psadd)
+if (!"tidytacos" %in% rownames(installed.packages())) {
+  remotes::install_github("lebeerlab/tidytacos")
+}
+if (!"ggVennDiagram" %in% rownames(installed.packages())) {
+  install.packages("ggVennDiagram")
+}
+
+if (!"microViz" %in% rownames(installed.packages())) {
+  install.packages(
+  "microViz",
+  repos = c(davidbarnett = "https://david-barnett.r-universe.dev",
+            getOption("repos"))
+)
+}
+
+library(tidytacos)
+library(glmmTMB)
+library(marginaleffects)
+library(performance)
+library(lubridate)
+
+mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
+
+```
+
+# Inlezen data
+
+<!--
+In plaats van een .Rdata object, zouden we hier beter de bronbestanden inlezen met de code die hiervoor nodig.
+Met bronbestanden bedoel ik hier gewoon de drie tabelletjes die samen het phyloseq object vormen.
+Deze tabelletjes kunnen best gewoon csv bestanden zijn die we inlezen.
+-->
+
+```{r load-rdata-file}
+path_naar_bestand <- file.path(
+    mbag_folder,
+    "4c_bodembiodiversiteit",
+    "data",
+    "statistiek",
+    "18S",
+    "phyloseq",
+    "18S_protisten",
+    "physeq_18S_mbag_protisten.Rdata"
+  )
+
+load(path_naar_bestand)
+
+
+```
+
+Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
+
+# Preprocessing stappen
+
+<!--vergeet HIER niet te starten van de NIET-rarefied versie-->
+
+```{r hernoem-object}
+physeq <- physeq_18SP_protisten1_sub
+
+```
+
+```{r}
+# Calculate Shannon diversity
+shannon_data <- estimate_richness(physeq, measures = "Shannon")
+
+# Check if row names match
+if(all(rownames(shannon_data) == rownames(sample_data(physeq)))) {
+    # Add the Shannon diversity data to the sample_data of the physeq object
+    sample_data(physeq)$Shannon <- shannon_data$Shannon
+} else {
+    stop("Row names do not match between shannon_data and sample_data(physeq).")
+}
+
+
+physeq <- physeq %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+
+```
+
+
+```{r eval=FALSE}
+
+physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "genus"]))
+
+physeq_known_genera <- physeq_known_genera %>%
+  microViz::ps_mutate(
+    Datum_staalname = lubridate::mdy_hm(Datum_staalname),
+    Maand_staalname = factor(
+      lubridate::month(Datum_staalname),
+      levels = 1:12
+    ),
+    Landgebruik_MBAG = factor(
+    Landgebruik_MBAG,
+    levels = c(
+      "Akker", "Tijdelijk grasland", "Blijvend grasland",
+      "Residentieel grasland", "Natuurgrasland"))
+  )
+```
+
+
+
+## Filter en selectie stappen
+
+<!--Remove samples according to the dataset you want to work with (e.g. without replicates or without a certain land use type)-->
+
+
+```{r aanmaak-rarefied}
+
+physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 11084)
+
+```
+
+
+
+
+
+## Conversie voor gebruik in andere packages
+
+Voorbereidende stap: functies om een `phyloseq` object te converteren naar een `vegan matrix` of een `tidytacos` object.
+
+
+```{r physeq-to-vegan}
+psotu2veg <- function(physeq) {
+  otu <- phyloseq::otu_table(physeq)
+  if (phyloseq::taxa_are_rows(otu)) {
+    otu <- t(otu)
+  }
+  return(as(otu, "matrix"))
+}
+
+veganobject <- psotu2veg(physeq)
+
+
+```
+
+
+```{r physeq-to-vegan-known-species, eval=FALSE}
+psotu2veg <- function(physeq_known_species) {
+  otu <- phyloseq::otu_table(physeq_known_species)
+  if (phyloseq::taxa_are_rows(otu)) {
+    otu <- t(otu)
+  }
+  return(as(otu, "matrix"))
+}
+
+veganobject_known_species <- psotu2veg(physeq_known_species)
+
+
+```
+
+```{r physeq-to-vegan-known-genera, eval=FALSE}
+psotu2veg <- function(physeq_known_genera) {
+  otu <- phyloseq::otu_table(physeq_known_genera)
+  if (phyloseq::taxa_are_rows(otu)) {
+    otu <- t(otu)
+  }
+  return(as(otu, "matrix"))
+}
+
+veganobject_known_species <- psotu2veg(physeq_known_genera)
+
+
+```
+
+
+```{r convert-tidytacos}
+tidy_physeq <- tidytacos::from_phyloseq(physeq)
+tidy_physeq_rarefied <- tidytacos::from_phyloseq(physeq_rarefied)
+#tidy_physeq_known_species <- tidytacos::from_phyloseq(physeq_known_species)
+#tidy_physeq_known_genera <- tidytacos::from_phyloseq(physeq_known_genera)
+
+
+
+tidy_physeq <- tidy_physeq %>%
+  remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = phyloseq::rank_names(physeq)
+  ) %>%
+  tidytacos::add_alpha() %>%
+  tidytacos::add_total_count()
+
+tidy_physeq_rarefied <- tidy_physeq_rarefied %>%
+  remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = phyloseq::rank_names(physeq_rarefied)
+  ) %>%
+  tidytacos::add_alpha() %>%
+  tidytacos::add_total_count()
+
+
+```
+
+```{r eval=FALSE}
+tidy_physeq_known_species <- tidy_physeq_known_species %>%
+  remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = phyloseq::rank_names(physeq_known_species)
+  ) %>%
+  tidytacos::add_alpha() %>%
+  tidytacos::add_total_count()
+
+tidy_physeq_known_genera <- tidy_physeq_known_genera %>%
+  remove_empty_samples() %>%
+  tidytacos::set_rank_names(
+    rank_names = phyloseq::rank_names(physeq_known_genera)
+  ) %>%
+  tidytacos::add_alpha() %>%
+  tidytacos::add_total_count()
+
+```
+
+
+
+# Verkennende analyses
+
+```{r}
+physeq
+```
+
+```{r}
+physeq_rarefied
+```
+
+```{r eval=FALSE}
+physeq_known_species
+```
+
+```{r eval=FALSE}
+physeq_known_genera
+```
+
+
+## Sample data
+
+```{r verken-sample-data}
+glimpse(sample_data(physeq) %>% as_tibble())
+```
+
+Check totaal aantal reads (hier de decielen van 0% = minimum tot 100% = maximum):
+
+```{r quantiles-reads}
+sample_sums(physeq) %>%
+  quantile(probs = seq(0, 1, 0.1))
+```
+
+Er zijn dus lege samples (zonder OTUs).
+
+We verkennen ook de verdeling van de samples over de belangrijkste design-variabelen:
+
+```{r designvars}
+tidy_physeq$samples %>%
+  count(Diepte, Landgebruik_MBAG) %>%
+  kable()
+```
+
+Inclusief moment (maand) van staalname:
+
+```{r designvars2}
+tidy_physeq$samples %>%
+  count(Diepte, Landgebruik_MBAG, Maand_staalname) %>%
+  kable()
+```
+
+Aantal stalen per maand en landgebruik:
+
+```{r}
+tidy_physeq$samples %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
+```
+
+Aantal bodemlocaties per maand en landgebruik:
+
+```{r}
+tidy_physeq$samples %>%
+  distinct(Landgebruik_MBAG, Maand_staalname, Cmon_PlotID) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
+```
+
+Aantal bodemlocaties:
+
+```{r}
+tidy_physeq$samples %>%
+  group_by(Landgebruik_MBAG) %>%
+  summarise(n_locaties = n_distinct(Cmon_PlotID)) %>%
+  kable()
+```
+
+Aantal per maand:
+
+```{r}
+tidy_physeq$samples %>%
+  group_by(Maand_staalname) %>%
+  summarise(n_locaties = n_distinct(Cmon_PlotID)) %>%
+  kable()
+```
+
+
+De meeste 0-10 cm en 10-30 cm stalen zijn van dezelfde locatie.
+Met deze gepaardheid moeten we rekening houden in analyses.
+
+Verspreiding van de bodemlocaties in Vlaanderen (lukt niet op HPC):
+
+```{r eval=FALSE}
+tidy_physeq$samples %>%
+  distinct(Cmon_PlotID, c_LB72X, c_LB72Y, Landgebruik_MBAG) %>%
+  st_as_sf(coords = c("c_LB72X", "c_LB72Y"), crs = 31370) %>%
+  ggplot() +
+  geom_sf(aes(colour = Landgebruik_MBAG))
+```
+
+## OTU tabel
+
+```{r verken-otu-data}
+glimpse(otu_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
+```
+
+## Taxonomie tabel
+
+
+```{r verken-taxonomie-data}
+glimpse(tax_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
+```
+
+## GBIF check presence
+
+Nog niet getest op HPC
+
+```{r GBIF-check-presence, eval=FALSE}
+
+species <- as.vector(tax_table(physeq)[, "species"])
+species <- species[!grepl("_otu", species)]
+species <- gsub("_", " ", species)
+source(here::here("source/r/check_presence.R"))
+gbif_check <- check_presence(species)
+gbif_check %>%
+filter(!present) %>%
+  kable(caption = "Not present according to GBIF in Western-Europe")
+```
+
+Unieke en gedeelde taxa per diepte:
+
+```{r}
+tidy_physeq_rarefied %>%
+  tidytacos::tacoplot_venn(Diepte)
+```
+
+Unieke en gedeelde taxa per landgebruik:
+
+```{r}
+tidy_physeq %>%
+  tidytacos::tacoplot_venn(Landgebruik_MBAG)
+```
+
+Unieke en gedeelde taxa per landgebruik op basis van rarefied data:
+
+```{r}
+tidy_physeq_rarefied %>%
+  tidytacos::tacoplot_venn(Landgebruik_MBAG)
+```
+
+```{r eval=FALSE}
+tidy_physeq_rarefied %>%
+  tidytacos::tacoplot_stack()
+```
+
+```{r eval=FALSE}
+# Create a new combined column
+combined_column <- paste(sample_data(physeq_rarefied)$Landgebruik_MBAG, sample_data(physeq_rarefied)$Diepte, sep = "_")
+
+# Add the new combined column to the sample metadata with the desired name
+sample_data(physeq_rarefied)$Landgebruik_MBAG_diepte <- combined_column
+
+# Update the phyloseq object with the modified sample data
+physeq_rarefied <- merge_phyloseq(physeq_rarefied, sample_data(physeq_rarefied))
+
+
+if (system(command = "which ktImportText",  intern = FALSE, ignore.stderr = TRUE,  ignore.stdout = TRUE) != 1) {
+  psadd::plot_krona(physeq_rarefied, "MBAG_Olig01_protista_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte", "Landgebruik_MBAG_diepte", trim = T)
+}
+
+
+
+```
+
+
+```{r eval=FALSE}
+tidy_physeq_rarefied %>%
+  tidytacos::tacoplot_stack(x = Landgebruik_MBAG)
+```
+
+```{r eval=FALSE}
+tidy_physeq_rarefied %>%
+  tidytacos::tacoplot_stack(x = Diepte)
+```
+
+
+## Alfa-diversiteit: genetische diversiteit
+
+### Poisson model met correctie voor totaal aantal reads
+
+Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
+
+```{r}
+tidy_physeq$samples %>%
+  filter(total_count > 0) %>%
+  ggplot(
+    aes(x = total_count, y = observed)) +
+  geom_point() +
+  scale_x_log10() +
+  labs(y = "Observed number of taxa")
+```
+
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+
+We modelleren de soortenrijkdom als een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde) en controleren of er geen overdispersie is.
+
+Poisson distributie lijkt een goede fit voor alfa-diversiteit protista (zie notes meeting 18/04/2024).
+
+```{r m-protista-richness-poisson}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 5e+3)
+
+form_protista_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_protista_richness <- glmmTMB::glmmTMB(
+  formula = form_protista_richness,
+  data = samples_totcount_10k,
+  family = poisson())
+```
+
+Model validatie is nu veel beter.
+
+```{r}
+performance::check_model(m_protista_richness)
+```
+
+
+```{r m-protista-richness-summary-poisson}
+summary(m_protista_richness)
+```
+
+```{r m-protista-richness-anova-poisson}
+car::Anova(m_protista_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_protista_richness)) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-protista-richness-predictions-poisson}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_protista_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
+
+
+### Rarefaction analyse 
+
+Dit is een alternatief voor voorgaande analyse.
+Schatting van de soortenrijkdom via rarefaction analyse.
+
+```{r rarefaction}
+sam_new <- data.frame(sample_data(physeq))
+
+
+estimated_species_richness <- vegan::rarefy(
+  veganobject,
+  11084,
+  se = TRUE,
+  MARGIN = 1)
+
+
+true_rarefaction_results <- cbind(
+  sam_new %>% select(Cmon_PlotID, Diepte, Landgebruik_MBAG),
+  est = estimated_species_richness["S", ],
+  se = estimated_species_richness["se", ]) %>%
+  as_tibble() %>%
+  mutate(est_lower = est - 2 * se,
+         est_upper = est + 2 * se)
+```
+
+
+```{r}
+glimpse(true_rarefaction_results)
+# verwijder gevallen waar se te klein is of nul is
+true_rarefaction_results <- true_rarefaction_results %>%
+  filter(se > 0.1)
+```
+
+```{r m-rarefied}
+library(brms)
+
+form_rarefaction <- bf(
+  est | se(se, sigma = TRUE) ~
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+)
+
+m_rarefaction <- brm(
+  formula = form_rarefaction,
+  data = true_rarefaction_results,
+  family = gaussian())
+
+```
+
+
+
+```{r m-rarefied-summary}
+summary(m_rarefaction)
+```
+
+Dit model geeft gelijkaardige resultaten als het model waarbij we rechtstreeks werkten met de geobserveerde aantallen taxa en (de log van) het totaal aantal reads als covariaat toevoegden.
+
+```{r m-rarefied-predictions}
+conditional_effects(
+  m_rarefaction,
+    effects = c("Landgebruik_MBAG:Diepte"),
+  re.form = NA)
+```
+
+### Test staalname maand ipv landgebruik als verklarende variabele
+
+```{r m-protista-richness-maand}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 5e+3)
+
+form_protista_richness <- formula(
+  observed ~
+    log(total_count)
+  + Maand_staalname
+  + Diepte
+  + Maand_staalname:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_protista_richness <- glmmTMB::glmmTMB(
+  formula = form_protista_richness,
+  data = samples_totcount_10k,
+  family = poisson())
+```
+
+Model validatie OK.
+
+
+```{r}
+performance::check_model(m_protista_richness)
+```
+
+
+```{r m-protista-richness-summary-maand}
+summary(m_protista_richness)
+```
+
+```{r m-protista-richness-anova-maand}
+car::Anova(m_protista_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_protista_richness)) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-protista-richness-predictions-maand}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("Maand_staalname", "Diepte"),
+  vcov = vcov(m_protista_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
+### Staalname maand als covariaat
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal en de maand van staalname als covariaten toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+
+We modelleren de soortenrijkdom als een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde) en controleren of er geen overdispersie is.
+
+Poisson distributie lijkt een goede fit voor alfa-diversiteit protista (zie notes meeting 18/04/2024).
+
+
+```{r m-protista-richness-2}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 5e+3)
+
+form_protista_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Maand_staalname
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_protista_richness <- glmmTMB::glmmTMB(
+  formula = form_protista_richness,
+  data = samples_totcount_10k,
+  family = poisson())
+```
+
+Er zijn waarschuwingen die aangeven dat de interactie tussen maand en landgebruik niet mogelijk is.
+Dit is te verwachten omdat landgebruik en maand niet volledig gekruist zijn.
+Het is dus niet zinvol om bovenstaand model te fitten.
+Dit is ook duidelijk uit de al eerder getoonde tabel:
+
+```{r}
+tidy_physeq$samples %>%
+  filter(total_count > 5e+3) %>%
+  distinct(Landgebruik_MBAG, Maand_staalname, Cmon_PlotID) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
+```
+
+In deze tabel kunnen we zien dat akker en tijdelijk grasland nagenoeg enkel in maanden 1 tot en met 4 gesampled werden, terwijl de andere landgebruiken eerder in de andere maanden werden bemonsterd.
+Het model met interactie tussen deze variabelen heeft dus bijvoorbeeld geen informatie om het effect van maanden 5 tot en met 12 te fitten voor akker en tijdelijk grasland en dus ook geen informatie waarmee kan nagegaan worden of deze effecten verschillen van de andere landgebruiken.
+
+```{r}
+performance::check_model(m_protista_richness)
+```
+
+
+```{r m-protista-richness-summary-2}
+summary(m_protista_richness)
+```
+
+```{r m-protista-richness-anova-2}
+car::Anova(m_protista_richness)
+```
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-protista-richness-predictions-2}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_protista_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
+### Shannon diversity index analyse
+
+Dit is een alternatief voor voorgaande analyse.
+
+Shannon diversity index modelleren als een gamma verdeling met link is log
+
+Neemt de Shannon diversity index toe met het aantal reads in een staal?
+
+```{r}
+tidy_physeq$samples %>%
+  filter(total_count > 0) %>%
+  ggplot(
+    aes(x = total_count, y = Shannon)) +
+  geom_point() +
+  scale_x_log10() +
+  labs(y = "Shannon diversity index")
+```
+
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+
+We modelleren de shannon diversity index als een gamma verdeling met log link.
+
+
+```{r m-protista-shannon}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 5e+3, Shannon > 0)
+
+form_protista_richness <- formula(
+  Shannon ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_protista_richness <- glmmTMB::glmmTMB(
+  formula = form_protista_richness,
+  data = samples_totcount_10k,
+  family = Gamma(link = "log"))
+```
+
+Model validatie
+
+```{r}
+performance::check_model(m_protista_richness)
+```
+
+
+```{r m-protista-shannon-summary-gamma}
+summary(m_protista_richness)
+```
+
+```{r m-protista-shannon-anova-gamma}
+car::Anova(m_protista_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_protista_richness)) +
+  labs(y = "Shannon diversity index") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-protista-shannon-predictions-gamma}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_protista_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Shannon diversity index")
+```
+
+### Shannon diversity incl staalname maand als covariaat
+
+nog aan te vullen
+
+## Alfa-diversiteit: taxonomische diversiteit
+
+op basis van enkel de data van de gekende genera (tidy_physeq_known_genera)
+
+Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
+
+```{r eval=FALSE}
+tidy_physeq_known_genera$samples %>%
+  filter(total_count > 0) %>%
+  ggplot(
+    aes(x = total_count, y = observed)) +
+  geom_point() +
+  scale_x_log10() +
+  labs(y = "Observed number of taxa")
+```
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+3$).
+
+We modelleren de soortenrijkdom als een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde) en controleren of er geen overdispersie is.
+
+```{r m-protista-richness-known-species, eval=FALSE}
+samples_totcount_filtered <- tidy_physeq_known_genera$samples %>%
+  filter(total_count > 1e+4)
+
+form_protista_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_protista_richness <- glmmTMB::glmmTMB(
+  formula = form_protista_richness,
+  data = samples_totcount_filtered,
+  family = poisson())
+```
+
+Zijn er problemen met de residuele variabiliteit op basis van de model validatie?
+Is er overdispersie (variabiliteit groter dan verwacht)? Zoals bijvoorbeeld bij grote waarden van de soortenrijkdom?
+
+
+```{r eval=FALSE}
+performance::check_model(m_protista_richness)
+```
+
+
+```{r m-protista-richness-summary-known-species, eval=FALSE}
+summary(m_protista_richness)
+```
+
+```{r m-protista-richness-anova-known-species, eval=FALSE}
+car::Anova(m_protista_richness)
+```
+
+Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal reads:
+
+```{r known-species, eval=FALSE}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("total_count"),
+  vcov = vcov(m_protista_richness)) +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-protista-richness-predictions-known-species, eval=FALSE}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_protista_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
+
+### Staalname maand als covariaat
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal en de maand van staalname als covariaten toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+Voor deze analyse, verwijderen we enkele stalen met een laag totaal aantal reads ($\leq 1e+4$).
+
+We modelleren de soortenrijkdom als een Poisson verdeling (waar de veronderstelling is dat de variantie gelijk aan het gemiddelde) en controleren of er geen overdispersie is.
+
+Poisson distributie lijkt een goede fit voor alfa-diversiteit protista (zie notes meeting 18/04/2024).
+
+
+```{r m-protista-richness-knownspecies2, eval=FALSE}
+samples_totcount_10k <- tidy_physeq_known_genera$samples %>%
+  filter(total_count > 1e+4)
+
+form_protista_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Maand_staalname
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_protista_richness <- glmmTMB::glmmTMB(
+  formula = form_protista_richness,
+  data = samples_totcount_10k,
+  family = poisson())
+```
+
+Er zijn waarschuwingen die aangeven dat de interactie tussen maand en landgebruik niet mogelijk is.
+Dit is te verwachten omdat landgebruik en maand niet volledig gekruist zijn.
+Het is dus niet zinvol om bovenstaand model te fitten.
+Dit is ook duidelijk uit de al eerder getoonde tabel:
+
+```{r eval=FALSE}
+tidy_physeq_known_genera$samples %>%
+  filter(total_count > 1e+4) %>%
+  distinct(Landgebruik_MBAG, Maand_staalname, Cmon_PlotID) %>%
+  count(Landgebruik_MBAG, Maand_staalname, name = "n_locaties") %>%
+  tidyr::complete(
+    Maand_staalname, Landgebruik_MBAG, fill = list(n_locaties = 0)
+  ) %>%
+  tidyr::pivot_wider(
+    id_cols = Maand_staalname,
+    names_from = Landgebruik_MBAG,
+    values_from = n_locaties) %>%
+  kable()
+```
+
+In deze tabel kunnen we zien dat akker en tijdelijk grasland nagenoeg enkel in maanden 1 tot en met 4 gesampled werden, terwijl de andere landgebruiken eerder in de andere maanden werden bemonsterd.
+Het model met interactie tussen deze variabelen heeft dus bijvoorbeeld geen informatie om het effect van maanden 5 tot en met 12 te fitten voor akker en tijdelijk grasland en dus ook geen informatie waarmee kan nagegaan worden of deze effecten verschillen van de andere landgebruiken.
+
+```{r eval=FALSE}
+performance::check_model(m_protista_richness)
+```
+
+
+```{r m-protista-richness-knownspecies-summary-2, eval=FALSE}
+summary(m_protista_richness)
+```
+
+```{r m-protista-richness-knownspecies-anova-2, eval=FALSE}
+car::Anova(m_protista_richness)
+```
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal:
+
+```{r m-protista-richness-predictions-known-species-2, eval=FALSE}
+marginaleffects::plot_predictions(
+  m_protista_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_protista_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Voorspelde aantal taxa")
+```
+
+## OTU counts 
+
+per phylum
+
+```{r per-phylum}
+# Count OTUs per subdivision
+tax_table(physeq) %>%
+  as.data.frame() %>%
+  as_tibble() %>%
+  group_by(Subdivision) %>%
+  summarise(OTU_Count = n()) %>%
+  kable()
+```
+
+per class
+
+```{r per-class}
+# Count OTUs per class
+tax_table(physeq) %>%
+  as.data.frame() %>%
+  as_tibble() %>%
+  group_by(Class) %>%
+  summarise(OTU_Count = n()) %>%
+  kable()
+```
+
+Per genus
+
+```{r per-genus}
+tax_table(physeq) %>%
+  as.data.frame() %>%
+  group_by(Genus) %>%
+  summarise(OTU_Count = n()) %>%
+  arrange(desc(OTU_Count)) %>%
+  kable()
+```
+
+Per species (check of er species zijn met meer dan 1 OTU)
+
+```{r per-species, eval=FALSE}
+tax_table(physeq) %>%
+  as.data.frame() %>%
+  group_by(species) %>%
+  summarise(OTU_Count = n()) %>%
+  filter(OTU_Count > 1) %>%
+  kable()
+```
+
+
+## Read counts
+
+
+```{r eval=FALSE}
+tidy_physeq %>%
+  tidytacos::aggregate_taxa(rank = "subdivision") %>%
+  tidytacos::everything() %>%
+  group_by(subdivision) %>%
+  summarise(read_counts = sum(count)) %>%
+  mutate(percentage = round((read_counts / sum(read_counts)) * 100, 1)) %>% # Round to 2 decimal places
+  arrange(desc(read_counts)) %>%
+  select(subdivision, percentage) %>% # Keep only necessary columns if desired
+  kable()
+```
+
+Overzicht van som van reads per class:
+
+```{r eval=FALSE}
+tidy_physeq %>%
+  tidytacos::aggregate_taxa(rank = "class") %>%
+  tidytacos::everything() %>%
+  group_by(class) %>%
+  summarise(read_counts = sum(count)) %>%
+  mutate(percentage = round((read_counts / sum(read_counts)) * 100, 2)) %>% # Calculate and round percentage
+  arrange(desc(read_counts)) %>%
+  select(class, percentage) %>% # Keep only necessary columns if desired
+  kable()
+```
+
+Overzicht van som van reads per order:
+
+
+```{r eval=FALSE}
+tidy_physeq %>%
+  tidytacos::aggregate_taxa(rank = "order") %>%
+  tidytacos::everything() %>%
+  group_by(order) %>%
+  summarise(read_counts = sum(count)) %>%
+  mutate(percentage = round((read_counts / sum(read_counts)) * 100, 2)) %>% # Calculate and round percentage
+  arrange(desc(read_counts)) %>%
+  select(order, percentage) %>% # Keep only necessary columns if desired
+  kable()
+```
+
+Overzicht van som van reads per family:
+
+```{r eval=FALSE}
+tidy_physeq %>%
+  tidytacos::aggregate_taxa(rank = "family") %>%
+  tidytacos::everything() %>%
+  group_by(family) %>%
+  summarise(read_counts = sum(count)) %>%
+  mutate(percentage = round((read_counts / sum(read_counts)) * 100, 2)) %>% # Calculate and round percentage
+  arrange(desc(read_counts)) %>%
+  select(family, percentage) %>% # Keep only necessary columns if desired
+  kable()
+```
+
+Overzicht van som van reads per genus:
+
+```{r eval=FALSE}
+tidy_physeq %>%
+  tidytacos::aggregate_taxa(rank = "genus") %>%
+  tidytacos::everything() %>%
+  group_by(genus) %>%
+  summarise(read_counts = sum(count)) %>%
+  mutate(percentage = round((read_counts / sum(read_counts)) * 100, 2)) %>% # Calculate and round percentage
+  arrange(desc(read_counts)) %>%
+  select(genus, percentage) %>% # Keep only necessary columns if desired
+  kable()
+```
+
+
+
+
+## Ordinatie
+
+```{r physec-rarefied, eval=FALSE}
+
+```
+
+```{r ordination-vegan, eval=FALSE}
+ordmat <- psotu2veg(physeq_rarefied)
+
+all(colSums(ordmat) > 0)
+all(rowSums(ordmat) > 0)
+all(ordmat >= 0)
+
+ordmat <- decostand(ordmat, method = "rclr")
+
+samples <- sample_data(physeq_rarefied) %>%
+  as.data.frame() %>%
+  as_tibble()
+
+rda <- rda(ordmat)
+
+biplot(rda)
+
+
+```
+
+
+```{r eval=FALSE}
+# Perform CLR transformation
+clr_physeq_rarefied <- transform(physeq_rarefied, "clr")
+
+# Calculate Bray distance matrix based on the CLR-transformed data
+bray_distance <- distance(physeq, method = "bray")
+
+# Perform PCoA
+pcoa_result <- ordinate(physeq, method = "PCoA", distance = "bray")
+
+# Create the ordination plot with color based on land_use and shape
+# based on diepte
+plot_ordination(physeq, pcoa_result, type = "samples",
+                color = "Landgebruik_MBAG", shape = "Diepte") +
+  theme_minimal()
+```
