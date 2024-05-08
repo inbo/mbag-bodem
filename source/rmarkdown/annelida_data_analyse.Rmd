@@ -759,7 +759,53 @@ marginaleffects::plot_predictions(
 
 ### Shannon diversity incl staalname maand als covariaat
 
-nog aan te vullen
+```{r m-annelida-shannon-incl-staalname-maand}
+samples_totcount_10k <- tidy_physeq$samples %>%
+  filter(total_count > 1e+4, Shannon > 0)
+
+form_annelida_richness <- formula(
+  Shannon ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + Maand_staalname
+  + Landgebruik_MBAG:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+m_annelida_richness <- glmmTMB::glmmTMB(
+  formula = form_annelida_richness,
+  data = samples_totcount_10k,
+  family = Gamma(link = "log"))
+```
+
+Model validatie
+
+```{r shannon-incl-staalname-maand}
+performance::check_model(m_annelida_richness)
+```
+
+
+```{r m-annelida-shannon-summary-gamma-incl-staalname-maand}
+summary(m_annelida_richness)
+```
+
+```{r m-annelida-shannon-anova-gamma-incl-staalname-maand}
+car::Anova(m_annelida_richness)
+```
+
+
+We kunnen nu predicties maken van soortenrijkdom waarbij we controleren voor het totaal aantal reads in een staal en de maand waarin de staalname plaatsvond:
+
+```{r m-annelida-shannon-predictions-gamma-incl-staalname-maand}
+marginaleffects::plot_predictions(
+  m_annelida_richness,
+  condition = c("Landgebruik_MBAG", "Diepte"),
+  vcov = vcov(m_annelida_richness),
+  re.form = NA,
+  type = "response") +
+  labs(y = "Shannon diversity index")
+```
 
 ## Alfa-diversiteit: taxonomische diversiteit
 
