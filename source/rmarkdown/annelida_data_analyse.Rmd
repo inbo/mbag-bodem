@@ -623,7 +623,7 @@ m_annelida_richness <- glmmTMB::glmmTMB(
   family = poisson())
 ```
 
-Er zijn waarschuwingen die aangeven dat de interactie tussen maand en landgebruik niet mogelijk is.
+Wanneer we dit model fitten met interactie tussen maand en landgebruik, zijn er waarschuwingen die aangeven dat de interactie tussen maand en landgebruik niet mogelijk is.
 Dit is te verwachten omdat landgebruik en maand niet volledig gekruist zijn.
 We verwijderen deze interactie tussen maand en landgebruik dus uit het model.
 Dit is ook duidelijk uit de al eerder getoonde tabel:
