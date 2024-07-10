@@ -1,0 +1,66 @@
+### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+
+```{r}
+data_subset <- combined %>%
+  filter(
+    group == "{{group}}",
+    primerset == "{{primerset}}",
+    unit == "{{unit}}"
+  )
+```
+
+
+```{r m-simpson-{{group}}-{{primerset}}-{{unit}}}
+form_simpson <- formula(
+  simpson ~
+    log(total_count)
+  + landgebruik
+  + diepte
+  + landgebruik:diepte
+  + (1 | cmon_plot_id)
+  )
+
+cat("Fitting ordinal beta model")
+
+m_simpson <- glmmTMB(
+  formula = form_simpson,
+  data = data_subset,
+  family = ordbeta())
+```
+
+
+```{r m-simpson-checks-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+performance::check_model(m_simpson)
+```
+
+
+```{r m-simpson-summary-{{group}}-{{primerset}}-{{unit}}}
+summary(m_simpson) |> print(digits = 2)
+```
+
+```{r m-simpson-anova-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+car::Anova(m_simpson) |> print(digits = 2)
+```
+
+```{r m-simpson-preds-total-count-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+marginaleffects::plot_predictions(
+  m_simpson,
+  condition = c("total_count"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Simpson index") +
+  scale_x_log10()
+```
+
+```{r m-simpson-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+marginaleffects::plot_predictions(
+  m_simpson,
+  condition = c("landgebruik", "diepte"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Simpson index")
+```
+
+

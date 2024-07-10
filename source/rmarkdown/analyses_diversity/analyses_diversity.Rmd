@@ -1,0 +1,210 @@
+---
+title: "Analyses diversiteit"
+author: "Sam Lambrechts, Sylke De Backer, Io Deflem, Emma Cartuyvels, Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(here)
+opts_chunk$set(echo = TRUE, out.width = "100%")
+opts_knit$set(root.dir = here::here())
+
+library(ggplot2)
+library(ggforce)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(glmmTMB)
+library(marginaleffects)
+library(performance)
+
+mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
+```
+
+# Inlezen data
+
+```{r inlezen}
+diversiteit <- readr::read_csv(
+  file.path(
+    mbag_bodem_folder,
+    "data", "statistiek", "dataframe_overkoepelend",
+    "mbag_combined_dataframe.csv")
+)
+
+metadata <- readxl::read_excel(
+  file.path(
+    mbag_bodem_folder,
+    "data", 
+    "Stratificatie_MBAG_plots",
+    "MBAG_stratfile_v1_cleaned.xlsx")
+) %>%
+  janitor::clean_names() %>%
+  rename(landgebruik_ruimtebeslag = landgebruik) %>%
+  mutate(
+    landgebruik = factor(
+      landgebruik_mbag,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland")
+    ),
+    diepte = gsub("-", "_", diepte) |> factor()
+  )
+
+combined <- diversiteit %>%
+  inner_join(metadata, by = "sample")
+```
+
+```{r}
+glimpse(combined)
+```
+
+# Verkenning
+
+Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
+
+```{r}
+combined %>%
+  filter(total_count > 0) %>%
+  ggplot() +
+  geom_point(aes(x = total_count, y = observed)) +
+  scale_x_log10() +
+  labs(y = "Observed number of taxa") +
+  facet_wrap(group ~ primerset ~ unit, scales = "free")
+```
+
+Relaties tussen de drie diversiteitsmaten:
+
+```{r}
+combined %>%
+  ggplot() +
+  geom_autopoint(
+    aes(
+      colour = group, shape = primerset
+    ),
+    alpha = 0.5
+  ) +
+  geom_autodensity(
+    aes(
+      fill = group
+    ),
+    alpha = 0.5
+  ) +
+  facet_matrix(
+    rows = vars(observed, shannon, simpson), layer.diag = 2
+  )
+```
+
+# Analyses
+
+## Geobserveerde soortenrijkdom
+
+We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
+We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
+Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
+
+
+```{r child-model-observed-richness, echo=FALSE, results="asis"}
+inputs <- combined %>%
+  distinct(group, primerset, unit) %>%
+  arrange(
+    group, primerset, unit
+  )
+
+pmap(
+  inputs,
+  function(
+    group = group,
+    primerset = primerset,
+    unit = unit) {
+    knit_expand(
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_observed_richness.Rmd"),
+      group = group,
+      primerset = primerset,
+      unit = unit
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+#clipr::write_clip(rmd)
+
+knit_child(text = rmd, quiet = TRUE) %>%
+  cat()
+```
+
+## Shannon index
+
+```{r child-model-shannon, echo=FALSE, results="asis"}
+inputs <- combined %>%
+  distinct(group, primerset, unit) %>%
+  arrange(
+    group, primerset, unit
+  )
+
+pmap(
+  inputs,
+  function(
+    group = group,
+    primerset = primerset,
+    unit = unit) {
+    knit_expand(
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_shannon.Rmd"),
+      group = group,
+      primerset = primerset,
+      unit = unit
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+#clipr::write_clip(rmd)
+
+knit_child(text = rmd, quiet = TRUE) %>%
+  cat()
+```
+
+## Simpson index
+
+```{r child-model-simpson, echo=FALSE, results="asis"}
+inputs <- combined %>%
+  distinct(group, primerset, unit) %>%
+  arrange(
+    group, primerset, unit
+  )
+
+pmap(
+  inputs,
+  function(
+    group = group,
+    primerset = primerset,
+    unit = unit) {
+    knit_expand(
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_simpson.Rmd"),
+      group = group,
+      primerset = primerset,
+      unit = unit
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+#clipr::write_clip(rmd)
+
+knit_child(text = rmd, quiet = TRUE) %>%
+  cat()
+```
+
+
+
