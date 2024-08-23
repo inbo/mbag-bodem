@@ -15,7 +15,7 @@ editor_options:
 ```{r setup, include=FALSE}
 library(knitr)
 library(here)
-opts_chunk$set(echo = TRUE, out.width = "100%")
+opts_chunk$set(echo = TRUE, error = TRUE, out.width = "100%")
 opts_knit$set(root.dir = here::here())
 
 library(ggplot2)
@@ -40,21 +40,20 @@ diversiteit <- readr::read_csv(
     "mbag_combined_dataframe.csv")
 )
 
-metadata <- readxl::read_excel(
+metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", 
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v1_cleaned.xlsx")
+    "MBAG_stratfile_v2_cleaned_12.csv")
 ) %>%
   janitor::clean_names() %>%
-  rename(landgebruik_ruimtebeslag = landgebruik) %>%
   mutate(
     landgebruik = factor(
       landgebruik_mbag,
       levels = c(
         "Akker", "Tijdelijk grasland", "Blijvend grasland",
-        "Residentieel grasland", "Natuurgrasland")
+        "Residentieel grasland", "Natuurgrasland", "Heide")
     ),
     diepte = gsub("-", "_", diepte) |> factor()
   )
