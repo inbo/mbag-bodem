@@ -55,7 +55,7 @@ metadata <- readr::read_csv(
         "Akker", "Tijdelijk grasland", "Blijvend grasland",
         "Residentieel grasland", "Natuurgrasland", "Heide")
     ),
-    diepte = gsub("-", "_", diepte) |> factor()
+    diepte = gsub("_|/", "-", diepte) |> factor()
   )
 
 combined <- diversiteit %>%
