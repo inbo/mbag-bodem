@@ -1,0 +1,78 @@
+### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+
+```{r}
+data_subset <- combined %>%
+  filter(
+    group == "{{group}}",
+    primerset == "{{primerset}}",
+    unit == "{{unit}}"
+  )
+```
+
+
+```{r m-shannon-{{group}}-{{primerset}}-{{unit}}}
+form_shannon <- formula(
+  shannon ~
+    log(total_count)
+  + landgebruik
+  + diepte
+  + landgebruik:diepte
+  + (1 | cmon_plot_id)
+  )
+
+zeroes <- min(data_subset$shannon) == 0
+
+if (!zeroes) {
+  cat("Fitting Gamma model")
+
+  m_shannon <- glmmTMB(
+    formula = form_shannon,
+    data = data_subset,
+    family = Gamma(link = "log"))
+} else {
+  cat("Zeroes detected (only one taxum observed): Fitting zero-inflated Gamma model")
+
+  m_shannon <- glmmTMB(
+    formula = form_shannon,
+    ziformula = ~ 1,
+    data = data_subset,
+    family = ziGamma(link = "log"))
+}
+```
+
+
+```{r m-shannon-checks-{{group}}-{{primerset}}-{{unit}}}
+performance::check_model(m_shannon)
+```
+
+
+```{r m-shannon-summary-{{group}}-{{primerset}}-{{unit}}}
+summary(m_shannon) |> print(digits = 2)
+```
+
+```{r m-shannon-anova-{{group}}-{{primerset}}-{{unit}}}
+car::Anova(m_shannon) |> print(digits = 2)
+```
+
+```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+marginaleffects::plot_predictions(
+  m_shannon,
+  condition = c("total_count"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Shannon index") +
+  scale_x_log10()
+```
+
+```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+marginaleffects::plot_predictions(
+  m_shannon,
+  condition = c("landgebruik", "diepte"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Shannon index")
+```
+
+

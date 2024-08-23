@@ -1,0 +1,77 @@
+### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+
+```{r}
+data_subset <- combined %>%
+  filter(
+    group == "{{group}}",
+    primerset == "{{primerset}}",
+    unit == "{{unit}}"
+  )
+```
+
+
+```{r m-richness-{{group}}-{{primerset}}-{{unit}}}
+form_richness <- formula(
+  observed ~
+    log(total_count)
+  + landgebruik
+  + diepte
+  + landgebruik:diepte
+  + (1 | cmon_plot_id)
+  )
+
+cat("Fitting Poisson model")
+
+m_richness <- glmmTMB(
+  formula = form_richness,
+  data = data_subset,
+  family = poisson())
+
+test <- check_overdispersion(m_richness)
+test <- test$p_value < 0.05
+
+if (test) {
+  cat("Overdispersion detected: fitting Negative binomial model instead.")
+  m_richness <- glmmTMB(
+    formula = form_richness,
+    data = data_subset,
+    family = nbinom2())
+}
+```
+
+
+```{r m-richness-checks-{{group}}-{{primerset}}-{{unit}}}
+performance::check_model(m_richness)
+```
+
+
+```{r m-richness-summary-{{group}}-{{primerset}}-{{unit}}}
+summary(m_richness) |> print(digits = 2)
+```
+
+```{r m-richness-anova-{{group}}-{{primerset}}-{{unit}}}
+car::Anova(m_richness) |> print(digits = 2)
+```
+
+```{r m-richness-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+marginaleffects::plot_predictions(
+  m_richness,
+  condition = c("total_count"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+```{r m-richness-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+marginaleffects::plot_predictions(
+  m_richness,
+  condition = c("landgebruik", "diepte"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Voorspeld aantal taxa")
+```
+
+
