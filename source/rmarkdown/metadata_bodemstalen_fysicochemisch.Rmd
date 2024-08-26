@@ -1,0 +1,100 @@
+---
+title: "Verkenning fysicochemische metadata eDNA bodemstalen"
+author: "Sam Lambrechts, Bruno De Vos, Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: "hide"
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir = here::here())
+opts_chunk$set(echo = TRUE)
+library(car)
+library(corrplot)
+library(dplyr)
+conflicted::conflicts_prefer(dplyr::select, dplyr::filter)
+
+```
+
+
+# Inlezen data
+
+```{r inlezen}
+mbag_shared_drive <- "G:/Gedeelde drives/PRJ_MBAG"
+
+df <- read.csv("MBAG_stratfile_v2_cleaned_12.csv", stringsAsFactors = FALSE)
+
+```
+
+Select numeric columns and remove columns with zero variance
+
+```{r}
+
+numeric_cols <- sapply(df, is.numeric)
+df_numeric <- df[, numeric_cols]
+
+df_numeric_clean <- df_numeric[, apply(df_numeric, 2, var, na.rm = TRUE) != 0]
+
+```
+
+Pairwise correlations
+
+```{r pairwise-correlations}
+cor_matrix <- cor(df_numeric_clean, use = "pairwise.complete.obs")
+
+png("correlation_plot.png", width = 1200, height = 1000)
+corrplot(cor_matrix, method = "color", type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, tl.cex = 0.7)
+dev.off()
+```
+
+
+```{r dispay-corrplot}
+# Display correlation plot
+plot(1:10, type = "n", xlab = "", ylab = "", main = "Correlation Plot")
+img <- png::readPNG("correlation_plot.png")
+grid::grid.raster(img)
+```
+
+Multicollinearity test
+
+```{r multicollinearity}
+constant_response <- rep(1, nrow(df_numeric_clean))
+vif_model <- lm(constant_response ~ ., data = df_numeric_clean)
+vif_results <- vif(vif_model)
+```
+
+```{r display-vif-results}
+print(vif_results)
+```
+
+```{r Display-highly-correlated-pairs}
+high_cor <- which(abs(cor_matrix) > 0.7 & abs(cor_matrix) < 1, arr.ind = TRUE)
+high_cor_pairs <- data.frame(
+  Var1 = rownames(cor_matrix)[high_cor[,1]],
+  Var2 = colnames(cor_matrix)[high_cor[,2]],
+  Correlation = cor_matrix[high_cor]
+)
+high_cor_pairs <- high_cor_pairs[!duplicated(t(apply(high_cor_pairs[,1:2], 1, sort))),]
+high_cor_pairs <- high_cor_pairs[order(-abs(high_cor_pairs$Correlation)),]
+print(high_cor_pairs)
+```
+
+
+
+```{r summary-stats}
+summary_stats <- df_numeric_clean %>%
+  summarise(across(everything(), list(
+    mean = ~mean(., na.rm = TRUE),
+    sd = ~sd(., na.rm = TRUE),
+    min = ~min(., na.rm = TRUE),
+    max = ~max(., na.rm = TRUE)
+  )))
+print(summary_stats)
+
+```
