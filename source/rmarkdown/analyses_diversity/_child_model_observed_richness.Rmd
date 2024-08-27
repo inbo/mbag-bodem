@@ -75,3 +75,75 @@ marginaleffects::plot_predictions(
 ```
 
 
+### include SWCvol in model
+
+
+```{r m-richness-including-SWCvol-{{group}}-{{primerset}}-{{unit}}}
+form_richness <- formula(
+  observed ~
+    log(total_count)
+  + Landgebruik_MBAG
+  + Diepte
+  + SWCvol
+  + Landgebruik_MBAG:Diepte
+  + SWCvol:Diepte
+  + (1 | Cmon_PlotID)
+  )
+
+cat("Fitting Poisson model")
+
+m_richness <- glmmTMB(
+  formula = form_richness,
+  data = data_subset,
+  family = poisson())
+
+test <- check_overdispersion(m_richness)
+test <- test$p_value < 0.05
+
+if (test) {
+  cat("Overdispersion detected: fitting Negative binomial model instead.")
+  m_richness <- glmmTMB(
+    formula = form_richness,
+    data = data_subset,
+    family = nbinom2())
+}
+```
+
+
+```{r m-richness-including-SWCvol-checks-{{group}}-{{primerset}}-{{unit}}}
+performance::check_model(m_richness)
+```
+
+
+```{r m-richness-including-SWCvol-summary-{{group}}-{{primerset}}-{{unit}}}
+summary(m_richness) |> print(digits = 2)
+```
+
+```{r m-richness-including-SWCvol-anova-{{group}}-{{primerset}}-{{unit}}}
+car::Anova(m_richness) |> print(digits = 2)
+```
+
+```{r m-richness-including-SWCvol-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+marginaleffects::plot_predictions(
+  m_richness,
+  condition = c("total_count"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Voorspeld aantal taxa") +
+  scale_x_log10()
+```
+
+```{r m-richness-including-SWCvol-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+marginaleffects::plot_predictions(
+  m_richness,
+  condition = c("landgebruik", "diepte"),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response") +
+  labs(y = "Voorspeld aantal taxa")
+```
+
+
+
+
