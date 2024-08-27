@@ -29,7 +29,15 @@ conflicted::conflicts_prefer(dplyr::select, dplyr::filter)
 ```{r inlezen}
 mbag_shared_drive <- "G:/Gedeelde drives/PRJ_MBAG"
 
-df <- read.csv("MBAG_stratfile_v2_cleaned_12.csv", stringsAsFactors = FALSE)
+subdirectory <- "4c_bodembiodiversiteit/data/Stratificatie_MBAG_plots"
+
+full_directory_path <- file.path(mbag_shared_drive, subdirectory)
+
+file_name <- "MBAG_stratfile_v2_cleaned_12.csv"
+
+file_path <- file.path(full_directory_path, file_name)
+
+df <- read.csv(file_path, stringsAsFactors = FALSE)
 
 ```
 
