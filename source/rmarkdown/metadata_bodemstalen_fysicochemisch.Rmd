@@ -17,6 +17,8 @@ opts_chunk$set(echo = TRUE)
 library(car)
 library(corrplot)
 library(dplyr)
+library(moments)
+library(magick)
 conflicted::conflicts_prefer(dplyr::select, dplyr::filter)
 
 ```
@@ -86,7 +88,6 @@ print(high_cor_pairs)
 ```
 
 
-
 ```{r summary-stats}
 summary_stats <- df_numeric_clean %>%
   summarise(across(everything(), list(
@@ -98,3 +99,60 @@ summary_stats <- df_numeric_clean %>%
 print(summary_stats)
 
 ```
+
+
+Calculate skewness and kurtosis
+
+```{r}
+skewness_values <- apply(df_numeric, 2, function(x) ifelse(all(is.na(x)), NA, moments::skewness(x, na.rm = TRUE)))
+kurtosis_values <- apply(df_numeric, 2, function(x) ifelse(all(is.na(x)), NA, moments::kurtosis(x, na.rm = TRUE)))
+
+skew_kurt <- data.frame(
+  variable = names(df_numeric),
+  skewness = skewness_values,
+  kurtosis = kurtosis_values
+)
+```
+
+
+Print skewness and kurtosis
+
+```{r}
+print(skew_kurt)
+
+```
+
+
+Create histograms and Q-Q plots for each numeric variable
+
+```{r}
+for (col in names(df_numeric)) {
+  png(paste0(col, "_diagnostic_plots.png"), width = 800, height = 400)
+  par(mfrow = c(1, 2))
+  
+  # Histogram
+  hist(df_numeric[[col]], main = paste("Histogram of", col), xlab = col)
+  
+  # Q-Q plot
+  qqnorm(df_numeric[[col]], main = paste("Q-Q Plot of", col))
+  qqline(df_numeric[[col]], col = "red")
+  
+  dev.off()
+}
+
+```
+
+
+Print the generated plot files
+
+```{r}
+# List the plot files
+plot_files <- list.files(pattern = "*_diagnostic_plots.png")
+
+# Loop through each plot file and display it
+for (plot_file in plot_files) {
+  img <- image_read(plot_file)  # Read the image file
+  print(img)                    # Display the image in the plot window
+}
+```
+
