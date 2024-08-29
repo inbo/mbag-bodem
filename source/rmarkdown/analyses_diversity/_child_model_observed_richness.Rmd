@@ -75,10 +75,14 @@ marginaleffects::plot_predictions(
 ```
 
 
-### include SWCvol in model
+### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}} including SWCvol")`
+
+Including soil water content (SWCvol) results in a slightly better fit overall (based on the AIC, BIC, log-likelihood, and deviance values)? However, SWCvol and its interaction with depth do not significantly improve the model (p > 0.05)?
+
+Removing the interaction between SWCvol and depth results in a model with slightly better AIC and BIC values than the model that includes the interaction, and the p-value for SWCvol has also improved slightly, but it is still not significant.
 
 
-```{r m-richness-including-SWCvol-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-incl-SWCvol-{{group}}-{{primerset}}-{{unit}}}
 form_richness <- formula(
   observed ~
     log(total_count)
@@ -110,20 +114,20 @@ if (test) {
 ```
 
 
-```{r m-richness-including-SWCvol-checks-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-incl-SWCvol-checks-{{group}}-{{primerset}}-{{unit}}}
 performance::check_model(m_richness)
 ```
 
 
-```{r m-richness-including-SWCvol-summary-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-incl-SWCvol-summary-{{group}}-{{primerset}}-{{unit}}}
 summary(m_richness) |> print(digits = 2)
 ```
 
-```{r m-richness-including-SWCvol-anova-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-incl-SWCvol-anova-{{group}}-{{primerset}}-{{unit}}}
 car::Anova(m_richness) |> print(digits = 2)
 ```
 
-```{r m-richness-including-SWCvol-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-incl-SWCvol-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
   condition = c("total_count"),
@@ -134,7 +138,7 @@ marginaleffects::plot_predictions(
   scale_x_log10()
 ```
 
-```{r m-richness-including-SWCvol-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-incl-SWCvol-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
   condition = c("landgebruik", "diepte"),
