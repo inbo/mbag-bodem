@@ -81,6 +81,8 @@ Including soil water content (SWCvol) results in a slightly better fit overall (
 
 Removing the interaction between SWCvol and depth results in a model with slightly better AIC and BIC values than the model that includes the interaction, and the p-value for SWCvol has also improved slightly, but it is still not significant.
 
+Next: does it make sense to test the interaction between SWCvol and Land use type?
+
 
 ```{r m-richness-incl-SWCvol-{{group}}-{{primerset}}-{{unit}}}
 form_richness <- formula(
