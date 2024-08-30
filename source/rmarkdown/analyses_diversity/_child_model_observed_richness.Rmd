@@ -75,16 +75,16 @@ marginaleffects::plot_predictions(
 ```
 
 
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}} including SWCvol")`
+### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}} including physicochemical data")`
 
-Including soil water content (SWCvol) results in a slightly better fit overall (based on the AIC, BIC, log-likelihood, and deviance values)? However, SWCvol and its interaction with depth do not significantly improve the model (p > 0.05)?
+Including soil water content (SWCvol) in the base model results in a slightly better fit overall (based on the AIC, BIC, log-likelihood, and deviance values). However, SWCvol and its interaction with depth do not significantly improve the model (p > 0.05).
 
 Removing the interaction between SWCvol and depth results in a model with slightly better AIC and BIC values than the model that includes the interaction, and the p-value for SWCvol has also improved slightly, but it is still not significant.
 
-Next: does it make sense to test the interaction between SWCvol and Land use type?
+Instead of fitting these one by one manually, we tried stepwise model selection:
 
 
-```{r m-richness-incl-SWCvol-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-incl-physicochemical-base-model-{{group}}-{{primerset}}-{{unit}}}
 form_richness <- formula(
   observed ~
     log(total_count)
@@ -95,6 +95,21 @@ form_richness <- formula(
   + SWCvol:Diepte
   + (1 | Cmon_PlotID)
   )
+
+variables_no_collinearity <- c(
+  "total_count", 
+  "Landgebruik_MBAG", 
+  "Diepte", 
+  "Cmon_PlotID", 
+  "Cdensity", 
+  "C_N_stockbased", 
+  "SWCvol", 
+  "pH_KCl", 
+  "BD", 
+  "mv_mTAW"
+)
+
+data_subset <- data_subset[complete.cases(data_subset[ , variables_no_collinearity]), ]
 
 cat("Fitting Poisson model")
 
@@ -115,40 +130,115 @@ if (test) {
 }
 ```
 
+extend the model with additional predictors and fit the full model
 
-```{r m-richness-incl-SWCvol-checks-{{group}}-{{primerset}}-{{unit}}}
-performance::check_model(m_richness)
+```{r extend-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
+form_richness_full <- update(
+  form_richness,
+  . ~ . + Cdensity + C_N_stockbased + SWCvol + pH_KCl + BD + mv_mTAW 
+)
+
+m_richness_full <- glmmTMB(
+  formula = form_richness_full,
+  data = data_subset,
+  family = poisson(),
+  na.action = na.fail
+)
+
+test <- check_overdispersion(m_richness_full)
+test <- test$p_value < 0.05
+
+if (test) {
+  cat("Overdispersion detected: fitting Negative binomial model instead.")
+  m_richness_full <- glmmTMB(
+    formula = form_richness_full,
+    data = data_subset,
+    family = nbinom2(),
+    na.action = na.fail)
+}
 ```
 
+Perform model selection with dredge and view the best models (sorted by AICc)
 
-```{r m-richness-incl-SWCvol-summary-{{group}}-{{primerset}}-{{unit}}}
-summary(m_richness) |> print(digits = 2)
+```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{unit}}}
+
+model_set <- dredge(m_richness_full)
+
+print(model_set)
+
 ```
 
-```{r m-richness-incl-SWCvol-anova-{{group}}-{{primerset}}-{{unit}}}
-car::Anova(m_richness) |> print(digits = 2)
+Assess the importance of each predictor across models
+
+```{r importance-per-predictor-{{group}}-{{primerset}}-{{unit}}}
+importance_df <- sw(model_set)
+
+print(importance_df)
+
 ```
 
-```{r m-richness-incl-SWCvol-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
-marginaleffects::plot_predictions(
-  m_richness,
-  condition = c("total_count"),
-  re.form = NA,
-  vcov = TRUE,
-  type = "response") +
-  labs(y = "Voorspeld aantal taxa") +
-  scale_x_log10()
+Extract coefficients and standard errors from both the base and full models for visualization
+
+```{r coefficients-se-{{group}}-{{primerset}}-{{unit}}}
+base_model_coefs <- broom.mixed::tidy(m_richness)
+full_model_coefs <- broom.mixed::tidy(m_richness_full)
+
+coefs_df <- rbind(
+  data.frame(Model = "Base", base_model_coefs),
+  data.frame(Model = "Full", full_model_coefs)
+)
+
 ```
 
-```{r m-richness-incl-SWCvol-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
-marginaleffects::plot_predictions(
-  m_richness,
-  condition = c("landgebruik", "diepte"),
-  re.form = NA,
-  vcov = TRUE,
-  type = "response") +
-  labs(y = "Voorspeld aantal taxa")
+Plot coefficient estimates
+
+```{r plot-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
+ggplot(coefs_df, aes(x = term, y = estimate, fill = Model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymin = estimate - std.error, ymax = estimate + std.error), width = 0.2, position = position_dodge(0.9)) +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Coefficient Estimates and Standard Errors",
+       x = "Predictor",
+       y = "Estimate",
+       fill = "Model")
+
 ```
+
+Summary
+
+```{r summary-base-model-{{group}}-{{primerset}}-{{unit}}}
+
+summary(m_richness)
+```
+
+```{r summary-full-model-{{group}}-{{primerset}}-{{unit}}}
+summary(m_richness_full)
+```
+
+```{r importance-predictors-{{group}}-{{primerset}}-{{unit}}}
+print(importance_df)
+```
+
+Variables Diepte, Landgebruik_MBAG, log(total_count), Diepte:Landgebruik_MBAG, and bulk density (BD) are consistently selected in all or nearly all models, indicating they are likely crucial for predicting species richness? Retain these variables in the model? Unless they cause multicollinearity issues?
+
+SWCvol, C_N_stockbased, and pH_KCl seem important but slightly less critical compared to the top predictors.
+
+mv_mTAW and Cdensity seem to be less impactful predictors, as they have a relatively low influence on the model outcomes.
+
+
+Next steps:
+
+
+Refining the model?
+
+Remove variables of low Importance (Sum of Weights), rerun the model and compare adjusted model's performance metrics
+
+=> To Do
+
+check model, summary, anova, and plot predictions for final model after removing variables that are candidates for removal
+
+=> To Do
 
 
 
