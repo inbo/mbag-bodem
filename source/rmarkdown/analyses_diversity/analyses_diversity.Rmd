@@ -26,6 +26,7 @@ library(purrr)
 library(glmmTMB)
 library(marginaleffects)
 library(performance)
+library(MuMIn)
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
 ```
