@@ -88,28 +88,29 @@ Instead of fitting these one by one manually, we tried stepwise model selection:
 form_richness <- formula(
   observed ~
     log(total_count)
-  + Landgebruik_MBAG
-  + Diepte
-  + SWCvol
-  + Landgebruik_MBAG:Diepte
-  + SWCvol:Diepte
-  + (1 | Cmon_PlotID)
+  + landgebruik_mbag
+  + diepte
+  + swc_vol
+  + landgebruik_mbag:diepte
+  + swc_vol:diepte
+  + (1 | cmon_plot_id)
   )
 
 variables_no_collinearity <- c(
   "total_count", 
-  "Landgebruik_MBAG", 
-  "Diepte", 
-  "Cmon_PlotID", 
-  "Cdensity", 
-  "C_N_stockbased", 
-  "SWCvol", 
-  "pH_KCl", 
-  "BD", 
-  "mv_mTAW"
+  "landgebruik_mbag", 
+  "diepte", 
+  "cmon_plot_id", 
+  "c_density", 
+  "cn_stockbased", 
+  "swc_vol", 
+  "ph_kcl", 
+  "bd", 
+  "mv_m_taw"
 )
 
-data_subset <- data_subset[complete.cases(data_subset[ , variables_no_collinearity]), ]
+data_subset <- data_subset[
+  complete.cases(data_subset[ , variables_no_collinearity]), ]
 
 cat("Fitting Poisson model")
 
@@ -135,7 +136,7 @@ extend the model with additional predictors and fit the full model
 ```{r extend-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
-  . ~ . + Cdensity + C_N_stockbased + SWCvol + pH_KCl + BD + mv_mTAW 
+  . ~ . + c_density + cn_stockbased + swc_vol + ph_kcl + bd + mv_m_taw 
 )
 
 m_richness_full <- glmmTMB(

@@ -48,6 +48,14 @@ metadata <- readr::read_csv(
     "MBAG_stratfile_v2_cleaned_12.csv")
 ) %>%
   janitor::clean_names() %>%
+  rename(
+    ph_kcl = p_h_k_cl,
+    swc_grav = sw_cgrav,
+    swc_vol = sw_cvol,
+    cn_stockbased = c_n_stockbased,
+    c_density = cdensity,
+    n_density = ndensity
+  ) %>%
   mutate(
     landgebruik = factor(
       landgebruik_mbag,
