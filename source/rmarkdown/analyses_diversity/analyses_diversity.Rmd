@@ -33,6 +33,7 @@ mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # noli
 
 # Inlezen data
 
+
 ```{r inlezen}
 diversiteit <- readr::read_csv(
   file.path(
@@ -67,9 +68,39 @@ metadata <- readr::read_csv(
     diepte = gsub("_|/", "-", diepte) |> factor()
   )
 
-combined <- diversiteit %>%
-  inner_join(metadata, by = "sample")
 ```
+
+In `mbag_combined_dataframe.csv` zitten de samples zonder taxa niet in (na te vragen)!
+
+```{r echo=TRUE}
+sum(diversiteit$observed == 0)
+```
+
+Deze nulwaarnemingen moeten we terug toevoegen (observed wordt dan 0, maar Shannon en Simpson zijn dan niet gedefinieerd).
+
+```{r}
+groups <- diversiteit %>%
+  distinct(primerset, group, unit)
+
+samples <- metadata %>%
+  distinct(sample)
+
+#nrow(groups) * nrow(samples)
+samples_groups <- expand_grid(
+  samples, groups)
+
+combined <- samples_groups %>%
+  full_join(
+    diversiteit,
+    by = c("sample", "primerset", "group", "unit")) %>%
+  mutate(
+    observed = ifelse(is.na(observed), 0, observed),
+    total_count = ifelse(is.na(total_count), 0, total_count)
+  ) %>%
+  inner_join(metadata, by = join_by(sample))
+```
+
+
 
 ```{r}
 glimpse(combined)
@@ -111,6 +142,21 @@ combined %>%
   )
 ```
 
+Aantal samples met nul OTUs:
+
+```{r}
+combined %>%
+  group_by(group, primerset, unit) %>%
+  mutate(
+    observed0 =
+      ifelse(observed == 0, "geen OTU", "minstens 1 OTU")
+  ) %>%
+  count(observed0) %>%
+  pivot_wider(names_from = observed0, values_from = n) %>%
+  kable()
+```
+
+
 # Analyses
 
 ## Geobserveerde soortenrijkdom
@@ -146,8 +192,18 @@ pmap(
 
 #clipr::write_clip(rmd)
 
-knit_child(text = rmd, quiet = TRUE) %>%
-  cat()
+execute_code <- function(rmd) {
+  # Extract R code from the rmd content
+  r_code <- knitr::purl(text = rmd, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd = rmd)
+} else {
+  knit_child(text = rmd, quiet = TRUE) %>%
+    cat()
+}
 ```
 
 ## Shannon index
