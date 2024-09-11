@@ -20,7 +20,7 @@ form_shannon <- formula(
   + (1 | cmon_plot_id)
   )
 
-zeroes <- min(data_subset$shannon) == 0
+zeroes <- min(data_subset$shannon, na.rm = TRUE) == 0
 
 if (!zeroes) {
   cat("Fitting Gamma model")
