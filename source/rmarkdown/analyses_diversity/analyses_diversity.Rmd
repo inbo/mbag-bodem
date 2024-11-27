@@ -62,7 +62,7 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe.csv")
+    "mbag_combined_dataframe_v2.csv")
 )
 
 metadata <- readr::read_csv(
@@ -70,7 +70,7 @@ metadata <- readr::read_csv(
     mbag_bodem_folder,
     "data", 
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_12.csv")
+    "MBAG_stratfile_v2_cleaned_13.csv")
 ) %>%
   janitor::clean_names() %>%
   rename(
@@ -86,14 +86,14 @@ metadata <- readr::read_csv(
       landgebruik_mbag,
       levels = c(
         "Akker", "Tijdelijk grasland", "Blijvend grasland",
-        "Residentieel grasland", "Natuurgrasland", "Heide")
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras")
     ),
     diepte = gsub("_|/", "-", diepte) |> factor()
   )
 
 ```
 
-In `mbag_combined_dataframe.csv` zitten de samples zonder taxa niet in (na te vragen)!
+In `mbag_combined_dataframe_v2.csv` zitten de samples zonder taxa niet in (na te vragen)!
 
 ```{r echo=TRUE}
 sum(diversiteit$observed == 0)
@@ -137,12 +137,12 @@ metadata %>%
   kable()
 ```
 
-We verwijderen de stalen genomen in heide en beschouwen verder enkel de landgebruiksgradiënt akker - natuurgrasland.
+We verwijderen de stalen genomen in heide en moeras en beschouwen verder enkel de landgebruiksgradiënt akker - natuurgrasland.
 
 ```{r}
 combined <- combined %>%
   filter(
-    landgebruik != "Heide"
+    !landgebruik %in% c("Heide", "Moeras")
   ) %>%
   droplevels()
 ```
