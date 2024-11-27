@@ -22,54 +22,75 @@ form_richness <- formula(
   + (1 | cmon_plot_id)
   )
 
-cat("Fitting Poisson model")
-m_richness <- glmmTMB(
+ziform <- formula(~ 1 + (1 | cmon_plot_id))
+
+cat("Fitting Poisson model\n")
+m_pois <- glmmTMB(
   formula = form_richness,
   data = data_subset,
   family = poisson())
+cat("Fitting hurdle Poisson model\n")
+m_hpois <- glmmTMB(
+  formula = form_richness,
+  ziformula = ziform,
+  data = data_subset,
+  family = truncated_poisson())
+cat("Fitting negative binomial model\n")
+m_nbinom <- glmmTMB(
+  formula = form_richness,
+  data = data_subset,
+  family = nbinom2())
+cat("Fitting hurdle negative binomial model\n")
+m_hnbinom <- glmmTMB(
+  formula = form_richness,
+  ziformula = ziform,
+  data = data_subset,
+  family = truncated_nbinom2())
+cat("Fitting generalized Poisson model\n")
+m_genpois <- glmmTMB(
+  formula = form_richness,
+  data = data_subset,
+  family = genpois())
+cat("Fitting hurdle generalized Poisson model\n")
+m_hgenpois <- glmmTMB(
+  formula = form_richness,
+  ziformula = ziform,
+  data = data_subset,
+  family = truncated_genpois())
 
-zd <- inflation_dispersion(m_richness)
-
-if (zd$zero_inflated | zd$zero_deflated) {
-    cat("Fitting hurdle Poisson model")
-    m_richness <- glmmTMB(
-      formula = form_richness,
-      ziformula = ~ 1 + (1 | cmon_plot_id),
-      data = data_subset,
-      family = truncated_poisson())
-    zd <- inflation_dispersion(m_richness)
-}
-
-if (zd$overdispersed | zd$underdispersed) {
-  cat("Adapting model to over- or underdispersion")
-  m_richness <- glmmTMB(
-    formula = form_richness,
-    data = data_subset,
-    family = ifelse(zd$overdispersed, "nbinom2", "genpois"))
-  zd <- inflation_dispersion(m_richness)
-  if (zd$zero_inflated | zd$zero_deflated) {
-    cat("Adapting to inflation or deflation")
-    family <- m_richness$call$family
-    family <- as.character(family)
-    m_richness <- glmmTMB(
-      formula = form_richness,
-      ziformula = ~ 1 + (1 | cmon_plot_id),
-      data = data_subset,
-      family = paste0("truncated_", family))
-  }
-}
+mlist <- list(
+  pois = m_pois,
+  hpois = m_hpois,
+  nbinom = m_nbinom,
+  hnbinom = m_hnbinom,
+  genpois = m_genpois,
+  hgenpois = m_hgenpois
+)
 ```
 
-Het model is:
+Het model met de laagste AIC waarde (hoogste AIC gewicht: AIC_wt) heeft de beste fit volgens AIC criterium.
+Dit betekent niet noodzakelijk dat dit model geen enkel probleem meer heeft met betrekking tot zero-inflation (deflation) of over- (onder-) dispersie.
+
+```{r}
+cp <- compare_performance(mlist, metrics = c("AIC"), rank = FALSE) |>
+  bind_cols(map_dfr(mlist, inflation_dispersion))
+kable(cp, digits = 2)
+```
+
+```{r}
+m_richness <- mlist[[cp$Name[cp$AIC_wt == max(cp$AIC_wt)]]]
+```
+
+
+Het geselecteerde model is:
 
 ```{r}
 insight::get_call(m_richness)
-inflation_dispersion(m_richness)
 ```
 
-
 ```{r m-richness-checks-{{group}}-{{primerset}}-{{unit}}, error=TRUE}
-performance::check_predictions(m_richness)
+p <- performance::check_predictions(m_richness)
+plot(p) + facet_zoom(xlim = c(0, 10))
 p <- performance::check_overdispersion(m_richness)
 p
 p %>% plot()
@@ -149,53 +170,6 @@ cat(
 )
 ```
 
-```{r m-richness-incl-physicochemical-base-model-{{group}}-{{primerset}}-{{unit}}, eval=nr2<nr1}
-form_richness <- formula(
-  observed ~
-    log(total_count + 1)
-  + landgebruik
-  + diepte
-  + landgebruik:diepte
-  + (1 | cmon_plot_id)
-  )
-
-cat("Fitting Poisson model")
-m_richness <- glmmTMB(
-  formula = form_richness,
-  data = data_subset,
-  family = poisson())
-
-zd <- inflation_dispersion(m_richness)
-
-if (zd$zero_inflated | zd$zero_deflated) {
-    cat("Fitting hurdle Poisson model")
-    m_richness <- glmmTMB(
-      formula = form_richness,
-      ziformula = ~ 1 + (1 | cmon_plot_id),
-      data = data_subset,
-      family = truncated_poisson())
-    zd <- inflation_dispersion(m_richness)
-}
-
-if (zd$overdispersed | zd$underdispersed) {
-  cat("Adapting model to over- or underdispersion")
-  m_richness <- glmmTMB(
-    formula = form_richness,
-    data = data_subset,
-    family = ifelse(zd$overdispersed, "nbinom2", "genpois"))
-  zd <- inflation_dispersion(m_richness)
-  if (zd$zero_inflated | zd$zero_deflated) {
-    cat("Adapting to inflation or deflation")
-    family <- m_richness$call$family
-    family <- as.character(family)
-    m_richness <- glmmTMB(
-      formula = form_richness,
-      ziformula = ~ 1 + (1 | cmon_plot_id),
-      data = data_subset,
-      family = paste0("truncated_", family))
-  }
-}
-```
 
 We voegen alle niet collineaire fysicochemische variabelen toe aan het basismodel.
 Voor pH gebruiken we een kwadratische effect.
@@ -255,11 +229,12 @@ ggplot(
 
 
 Modelselectie met de functie `dredge`.
-We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design').
+We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
 ```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
 model_set <- dredge(
   m_richness_full,
+  m.lim = c(NA, 7),
   fixed = ~
     cond(log(total_count + 1))
   + cond(landgebruik)
