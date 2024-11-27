@@ -200,7 +200,7 @@ Verkenning fysicochemische variabelen:
 
 ```{r}
 metadata %>%
-  filter(landgebruik != "Heide") %>%
+  filter(!landgebruik %in% c("Heide", "Moeras")) %>%
   select(
     cmon_plot_id,
     landgebruik, diepte,
@@ -208,10 +208,10 @@ metadata %>%
   ) %>%
   pivot_longer(
     cols = c(swc_vol, c_density, cn_stockbased, swc_vol, ph_kcl, bd)) %>%
-  ggplot(aes(x = landgebruik, y = value, colour = diepte)) +
+  ggplot(aes(x = landgebruik, y = value)) +
   geom_violin() +
   geom_sina(alpha = 0.3) +
-  facet_grid(name ~ ., scales = "free")
+  facet_grid(name ~ diepte, scales = "free")
 ```
 
 
