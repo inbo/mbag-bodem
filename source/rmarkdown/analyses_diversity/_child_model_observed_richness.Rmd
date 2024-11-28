@@ -71,9 +71,13 @@ mlist <- list(
 Het model met de laagste AIC waarde (hoogste AIC gewicht: AIC_wt) heeft de beste fit volgens AIC criterium.
 Dit betekent niet noodzakelijk dat dit model geen enkel probleem meer heeft met betrekking tot zero-inflation (deflation) of over- (onder-) dispersie.
 
+Modellen waarvan de AIC niet berekend kan worden, worden verwijderd.
+Deze modellen zijn wellicht niet geconvergeerd.
+
 ```{r}
-cp <- compare_performance(mlist, metrics = c("AIC"), rank = FALSE) |>
-  bind_cols(map_dfr(mlist, inflation_dispersion))
+converged <- !is.na(map_dbl(mlist, AIC))
+cp <- compare_performance(mlist[converged], metrics = c("AIC"), rank = FALSE) |>
+  bind_cols(map_dfr(mlist[converged], inflation_dispersion))
 kable(cp, digits = 2)
 ```
 
@@ -267,11 +271,16 @@ summary(lowest_aic)
 
 
 ```{r error=TRUE}
-performance::check_predictions(lowest_aic)
-performance::check_overdispersion(lowest_aic) %>% plot()
-performance::check_residuals(lowest_aic) %>% plot()
+p <- performance::check_predictions(lowest_aic)
+plot(p) + facet_zoom(xlim = c(0, 10))
+p <- performance::check_overdispersion(lowest_aic)
+p
+p %>% plot()
+p <- performance::check_residuals(lowest_aic)
+p
+p %>% plot()
 performance::check_collinearity(lowest_aic)
-performance::check_zeroinflation(m_richness)
+performance::check_zeroinflation(lowest_aic)
 ```
 
 
