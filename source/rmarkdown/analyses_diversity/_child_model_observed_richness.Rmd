@@ -1,3 +1,4 @@
+
 ### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
@@ -9,39 +10,99 @@ data_subset <- combined %>%
   )
 ```
 
+#### Basismodel
 
 ```{r m-richness-{{group}}-{{primerset}}-{{unit}}}
 form_richness <- formula(
   observed ~
-    log(total_count)
+    log(total_count + 1)
   + landgebruik
   + diepte
   + landgebruik:diepte
   + (1 | cmon_plot_id)
   )
 
-cat("Fitting Poisson model")
+ziform <- formula(~ 1 + (1 | cmon_plot_id))
 
-m_richness <- glmmTMB(
+cat("Fitting Poisson model\n")
+m_pois <- glmmTMB(
   formula = form_richness,
   data = data_subset,
   family = poisson())
+cat("Fitting hurdle Poisson model\n")
+m_hpois <- glmmTMB(
+  formula = form_richness,
+  ziformula = ziform,
+  data = data_subset,
+  family = truncated_poisson())
+cat("Fitting negative binomial model\n")
+m_nbinom <- glmmTMB(
+  formula = form_richness,
+  data = data_subset,
+  family = nbinom2())
+cat("Fitting hurdle negative binomial model\n")
+m_hnbinom <- glmmTMB(
+  formula = form_richness,
+  ziformula = ziform,
+  data = data_subset,
+  family = truncated_nbinom2())
+cat("Fitting generalized Poisson model\n")
+m_genpois <- glmmTMB(
+  formula = form_richness,
+  data = data_subset,
+  family = genpois())
+cat("Fitting hurdle generalized Poisson model\n")
+m_hgenpois <- glmmTMB(
+  formula = form_richness,
+  ziformula = ziform,
+  data = data_subset,
+  family = truncated_genpois())
 
-test <- check_overdispersion(m_richness)
-test <- test$p_value < 0.05
+mlist <- list(
+  pois = m_pois,
+  hpois = m_hpois,
+  nbinom = m_nbinom,
+  hnbinom = m_hnbinom,
+  genpois = m_genpois,
+  hgenpois = m_hgenpois
+)
+```
 
-if (test) {
-  cat("Overdispersion detected: fitting Negative binomial model instead.")
-  m_richness <- glmmTMB(
-    formula = form_richness,
-    data = data_subset,
-    family = nbinom2())
-}
+Het model met de laagste AIC waarde (hoogste AIC gewicht: AIC_wt) heeft de beste fit volgens AIC criterium.
+Dit betekent niet noodzakelijk dat dit model geen enkel probleem meer heeft met betrekking tot zero-inflation (deflation) of over- (onder-) dispersie.
+
+Modellen waarvan de AIC niet berekend kan worden, worden verwijderd.
+Deze modellen zijn wellicht niet geconvergeerd.
+
+```{r}
+converged <- !is.na(map_dbl(mlist, AIC))
+cp <- compare_performance(mlist[converged], metrics = c("AIC"), rank = FALSE) |>
+  bind_cols(map_dfr(mlist[converged], inflation_dispersion))
+kable(cp, digits = 2)
+```
+
+```{r}
+m_richness <- mlist[[cp$Name[cp$AIC_wt == max(cp$AIC_wt)]]]
 ```
 
 
-```{r m-richness-checks-{{group}}-{{primerset}}-{{unit}}}
-performance::check_model(m_richness)
+Het geselecteerde model is:
+
+```{r}
+insight::get_call(m_richness)
+```
+
+```{r m-richness-checks-{{group}}-{{primerset}}-{{unit}}, error=TRUE}
+p <- performance::check_predictions(m_richness)
+plot(p) + facet_zoom(xlim = c(0, 10))
+p <- performance::check_overdispersion(m_richness)
+p
+p %>% plot()
+p <- performance::check_residuals(m_richness)
+p
+p %>% plot()
+performance::check_collinearity(m_richness)
+performance::check_zeroinflation(m_richness)
 ```
 
 
@@ -60,8 +121,7 @@ marginaleffects::plot_predictions(
   re.form = NA,
   vcov = TRUE,
   type = "response") +
-  labs(y = "Voorspeld aantal taxa") +
-  scale_x_log10()
+  labs(y = "Voorspeld aantal taxa")
 ```
 
 ```{r m-richness-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
@@ -75,109 +135,71 @@ marginaleffects::plot_predictions(
 ```
 
 
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}} including physicochemical data")`
+#### Met physicochemische data
 
-Including soil water content (SWCvol) in the base model results in a slightly better fit overall (based on the AIC, BIC, log-likelihood, and deviance values). However, SWCvol and its interaction with depth do not significantly improve the model (p > 0.05).
+Stepwise model selection:
 
-Removing the interaction between SWCvol and depth results in a model with slightly better AIC and BIC values than the model that includes the interaction, and the p-value for SWCvol has also improved slightly, but it is still not significant.
-
-Instead of fitting these one by one manually, we tried stepwise model selection:
-
-
-```{r m-richness-incl-physicochemical-base-model-{{group}}-{{primerset}}-{{unit}}}
-form_richness <- formula(
-  observed ~
-    log(total_count)
-  + Landgebruik_MBAG
-  + Diepte
-  + SWCvol
-  + Landgebruik_MBAG:Diepte
-  + SWCvol:Diepte
-  + (1 | Cmon_PlotID)
-  )
-
+```{r}
 variables_no_collinearity <- c(
   "total_count", 
-  "Landgebruik_MBAG", 
-  "Diepte", 
-  "Cmon_PlotID", 
-  "Cdensity", 
-  "C_N_stockbased", 
-  "SWCvol", 
-  "pH_KCl", 
-  "BD", 
-  "mv_mTAW"
+  "landgebruik", 
+  "diepte", 
+  "cmon_plot_id", 
+  "c_density", 
+  "cn_stockbased", 
+  "swc_vol", 
+  "ph_kcl", 
+  "bd"
 )
 
-data_subset <- data_subset[complete.cases(data_subset[ , variables_no_collinearity]), ]
+nr1 <- nrow(data_subset)
+cat(
+  paste(
+    "De originele dataset heeft",
+    nr1,
+  "rijen.\n"
+  )
+)
+data_subset <- data_subset[
+  complete.cases(data_subset[ , variables_no_collinearity]), ]
+nr2 <- nrow(data_subset)
 
-cat("Fitting Poisson model")
-
-m_richness <- glmmTMB(
-  formula = form_richness,
-  data = data_subset,
-  family = poisson())
-
-test <- check_overdispersion(m_richness)
-test <- test$p_value < 0.05
-
-if (test) {
-  cat("Overdispersion detected: fitting Negative binomial model instead.")
-  m_richness <- glmmTMB(
-    formula = form_richness,
-    data = data_subset,
-    family = nbinom2())
-}
+cat(
+  paste(
+    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
+    één van de covariaten, heeft de dataset",
+    nr2,
+  "rijen.\n"
+  )
+)
 ```
 
-extend the model with additional predictors and fit the full model
+
+We voegen alle niet collineaire fysicochemische variabelen toe aan het basismodel.
+Voor pH gebruiken we een kwadratische effect.
+Dit wordt het `full model`.
 
 ```{r extend-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
-  . ~ . + Cdensity + C_N_stockbased + SWCvol + pH_KCl + BD + mv_mTAW 
+  . ~ . 
+  + swc_vol
+  + c_density
+  + cn_stockbased
+  + swc_vol
+  + poly(ph_kcl, 2)
+  + bd
 )
 
-m_richness_full <- glmmTMB(
+m_richness_full <- update(
+  m_richness,
   formula = form_richness_full,
   data = data_subset,
-  family = poisson(),
   na.action = na.fail
 )
-
-test <- check_overdispersion(m_richness_full)
-test <- test$p_value < 0.05
-
-if (test) {
-  cat("Overdispersion detected: fitting Negative binomial model instead.")
-  m_richness_full <- glmmTMB(
-    formula = form_richness_full,
-    data = data_subset,
-    family = nbinom2(),
-    na.action = na.fail)
-}
 ```
 
-Perform model selection with dredge and view the best models (sorted by AICc)
-
-```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{unit}}}
-
-model_set <- dredge(m_richness_full)
-
-print(model_set)
-
-```
-
-Assess the importance of each predictor across models
-
-```{r importance-per-predictor-{{group}}-{{primerset}}-{{unit}}}
-importance_df <- sw(model_set)
-
-print(importance_df)
-
-```
-
-Extract coefficients and standard errors from both the base and full models for visualization
+We vergelijken de parameterschattingen van het basis en volledig model.
 
 ```{r coefficients-se-{{group}}-{{primerset}}-{{unit}}}
 base_model_coefs <- broom.mixed::tidy(m_richness)
@@ -190,56 +212,130 @@ coefs_df <- rbind(
 
 ```
 
-Plot coefficient estimates
-
 ```{r plot-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
-ggplot(coefs_df, aes(x = term, y = estimate, fill = Model)) +
+ggplot(
+  coefs_df,
+  aes(x = term, y = estimate, fill = Model)
+) +
   geom_bar(stat = "identity", position = "dodge") +
-  geom_errorbar(aes(ymin = estimate - std.error, ymax = estimate + std.error), width = 0.2, position = position_dodge(0.9)) +
+  geom_errorbar(
+    aes(
+      ymin = estimate - std.error,
+      ymax = estimate + std.error),
+    width = 0.2, position = position_dodge(0.9)) +
   coord_flip() +
   theme_minimal() +
   labs(title = "Coefficient Estimates and Standard Errors",
        x = "Predictor",
        y = "Estimate",
        fill = "Model")
-
 ```
 
-Summary
 
-```{r summary-base-model-{{group}}-{{primerset}}-{{unit}}}
+Modelselectie met de functie `dredge`.
+We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
-summary(m_richness)
+```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
+model_set <- dredge(
+  m_richness_full,
+  m.lim = c(NA, 7),
+  fixed = ~
+    cond(log(total_count + 1))
+  + cond(landgebruik)
+  + cond(diepte)
+  + (1 | cmon_plot_id))
 ```
 
-```{r summary-full-model-{{group}}-{{primerset}}-{{unit}}}
-summary(m_richness_full)
-```
+Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
 
-```{r importance-predictors-{{group}}-{{primerset}}-{{unit}}}
+```{r importance-per-predictor-{{group}}-{{primerset}}-{{unit}}}
+importance_df <- sw(model_set)
 print(importance_df)
 ```
 
-Variables Diepte, Landgebruik_MBAG, log(total_count), Diepte:Landgebruik_MBAG, and bulk density (BD) are consistently selected in all or nearly all models, indicating they are likely crucial for predicting species richness? Retain these variables in the model? Unless they cause multicollinearity issues?
+Visualisatie van modellen die minder dan 4 AICc verschillen van het model met laagste AICc (rij 1):
 
-SWCvol, C_N_stockbased, and pH_KCl seem important but slightly less critical compared to the top predictors.
+```{r}
+dd <- subset(model_set, delta < 4)
 
-mv_mTAW and Cdensity seem to be less impactful predictors, as they have a relatively low influence on the model outcomes.
+par(mar = c(3,5,6,4))
+plot(dd, labAsExpr = TRUE)
+```
 
+Dit is de samenvatting voor het model met de laagste AICc:
 
-Next steps:
-
-
-Refining the model?
-
-Remove variables of low Importance (Sum of Weights), rerun the model and compare adjusted model's performance metrics
-
-=> To Do
-
-check model, summary, anova, and plot predictions for final model after removing variables that are candidates for removal
-
-=> To Do
+```{r}
+lowest_aic <- get.models(dd, 1)[[1]]
+summary(lowest_aic)
+```
 
 
+```{r error=TRUE}
+p <- performance::check_predictions(lowest_aic)
+plot(p) + facet_zoom(xlim = c(0, 10))
+p <- performance::check_overdispersion(lowest_aic)
+p
+p %>% plot()
+p <- performance::check_residuals(lowest_aic)
+p
+p %>% plot()
+performance::check_collinearity(lowest_aic)
+performance::check_zeroinflation(lowest_aic)
+```
 
 
+```{r}
+at <- car::Anova(lowest_aic)
+efvars <- rownames(at)[order(-at$Chisq)]
+interactingvars <- efvars[grepl(":", efvars)]
+interactingvars <- stringr::str_split(interactingvars, ":") %>%
+  unlist() %>%
+  unique()
+efvars <- efvars[!efvars %in% interactingvars]
+efvars <- stringr::str_replace_all(
+  efvars, "^(\\w+\\()?(.+?)(\\))?$", "\\2")
+efvars <- ifelse(
+  efvars == "diepte:landgebruik", "landgebruik:diepte", efvars)
+efvars <- ifelse(
+  efvars == "total_count + 1", "total_count", efvars)
+efvars <- ifelse(
+  efvars == "ph_kcl, 2", "ph_kcl", efvars)
+
+p <- vector(mode = "list", length = length(efvars))
+p <- set_names(p, efvars)
+for (i in efvars) {
+  if (grepl(":", i)) {
+    conds <- stringr::str_split_1(i, ":")
+    nd <- insight::get_datagrid(
+      lowest_aic,
+      by = conds,
+      length = 50)
+    pl <- marginaleffects::plot_predictions(
+      model = lowest_aic,
+      by = conds,
+      newdata = nd,
+      vcov = TRUE,
+      type = "response",
+      points = 0.1,
+      re.form = NA
+    )
+    } else {
+    nd <- insight::get_datagrid(
+      lowest_aic,
+      by = i,
+      length = 50)
+    pl <- marginaleffects::plot_predictions(
+      lowest_aic,
+      by = i,
+      newdata = nd,
+      vcov = TRUE,
+      type = "response",
+      points = 0.1,
+      re.form = NA
+    )
+    }
+  p[[i]] <- pl
+}
+
+p
+```
