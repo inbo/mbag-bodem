@@ -34,10 +34,10 @@ mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # noli
 
 ```{r helper-zi-disp}
 inflation_dispersion <- function(model) {
-  test2 <- check_zeroinflation(model, tolerance = 0.1)
+  test2 <- performance::check_zeroinflation(model, tolerance = 0.1)
   zero_inflation <- test2$ratio < 1 - test2$tolerance
   zero_deflation <- test2$ratio > 1 + test2$tolerance
-  test <- check_overdispersion(model)
+  test <- performance::check_overdispersion(model)
   is_overdispersed <- test$p_value < 0.05 & test$dispersion_ratio > 1
   is_underdispersed <- test$p_value < 0.05 & test$dispersion_ratio < 1
   out <- list(
