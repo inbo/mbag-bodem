@@ -1,5 +1,5 @@
 #' Deze functie gaat na of een soort volgens GBIF voorkomt in een gekozen set
-#' van landen
+#' van landen # nolint start
 #'
 #' Default zijn West-Europese landen ingesteld: België, Frankrijk, Duitsland,
 #' Luxemburg, Nederland, Zwitserland, Oostenrijk
@@ -10,7 +10,7 @@
 #'
 #' @example
 #' result_WestEurope <- check_presence_from_file()
-#' print(result_WestEurope)
+#' print(result_WestEurope) # nolint end
 check_presence <- function(
     input = NULL,
     countries = c("BE", "FR", "DE", "LU", "NL", "CH", "AT")) {

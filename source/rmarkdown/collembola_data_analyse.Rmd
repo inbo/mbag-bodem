@@ -1,5 +1,5 @@
 ---
-title: "Collembola data analyse"
+title: "`Collembola` data analyse"
 author: "Sam Lambrechts, Io Deflem, Emma Cartuyvels, Hans Van Calster"
 date: "`r Sys.Date()`"
 output:
@@ -241,7 +241,7 @@ tidy_physeq$samples %>%
   kable()
 ```
 
-En ook de verdeling van de samples over de belangrijkste design-variabelen voor de subsampled (23033 reads) data, om te zien tot welke landgebruikstypes de 28 stalen die zijn afgevallen (door te weinig reads) behoren:
+En ook de verdeling van de samples over de belangrijkste design-variabelen voor de sub-sampled (23033 reads) data, om te zien tot welke landgebruikstypes de 28 stalen die zijn afgevallen (door te weinig reads) behoren:
 
 ```{r designvars_rar}
 tidy_physeq_rarefied$samples %>%
@@ -258,7 +258,7 @@ tidy_physeq$samples %>%
   kable()
 ```
 
-Aantal bodemlocaties subsampled dataset (23033 reads):
+Aantal bodemlocaties sub-sampled dataset (23033 reads):
 
 ```{r}
 tidy_physeq_rarefied$samples %>%
@@ -344,8 +344,8 @@ if (system(
 ) != 1) {
   psadd::plot_krona(
     physeq_rarefied,
-    "MBAG_Olig01_collembola_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte",
-    "Landgebruik_MBAG_diepte",
+    "MBAG_Olig01_collembola_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte"
+    , "Landgebruik_MBAG_diepte",
     trim = TRUE
   )
 }
@@ -451,11 +451,11 @@ marginaleffects::plot_predictions(
 ```
 
 
-### Shannon diversity index analyse
+### Shannon diversiteit index analyse
 
 Dit is een alternatief voor voorgaande analyse.
 
-Shannon diversity index modelleren als een Negatief Binomiaal model zoals hierboven?
+Shannon diversiteitsindex modelleren als een Negatief Binomiaal model zoals hierboven?
 
 ```{r m-collembola-shannon-diversity-predictions}
 shannon_diversity_data <- estimate_richness(physeq, measures = "Shannon")

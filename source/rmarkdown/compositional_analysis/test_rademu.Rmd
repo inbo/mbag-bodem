@@ -28,7 +28,7 @@ library(radEmu)
 library(phyloseq)
 ```
 
-# Inlezen data
+# Read data
 
 ```{r inlezen}
 metadata <- readr::read_csv(
@@ -170,7 +170,7 @@ coeftab |>
 
 Identify taxa for which you want robust score tests:
 
-For instance, which taxa at depth 0 - 10 are more likely to occur or not occur in Natuurgrasland compared to the reference category Akker:
+For instance, which taxa at depth 0 - 10 are more likely to occur or not occur in `Natuurgrasland` compared to the reference category `Akker`:
 
 The following code chunk takes a very long time to run and is therefore not evaluated.
 But it can be run in parallel: https://statdivlab.github.io/radEmu/articles/parallel_radEmu.html
@@ -238,13 +238,13 @@ as_tibble(m_refit$coef) |>
 
 
 
-More details of radEmu approach:
+More details of `radEmu` approach:
 
-- ‘we introduce a Firth penalty on β derived from a formal equivalence between our model and the multinomial logistic model’ (Clausen en Willis, 2024, p. 6)
+- 'we introduce a Firth penalty on $\beta$ derived from a formal equivalence between our model and the multinomial logistic model' (Clausen en Willis, 2024, p. 6)
 
-- ‘we first introduce a Poisson log likelihood for our model.’ (Clausen en Willis, 2024, p. 6)
+- 'we first introduce a Poisson log likelihood for our model.' (Clausen en Willis, 2024, p. 6)
 
-- ‘Note that the profile likelihood (8) is equal to a multinomial log likelihood with a logistic link (up to a constant). This accords with both known results about the marginal Poisson distribution of multinomial random variables (Birch, 1963), and our observations on identifiability of β (only p × (J − 1) parameters can be identified in a multinomial logistic regression of a J-dimensional outcome on p regressors)’ (Clausen en Willis, 2024, p. 6)
+- 'Note that the profile likelihood (8) is equal to a multinomial log likelihood with a logistic link (up to a constant). This accords with both known results about the marginal Poisson distribution of multinomial random variables (Birch, 1963), and our observations on identifiability of $\beta$ (only p × (J − 1) parameters can be identified in a multinomial logistic regression of a J-dimensional outcome on p regressors)' (Clausen en Willis, 2024, p. 6)
 
 - they show that the model is robust against model-misspecification: simulated data generated under a zero-inflated negative binomial (instead of poisson) still had favourable type I error
     - but a drawback is that you cannot rely on the confidence intervals to judge significance: the score test needs to be computed. In case of modelmisspecification, I think the confidence intervals will likely be too narrow (given that data are usually overdispersed compared to the Poisson)
@@ -254,6 +254,6 @@ More details of radEmu approach:
 		- independent beta-binomial models under constraint that sum of probabilities across taxa equals 1
 		- logit-based fold differences
 		- compared to the multinomial logistic model, sccomp can cope directly with excess variance through the beta-binomial (instead of relying on 'robust' procedures to make inferences). This is important for this type of data.
-		- see Table 1 of [Mangiola et al 2023](https://doi.org/10.1073/pnas.2203828120) where the radEmu approach can be fit in (most similar to ANCOM-BC2 according to Clausen en Willis 2024 paper).
+		- see Table 1 of [Mangiola et al 2023](https://doi.org/10.1073/pnas.2203828120) where the `radEmu` approach can be fit in (most similar to `ANCOM-BC2` according to Clausen en Willis 2024 paper).
 
 

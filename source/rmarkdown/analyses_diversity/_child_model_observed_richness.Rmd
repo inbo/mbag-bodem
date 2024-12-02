@@ -74,8 +74,8 @@ mlist <- list(
 )
 ```
 
-Het model met de laagste AIC waarde (hoogste AIC gewicht: AIC_wt) heeft de beste fit volgens AIC criterium.
-Dit betekent niet noodzakelijk dat dit model geen enkel probleem meer heeft met betrekking tot zero-inflation (deflation) of over- (onder-) dispersie.
+Het model met de laagste AIC waarde (hoogste AIC gewicht: `AIC_wt`) heeft de beste fit volgens AIC criterium.
+Dit betekent niet noodzakelijk dat dit model geen enkel probleem meer heeft met betrekking tot `zero-inflation` (`deflation`) of over- (onder-) dispersie.
 
 Modellen waarvan de AIC niet berekend kan worden, worden verwijderd.
 Deze modellen zijn wellicht niet geconvergeerd.
@@ -143,9 +143,9 @@ marginaleffects::plot_predictions(
 ```
 
 
-#### Met physicochemische data
+#### Met fysicochemische data
 
-Stepwise model selection:
+Stapsgewijze modelselectie:
 
 ```{r}
 variables_no_collinearity <- c(

@@ -97,7 +97,7 @@ In `mbag_combined_dataframe_v2.csv` zitten de samples zonder taxa niet in (na te
 sum(diversiteit$observed == 0)
 ```
 
-Deze nulwaarnemingen moeten we terug toevoegen (observed wordt dan 0, maar Shannon en Simpson zijn dan niet gedefinieerd).
+Deze nulwaarnemingen moeten we terug toevoegen (`observed` wordt dan 0, maar Shannon en Simpson zijn dan niet gedefinieerd).
 
 ```{r}
 groups <- diversiteit %>%

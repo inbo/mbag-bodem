@@ -29,7 +29,7 @@ mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # noli
 library(breakaway)
 ```
 
-# Inlezen data
+# Read data
 
 ```{r inlezen}
 metadata <- readr::read_csv(
@@ -126,7 +126,7 @@ ma$table
 ```
 
 
-Instead, using meta-analytic capabilities of brms package:
+Instead, using meta-analytic capabilities of `brms` package:
 
 ```{r}
 library(brms)
@@ -152,4 +152,4 @@ conditional_effects(
 )
 ```
 
-The result is very much comparable to what we obtained via glmmTMB with an offset term - so probably not much added value.
+The result is very much comparable to what we obtained via `glmmTMB` with an offset term - so probably not much added value.

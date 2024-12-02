@@ -1,5 +1,5 @@
 ---
-title: "Collembola: verschillen in taxonomische samenstelling tussen groepen van stalen"
+title: "`Collembola`: verschillen in taxonomische samenstelling tussen groepen van stalen"
 author: "Sam Lambrechts, Io Deflem, Emma Cartuyvels, Hans Van Calster"
 date: "`r Sys.Date()`"
 output:
@@ -231,9 +231,9 @@ We definiëren een functie die volgende stappen uitvoert:
 -   (optioneel) We verwijderen taxa die minder dan `frequency_threshold` (instelbaar) voorkomen in de stalen
     -   voordeel: dit zijn taxa die weinig informatie dragen
     -   nadeel: indien zeldzame taxa geclusterd zitten in een groep, missen we dit patroon als we ze verwijderen
--   (optioneel) "rarefy" de samples tot een gelijk aantal reads (instelbaar)
+-   (optioneel) `"rarefy"` de samples tot een gelijk aantal reads (instelbaar)
     -   voordeel: eventueel vertekening door verschillen in totaal aantal reads tussen stalen wordt weggewerkt; kan zeker van belang zijn als er systematische verschillen in totaal aantal reads zitten tussen de groepen die we willen vergelijken (zie vorige sectie)
-    -   nadeel: dit is een randomisatieprocedure die in feite 10 - 100-tal keer zou herhaald moeten worden waarna de resultaten van elk van de random datasets gecombineerd worden (vergelijkbaar met "multiple imputation"); bij een ordinatie is er echter geen manier om tot een consensus ordinatie te komen
+    -   nadeel: dit is een randomisatieprocedure die in feite 10 - 100-tal keer zou herhaald moeten worden waarna de resultaten van elk van de random datasets gecombineerd worden (vergelijkbaar met `"multiple imputation"`); bij een ordinatie is er echter geen manier om tot een consensus ordinatie te komen
 -   We transformeren met de robuuste "centered-log-ratio" transformatie omdat we werken met compositionele data waar enkel relatieve verschillen in abundantie betekenisvol zijn
 -   Eerst voeren we een principale componenten analyse uit op deze data
     -   de afstanden tussen samples in de ordinatieruimte zijn dan Euclidische afstanden tussen "centered-log-ratio" getransformeerde variabelen - dit is in de literatuur ook bekend als de Aitchinson afstand.
@@ -885,8 +885,8 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   Sprake van bimodaliteit? In 't292' ( _Megalothorax_ _incertus_) akker? Maar wel verdwenen voor _Megalothorax_ ( _incertus_) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tusen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
--   Idem voor _Folsomia_ _candida_ 't298' in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
+-   Sprake van bimodaliteit? In `'t292'` (`_Megalothorax_ _incertus_`) akker? Maar wel verdwenen voor `_Megalothorax_` (`_incertus_`) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tussen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
+-   Idem voor `_Folsomia_ _candida_` `'t298'` in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
 
 ```{r sccomp-boxplot-landgebruik-species}
 plots$boxplot[[1]]
@@ -958,8 +958,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-Duidelijk geen toename van _Megalothorax_ _incertus_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van _Megalothorax_ met afnemende landgebruiksintensiteit moet dus aan andere _Megalothorax_ soorten te wijten zijn? Duidelijke afname van _Folsomia_ _candida_ en _Isotomurus_ _maculatus_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
-_Megalothorax_ _incertus_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
+Duidelijk geen toename van `_Megalothorax_ _incertus_` met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van `_Megalothorax_` met afnemende landgebruiksintensiteit moet dus aan andere `_Megalothorax_` soorten te wijten zijn? Duidelijke afname van `_Folsomia_ _candida_` en `_Isotomurus_ _maculatus_` (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
+`_Megalothorax_ _incertus_` komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
 
 ```{r plot-sccomp-predictions-species}
 s_collembola_predictions %>%
@@ -1084,7 +1084,7 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   Op het eerste zicht geen sprake van bimodaliteit??? : de boxplot zit in de zone met proporties tussen x en x.x, terwijl er een groep van punten is die clustert tussen y.y en y. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+-   Op het eerste zicht geen sprake van bimodaliteit??? : de boxplot zit in de zone met proporties tussen `x` en `x.x`, terwijl er een groep van punten is die clustert tussen `y.y` en `y`. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
 
 ```{r sccomp-boxplot-landgebruik-known-species}
 plots$boxplot[[1]]
@@ -1156,8 +1156,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-Duidelijk geen toename van _Megalothorax_ _incertus_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. Wel een duidelijke toename van _Megalothorax_ _minimus_, _Isotoma_ _viridis_, _Protaphorura_ _armata_, en _Megalothorax_ _willemi_ (deze laatste enkel in de 10-30) met afnemende landgebruiksintensiteit. Duidelijke afname van _Folsomia_ _candida_ en _Isotomurus_ _maculatus_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit.
-_Megalothorax_ _incertus_, _Megalothorax_ _willemi_, en _Folsomia_ _candida_ lijken meer voor te komen in 10-30 cm dan 0-10 cm, terwijl _Willowsia_ _nigromaculata_, _Isotomurus_ _maculatus_, en _Sminthurus_ _viridis_ meer voor lijken te komen in 0-10 cm, dan 10-30 cm.
+Duidelijk geen toename van `_Megalothorax_ _incertus_` met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. Wel een duidelijke toename van `_Megalothorax_ _minimus_`, `_Isotoma_ _viridis_`, `_Protaphorura_ _armata_`, en `_Megalothorax_ _willemi_` (deze laatste enkel in de 10-30) met afnemende landgebruiksintensiteit. Duidelijke afname van `_Folsomia_ _candida_` en `_Isotomurus_ _maculatus_` (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit.
+`_Megalothorax_ _incertus_`, `_Megalothorax_ _willemi_`, en `_Folsomia_ _candida_` lijken meer voor te komen in 10-30 cm dan 0-10 cm, terwijl `_Willowsia_ _nigromaculata_`, `_Isotomurus_ _maculatus_`, en `_Sminthurus_ _viridis_` meer voor lijken te komen in 0-10 cm, dan 10-30 cm.
 
 ```{r plot-sccomp-predictions-known-species}
 s_collembola_predictions %>%
@@ -1195,7 +1195,7 @@ s_collembola_predictions %>%
 ```
 
 
-## `sccomp`: differentiële samenstelling en variabiliteitsanalyse op soortniveau met alle OTUs met een minimum occurence van 5
+## `sccomp`: differentiële samenstelling en variabiliteitsanalyse op soortniveau met alle OTUs met een minimum voorkomen van 5
 
 ```{r sccomp-inputs-all-species}
 max_taxa <- 207
@@ -1224,7 +1224,7 @@ sccomp_data_collembola <- tidy_physeq %>%
 Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
 Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
 
-Hier dus eens getest met alle OTUs met een occurrence van minstens 5 (in dit geval de 207 meest prevalente OTUs)
+Hier dus eens getest met alle OTUs met een voorkomen van minstens 5 (in dit geval de 207 meest voorkomende OTUs)
 
 ```{r sccomp-collembola-all-species, eval=FALSE}
 fs::dir_create(here("source", "brms_models"))
@@ -1306,8 +1306,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-Duidelijk geen toename van _xx_ _xx_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van _xx_ met afnemende landgebruiksintensiteit moet dus aan andere _xx_ soorten te wijten zijn? Duidelijke afname van _xx_ _xx_ en _xx_ _xx_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
-_xx_ _xx_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
+Duidelijk geen toename van `_xx_ _xx_` met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van `_xx_` met afnemende landgebruiksintensiteit moet dus aan andere `_xx_` soorten te wijten zijn? Duidelijke afname van `_xx_ _xx_` en `_xx_ _xx_` (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
+`_xx_ _xx_` komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
 
 ```{r plot-sccomp-predictions-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 # Filter out species with "_otu" in their names
@@ -1380,8 +1380,8 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   Sprake van bimodaliteit? In 't292' ( _xx_ _xx_) akker? Maar wel verdwenen voor _xx_ ( _xx_) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tusen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
--   Idem voor _xx_ _xx_ 't298' in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
+-   Sprake van bimodaliteit? In `'t292'` (`_xx_ _xx_`) akker? Maar wel verdwenen voor `_xx_` (`_xx_`) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tussen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
+-   Idem voor `_xx_ _xx_` `'t298'` in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
 
 ```{r sccomp-boxplot-landgebruik-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 plots$boxplot[[1]]
