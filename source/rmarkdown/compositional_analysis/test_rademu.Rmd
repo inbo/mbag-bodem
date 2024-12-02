@@ -34,9 +34,10 @@ library(phyloseq)
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
-    "data", 
+    "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_13.csv")
+    "MBAG_stratfile_v2_cleaned_13.csv"
+  )
 ) %>%
   janitor::clean_names() %>%
   rename(
@@ -52,7 +53,8 @@ metadata <- readr::read_csv(
       landgebruik_mbag,
       levels = c(
         "Akker", "Tijdelijk grasland", "Blijvend grasland",
-        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras")
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras"
+      )
     ),
     diepte = gsub("_|/", "-", diepte) |> factor()
   )
@@ -61,9 +63,9 @@ load(
     mbag_bodem_folder,
     "data", "statistiek", "Annelida", "phyloseq",
     "physeq_Olig01_Annelida_species.Rdata"
-    )
   )
-physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |> 
+)
+physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |>
   phyloseq::subset_samples(
     !Landgebruik_MBAG %in% c("Moeras", "Heide")
   )
@@ -76,9 +78,9 @@ sample_data(physeq_Olig01_Annelida_species)$Landgebruik_MBAG <- factor(
   sample_data(physeq_Olig01_Annelida_species)$Landgebruik_MBAG,
   levels = c(
     "Akker", "Tijdelijk grasland", "Blijvend grasland",
-    "Residentieel grasland", "Natuurgrasland")
+    "Residentieel grasland", "Natuurgrasland"
+  )
 )
-
 ```
 
 >Next, we want to confirm that all samples have at least one non-zero count across the categories we’ve chosen and that all categories have at least one non-zero count across the samples we’ve chosen.
@@ -99,10 +101,11 @@ physeq_Olig01_Annelida_genus <- physeq_Olig01_Annelida_species |>
 
 ```{r}
 m_fit <- emuFit(
-  formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte, 
+  formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte,
   Y = physeq_Olig01_Annelida_genus,
   cluster = sample_data(physeq_Olig01_Annelida_genus)$Cmon_PlotID,
-  run_score_tests = FALSE) 
+  run_score_tests = FALSE
+)
 
 m_fit$estimation_converged
 ```
@@ -116,10 +119,11 @@ genustab <- phyloseq::tax_table(physeq_Olig01_Annelida_genus)
 
 genustbl <- as_tibble(
   genustab@.Data
-) |> 
+) |>
   mutate(
-    category = dimnames(genustab)[[1]]) |> 
-  rowwise() |> 
+    category = dimnames(genustab)[[1]]
+  ) |>
+  rowwise() |>
   mutate(
     across(
       all_of(c("phylum", "class", "order", "family", "genus")),
@@ -128,9 +132,9 @@ genustbl <- as_tibble(
     ),
     index = sum(c_across(phylum_:genus_)),
     resolved_rank = c("phylum", "class", "order", "family", "genus")[index]
-  ) |> 
-  ungroup() |> 
-  dplyr::select(phylum:category, resolved_rank) |> 
+  ) |>
+  ungroup() |>
+  dplyr::select(phylum:category, resolved_rank) |>
   mutate(
     resolved_name = case_when(
       resolved_rank == "genus" ~ genus,
@@ -149,19 +153,19 @@ genustbl <- as_tibble(
   )
 
 coeftab |>
-  inner_join(genustbl) |> 
+  inner_join(genustbl) |>
   mutate(
     genus = factor(genus, levels = unique(genus[order(resolved_higher)]))
-  ) |> 
+  ) |>
   ggplot() +
   geom_pointrange(
     aes(
       x = genus,
       y = estimate, ymin = lower, ymax = upper,
-      colour = resolved_higher)
-  ) + 
+      colour = resolved_higher
+    )
+  ) +
   facet_wrap(~covariate)
-
 ```
 
 Identify taxa for which you want robust score tests:
@@ -178,7 +182,7 @@ This would need to be multiplied by the number of taxa of interest to get the ti
 
 
 ```{r eval=FALSE}
-coefselection <- coeftab |> 
+coefselection <- coeftab |>
   filter(
     covariate == "Landgebruik_MBAGNatuurgrasland",
     sign(lower) == sign(upper)
@@ -186,16 +190,18 @@ coefselection <- coeftab |>
 
 
 covariate_to_test <- which(
-  rownames(m_fit$B) == "Landgebruik_MBAGNatuurgrasland")
+  rownames(m_fit$B) == "Landgebruik_MBAGNatuurgrasland"
+)
 taxa_to_test <- which(
   coefselection$category %in% colnames(m_fit$B)
-  )
+)
 m_refit <- emuFit(
-  formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte, 
+  formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte,
   Y = physeq_Olig01_Annelida_genus,
   test_kj = data.frame(
-    k = covariate_to_test, 
-    j = taxa_to_test[1]),
+    k = covariate_to_test,
+    j = taxa_to_test[1]
+  ),
   fitted_model = m_fit,
   refit = FALSE,
   run_score_tests = TRUE
@@ -216,13 +222,14 @@ as_tibble(m_refit$coef) |>
   ) %>%
   mutate(
     genus = factor(genus, levels = unique(genus[order(resolved_higher)]))
-  ) |> 
+  ) |>
   ggplot() +
   geom_pointrange(
     aes(
       x = genus,
       y = estimate, ymin = lower, ymax = upper,
-      colour = resolved_higher)
+      colour = resolved_higher
+    )
   ) +
   labs(
     title = "Natuurgrasland vs Akker (diepte 0-10)"

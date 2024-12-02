@@ -38,8 +38,10 @@ bodem_meta <- read_excel(
   sheet = "Alle_stalen"
 ) %>%
   janitor::clean_names() %>%
-  mutate(mbag_e_dna_staal = factor(mbag_e_dna_staal),
-         mbag_nematodenstaal = factor(mbag_nematodenstaal)) 
+  mutate(
+    mbag_e_dna_staal = factor(mbag_e_dna_staal),
+    mbag_nematodenstaal = factor(mbag_nematodenstaal)
+  )
 
 nematodenstalen <- read_excel(
   file.path(
@@ -51,12 +53,10 @@ nematodenstalen <- read_excel(
   sheet = "Subset_nematodenstalen_ILVO"
 ) %>%
   janitor::clean_names()
-
 ```
 
 
 ```{r inlezen-gis}
-
 filepath <- "Z:/Projects/PRJ_MBAG/4c_bodembiodiversiteit/steekproef/MBAG_eDNA_sampling"
 
 bodem_meta_sf <- read_sf(filepath) %>%
@@ -83,9 +83,11 @@ Dit komt neer op alle locaties met grasland of akker als landgebruik waarvan er 
 bodem_meta %>%
   filter(mbag_e_dna_staal == 1) %>%
   count(staalopslag, diepte, mbag_luc) %>%
-  pivot_wider(values_from = n,
-              names_from = diepte,
-              names_prefix = "diepte_")
+  pivot_wider(
+    values_from = n,
+    names_from = diepte,
+    names_prefix = "diepte_"
+  )
 ```
 
 De missing data bij `mbag_luc`, kunnen we ondervangen via `cmon_lu_text`:
@@ -93,13 +95,16 @@ De missing data bij `mbag_luc`, kunnen we ondervangen via `cmon_lu_text`:
 ```{r}
 bodem_meta %>%
   filter(mbag_e_dna_staal == 1) %>%
-  mutate(mbag_luc = ifelse(is.na(mbag_luc), cmon_l_utext, mbag_luc),
-         mbag_luc = ifelse(mbag_luc == "Akkerland", "Akker", mbag_luc)) %>%
+  mutate(
+    mbag_luc = ifelse(is.na(mbag_luc), cmon_l_utext, mbag_luc),
+    mbag_luc = ifelse(mbag_luc == "Akkerland", "Akker", mbag_luc)
+  ) %>%
   count(staalopslag, diepte, mbag_luc) %>%
-  pivot_wider(values_from = n,
-              names_from = diepte,
-              names_prefix = "diepte_")
-
+  pivot_wider(
+    values_from = n,
+    names_from = diepte,
+    names_prefix = "diepte_"
+  )
 ```
 
 Hoe belangrijk zijn de 0-10 cm versus 10-30 cm stalen voor eDNA?
@@ -115,13 +120,16 @@ glimpse(nematodenstalen)
 
 ```{r}
 bodem_locs_meta_sf <- bodem_meta_sf %>%
-  mutate(mbag_luc = ifelse(is.na(mbag_luc), cmon_l_utext, mbag_luc),
-         mbag_luc = ifelse(mbag_luc == "Akkerland", "Akker", mbag_luc)) %>%
+  mutate(
+    mbag_luc = ifelse(is.na(mbag_luc), cmon_l_utext, mbag_luc),
+    mbag_luc = ifelse(mbag_luc == "Akkerland", "Akker", mbag_luc)
+  ) %>%
   select(plot_id, diepte, starts_with("mbag")) %>%
   group_by(plot_id, mbag_luc, mbag_e_dna) %>%
-  summarise(dieptes = paste(diepte, collapse = " en "),
-            .groups = "drop")
-
+  summarise(
+    dieptes = paste(diepte, collapse = " en "),
+    .groups = "drop"
+  )
 ```
 
 
@@ -134,7 +142,8 @@ Een deel van de plots zijn momenteel nog in analyse, maar binnenkort hebben we w
 
 ```{r landbouwstreken}
 landbouwstreken <- read_sf(
-  "S:/Vlaanderen/Landbouw/Landbouwstreken_België/Lbstrbel.shp") %>%
+  "S:/Vlaanderen/Landbouw/Landbouwstreken_België/Lbstrbel.shp"
+) %>%
   janitor::clean_names() %>%
   st_transform(crs = 31370)
 
@@ -145,13 +154,17 @@ bodem_locs_meta_sf <- bodem_locs_meta_sf %>%
 ```{r}
 bodem_locs_meta_sf %>%
   ggplot() +
-  geom_sf(data = landbouwstreken %>%
-            st_filter(bodem_locs_meta_sf),
-          aes(fill = naam),
-          alpha = 0.2) +
-  geom_sf_text(data = landbouwstreken %>%
-            st_filter(bodem_locs_meta_sf),
-          aes(label = naam)) +
+  geom_sf(
+    data = landbouwstreken %>%
+      st_filter(bodem_locs_meta_sf),
+    aes(fill = naam),
+    alpha = 0.2
+  ) +
+  geom_sf_text(
+    data = landbouwstreken %>%
+      st_filter(bodem_locs_meta_sf),
+    aes(label = naam)
+  ) +
   geom_sf(aes(colour = mbag_e_dna)) +
   guides(fill = "none")
 ```
@@ -167,11 +180,13 @@ bodem_locs_meta_sf %>%
   count(mbag_e_dna, landbouwstreek, name = "aantal_locaties") %>%
   mutate(mbag_e_dna = factor(
     mbag_e_dna,
-    labels = c("niet geselecteerd", "wel geselecteeerd"))) %>%
+    labels = c("niet geselecteerd", "wel geselecteeerd")
+  )) %>%
   pivot_wider(
     names_from = mbag_e_dna,
     values_from = aantal_locaties,
-    values_fill = 0) %>%
+    values_fill = 0
+  ) %>%
   kable()
 ```
 
@@ -180,13 +195,16 @@ Wanneer we deze data (enkel de wel geselecteerde locaties en zonder Duinen en We
 ```{r}
 bodem_locs_meta_sf %>%
   st_drop_geometry() %>%
-  filter(mbag_e_dna == 1,
-         !landbouwstreek %in% c("Duinen", "Weidestreek (Luik)")) %>%
+  filter(
+    mbag_e_dna == 1,
+    !landbouwstreek %in% c("Duinen", "Weidestreek (Luik)")
+  ) %>%
   count(mbag_e_dna, mbag_luc, landbouwstreek, name = "aantal_locaties") %>%
   pivot_wider(
     names_from = mbag_luc,
     values_from = aantal_locaties,
-    values_fill = 0) %>%
+    values_fill = 0
+  ) %>%
   select(-mbag_e_dna) %>%
   kable()
 ```
@@ -205,23 +223,23 @@ lbg_binding <- arrow::open_dataset(
 )
 
 bodem_locs_lbg <- landusemetrics_grid_cell(
-    grid_cell = bodem_locs_meta_sf %>%
-      st_buffer(dist = 10),
-    layer = lbg_binding %>%
-      select(LBLHFDTLT, geometry) %>%
-      sfarrow::read_sf_dataset() %>%
-      st_transform(31370),
-    grid_group_by_col = "plot_id",
-    layer_group_by_col = "LBLHFDTLT")
+  grid_cell = bodem_locs_meta_sf %>%
+    st_buffer(dist = 10),
+  layer = lbg_binding %>%
+    select(LBLHFDTLT, geometry) %>%
+    sfarrow::read_sf_dataset() %>%
+    st_transform(31370),
+  grid_group_by_col = "plot_id",
+  layer_group_by_col = "LBLHFDTLT"
+)
 
 mapping <- lbg_binding %>%
-    select(GEWASGROEP, LBLHFDTLT) %>%
-    collect() %>%
-    distinct()
+  select(GEWASGROEP, LBLHFDTLT) %>%
+  collect() %>%
+  distinct()
 
 bodem_locs_lbg <- bodem_locs_lbg %>%
-    left_join(mapping)
-
+  left_join(mapping)
 ```
 
 De kolom samenstelling geeft de samenstelling van gewasgroepen rond de eDNA bodemstaalnamelocaties.
@@ -229,12 +247,12 @@ De kolom samenstelling geeft de samenstelling van gewasgroepen rond de eDNA bode
 ```{r landbouwhoofdteelt}
 bodem_locs_meta_sf %>%
   left_join(bodem_locs_lbg %>%
-              group_by(plot_id, GEWASGROEP) %>%
-              summarise(area_prop = sum(area_prop)) %>%
-              summarise(samenstelling = paste(
-                paste0(GEWASGROEP, " (", round(area_prop, 2), ")"),
-                collapse = " - "
-              ))) %>%
+    group_by(plot_id, GEWASGROEP) %>%
+    summarise(area_prop = sum(area_prop)) %>%
+    summarise(samenstelling = paste(
+      paste0(GEWASGROEP, " (", round(area_prop, 2), ")"),
+      collapse = " - "
+    ))) %>%
   filter(mbag_e_dna == 1) %>%
   count(mbag_luc, samenstelling) %>%
   arrange(desc(n)) %>%

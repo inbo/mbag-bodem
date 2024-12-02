@@ -10,11 +10,13 @@
 #'
 #' @examples
 point_to_gridcell <- function(
-  xy,
-  cell_width_m = 500,
-  point_position = c("center", "lowerleft", "upperleft", "lowerright",
-                     "upperright"),
-  crs = 31370) {
+    xy,
+    cell_width_m = 500,
+    point_position = c(
+      "center", "lowerleft", "upperleft", "lowerright",
+      "upperright"
+    ),
+    crs = 31370) {
   point_position <- match.arg(point_position)
 
   if (point_position != "center") stop(point_position, " not yet implemented")
@@ -24,13 +26,15 @@ point_to_gridcell <- function(
   xy <- sf::st_geometry(xy)
 
   # buffer with 1 point per quandrant
-  xy_buffer <- sf::st_buffer(x = xy,
-                             dist = cell_width_m / 2,
-                             nQuadSegs = 1)
+  xy_buffer <- sf::st_buffer(
+    x = xy,
+    dist = cell_width_m / 2,
+    nQuadSegs = 1
+  )
 
   # rotate 45 degrees around centroid
   rot <- function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
-  pl <- (xy_buffer - xy) * rot(pi/4) + xy
+  pl <- (xy_buffer - xy) * rot(pi / 4) + xy
   pl <- sf::st_sf(data.frame(xy_df, pl), crs = crs)
   return(pl)
 }
@@ -51,12 +55,11 @@ point_to_gridcell <- function(
 #'
 #' @examples
 landusemetrics_grid_cell <- function(
-  grid_cell,
-  layer,
-  grid_group_by_col = "POINT_ID",
-  layer_group_by_col = "",
-  progress = FALSE
-) {
+    grid_cell,
+    layer,
+    grid_group_by_col = "POINT_ID",
+    layer_group_by_col = "",
+    progress = FALSE) {
   require(duckdb)
   if (inherits(layer, "SpatRaster") | inherits(layer, "RasterLayer")) {
     crs_grid <- gsub("^((.*?),\\n\\s*?){2}", "", sf::st_crs(grid_cell)$wkt)
@@ -76,10 +79,10 @@ landusemetrics_grid_cell <- function(
       fun = landcoverfraction,
       summarize_df = TRUE,
       include_cols = grid_group_by_col,
-      progress = progress)
+      progress = progress
+    )
 
     return(res)
-
   }
 
   if (inherits(layer, "sf")) {
@@ -102,9 +105,11 @@ landusemetrics_grid_cell <- function(
 
     int <- arrow::open_dataset(temparrow) %>%
       arrow::to_duckdb() %>%
-      group_by(!!!syms(grid_group_by_col),
-               !!!syms(layer_group_by_col),
-               cell_area) %>%
+      group_by(
+        !!!syms(grid_group_by_col),
+        !!!syms(layer_group_by_col),
+        cell_area
+      ) %>%
       summarise(area_m2 = sum(area)) %>%
       mutate(area_prop = area_m2 / cell_area) %>%
       collect()
@@ -112,4 +117,3 @@ landusemetrics_grid_cell <- function(
     return(int)
   }
 }
-

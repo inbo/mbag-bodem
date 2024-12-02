@@ -65,14 +65,14 @@ Deze tabelletjes kunnen best gewoon csv bestanden zijn die we inlezen.
 
 ```{r load-rdata-file}
 path_naar_bestand <- file.path(
-    mbag_folder,
-    "4c_bodembiodiversiteit",
-    "data",
-    "statistiek",
-    "Annelida",
-    "phyloseq",
-    "physeq_Olig01_Annelida_species.Rdata"
-  )
+  mbag_folder,
+  "4c_bodembiodiversiteit",
+  "data",
+  "statistiek",
+  "Annelida",
+  "phyloseq",
+  "physeq_Olig01_Annelida_species.Rdata"
+)
 
 load(path_naar_bestand)
 ```
@@ -97,10 +97,10 @@ Filter taxongroep:
 ```{r filter-taxongroep}
 physeq <- subset_taxa(
   physeq,
-  phylum == "Annelida")
+  phylum == "Annelida"
+)
 
 physeq_rarefied <- rarefy_even_depth(physeq, sample.size = 30780)
-
 ```
 
 
@@ -120,7 +120,6 @@ psotu2veg <- function(physeq) {
   }
   return(as(otu, "matrix"))
 }
-
 ```
 
 
@@ -147,7 +146,6 @@ tidy_physeq_rarefied <- tidy_physeq_rarefied %>%
   ) %>%
   tidytacos::add_alpha() %>%
   tidytacos::add_total_count()
-
 ```
 
 
@@ -206,27 +204,24 @@ tidy_physeq$samples %>%
 ## OTU tabel
 
 ```{r verken-otu-data}
-
-
-glimpse(otu_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
+glimpse(otu_table(physeq_rarefied) %>% as.data.frame() %>% as_tibble())
 ```
 
 ## Taxonomie tabel
 
 
 ```{r verken-taxonomie-data}
-glimpse(tax_table(physeq_rarefied) %>% as.data.frame %>% as_tibble())
+glimpse(tax_table(physeq_rarefied) %>% as.data.frame() %>% as_tibble())
 ```
 
 ```{r GBIF-check-presence}
-
 species <- as.vector(tax_table(physeq)[, "species"])
 species <- species[!grepl("_otu", species)]
 species <- gsub("_", " ", species)
 source(here::here("source/r/check_presence.R"))
 gbif_check <- check_presence(species)
 gbif_check %>%
-filter(!present) %>%
+  filter(!present) %>%
   kable(caption = "Not present according to GBIF in Western-Europe")
 ```
 
@@ -260,12 +255,9 @@ sample_data(physeq_rarefied)$Landgebruik_MBAG_diepte <- combined_column
 physeq_rarefied <- merge_phyloseq(physeq_rarefied, sample_data(physeq_rarefied))
 
 
-if (system(command = "which ktImportText",  intern = FALSE, ignore.stderr = TRUE,  ignore.stdout = TRUE) != 1) {
+if (system(command = "which ktImportText", intern = FALSE, ignore.stderr = TRUE, ignore.stdout = TRUE) != 1) {
   psadd::plot_krona(physeq_rarefied, "MBAG_Olig01_Annelida_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte", "Landgebruik_MBAG_diepte", trim = T)
 }
-
-
-
 ```
 
 
@@ -290,7 +282,8 @@ Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
 tidy_physeq$samples %>%
   filter(total_count > 0) %>%
   ggplot(
-    aes(x = total_count, y = observed)) +
+    aes(x = total_count, y = observed)
+  ) +
   geom_point() +
   scale_x_log10() +
   labs(y = "Observed number of taxa")
@@ -310,16 +303,17 @@ samples_totcount_10k <- tidy_physeq$samples %>%
 form_annelida_richness <- formula(
   observed ~
     log(total_count)
-  + Landgebruik_MBAG
-  + Diepte
-  + Landgebruik_MBAG:Diepte
-  + (1 | Cmon_PlotID)
-  )
+    + Landgebruik_MBAG
+    + Diepte
+    + Landgebruik_MBAG:Diepte
+    + (1 | Cmon_PlotID)
+)
 
 m_annelida_richness <- glmmTMB::glmmTMB(
   formula = form_annelida_richness,
   data = samples_totcount_10k,
-  family = glmmTMB::nbinom2())
+  family = glmmTMB::nbinom2()
+)
 ```
 
 Model validatie toont dat er problemen zijn met de residuele variabiliteit.
@@ -345,7 +339,8 @@ Zoals te verwachten, is het belangrijk om te corrigeren voor het totaal aantal r
 marginaleffects::plot_predictions(
   m_annelida_richness,
   condition = c("total_count"),
-  vcov = vcov(m_annelida_richness)) +
+  vcov = vcov(m_annelida_richness)
+) +
   labs(y = "Voorspeld aantal taxa") +
   scale_x_log10()
 ```
@@ -359,7 +354,8 @@ marginaleffects::plot_predictions(
   condition = c("Landgebruik_MBAG", "Diepte"),
   vcov = vcov(m_annelida_richness),
   re.form = NA,
-  type = "response") +
+  type = "response"
+) +
   labs(y = "Voorspelde aantal taxa")
 ```
 
@@ -377,16 +373,20 @@ estimated_species_richness <- vegan::rarefy(
   veganobject,
   30780,
   se = TRUE,
-  MARGIN = 1)
+  MARGIN = 1
+)
 
 
 true_rarefaction_results <- cbind(
   sam_new %>% select(Cmon_PlotID, Diepte, Landgebruik_MBAG),
   est = estimated_species_richness["S", ],
-  se = estimated_species_richness["se", ]) %>%
+  se = estimated_species_richness["se", ]
+) %>%
   as_tibble() %>%
-  mutate(est_lower = est - 2 * se,
-         est_upper = est + 2 * se)
+  mutate(
+    est_lower = est - 2 * se,
+    est_upper = est + 2 * se
+  )
 ```
 
 
@@ -402,17 +402,17 @@ library(brms)
 
 form_rarefaction <- bf(
   est | se(se, sigma = TRUE) ~
-  + Landgebruik_MBAG
-  + Diepte
-  + Landgebruik_MBAG:Diepte
-  + (1 | Cmon_PlotID)
+    +Landgebruik_MBAG
+    + Diepte
+    + Landgebruik_MBAG:Diepte
+    + (1 | Cmon_PlotID)
 )
 
 m_rarefaction <- brm(
   formula = form_rarefaction,
   data = true_rarefaction_results,
-  family = gaussian())
-
+  family = gaussian()
+)
 ```
 
 
@@ -426,8 +426,9 @@ Dit model geeft gelijkaardige resultaten als het model waarbij we rechtstreeks w
 ```{r m-rarefied-predictions}
 conditional_effects(
   m_rarefaction,
-    effects = c("Landgebruik_MBAG:Diepte"),
-  re.form = NA)
+  effects = c("Landgebruik_MBAG:Diepte"),
+  re.form = NA
+)
 ```
 
 ## OTU counts 
@@ -486,7 +487,6 @@ tidy_physeq %>%
 ## Ordinatie
 
 ```{r physec-rarefied}
-
 ```
 
 ```{r ordination-vegan}
@@ -505,8 +505,6 @@ samples <- sample_data(physeq_rarefied) %>%
 rda <- rda(ordmat)
 
 biplot(rda)
-
-
 ```
 
 
@@ -522,7 +520,9 @@ pcoa_result <- ordinate(physeq, method = "PCoA", distance = "bray")
 
 # Create the ordination plot with color based on land_use and shape
 # based on diepte
-plot_ordination(physeq, pcoa_result, type = "samples",
-                color = "Landgebruik_MBAG", shape = "Diepte") +
+plot_ordination(physeq, pcoa_result,
+  type = "samples",
+  color = "Landgebruik_MBAG", shape = "Diepte"
+) +
   theme_minimal()
 ```

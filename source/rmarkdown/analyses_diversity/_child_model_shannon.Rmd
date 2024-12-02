@@ -14,11 +14,11 @@ data_subset <- combined %>%
 form_shannon <- formula(
   shannon ~
     log(total_count)
-  + landgebruik
-  + diepte
-  + landgebruik:diepte
-  + (1 | cmon_plot_id)
-  )
+    + landgebruik
+    + diepte
+    + landgebruik:diepte
+    + (1 | cmon_plot_id)
+)
 
 zeroes <- min(data_subset$shannon, na.rm = TRUE) == 0
 
@@ -28,15 +28,17 @@ if (!zeroes) {
   m_shannon <- glmmTMB(
     formula = form_shannon,
     data = data_subset,
-    family = Gamma(link = "log"))
+    family = Gamma(link = "log")
+  )
 } else {
   cat("Zeroes detected (only one taxum observed): Fitting zero-inflated Gamma model")
 
   m_shannon <- glmmTMB(
     formula = form_shannon,
-    ziformula = ~ 1,
+    ziformula = ~1,
     data = data_subset,
-    family = ziGamma(link = "log"))
+    family = ziGamma(link = "log")
+  )
 }
 ```
 
@@ -60,7 +62,8 @@ marginaleffects::plot_predictions(
   condition = c("total_count"),
   re.form = NA,
   vcov = TRUE,
-  type = "response") +
+  type = "response"
+) +
   labs(y = "Shannon index") +
   scale_x_log10()
 ```
@@ -71,7 +74,8 @@ marginaleffects::plot_predictions(
   condition = c("landgebruik", "diepte"),
   re.form = NA,
   vcov = TRUE,
-  type = "response") +
+  type = "response"
+) +
   labs(y = "Shannon index")
 ```
 

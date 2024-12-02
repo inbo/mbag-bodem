@@ -16,11 +16,11 @@ data_subset <- combined %>%
 form_richness <- formula(
   observed ~
     log(total_count + 1)
-  + landgebruik
-  + diepte
-  + landgebruik:diepte
-  + (1 | cmon_plot_id)
-  )
+    + landgebruik
+    + diepte
+    + landgebruik:diepte
+    + (1 | cmon_plot_id)
+)
 
 ziform <- formula(~ 1 + (1 | cmon_plot_id))
 
@@ -28,35 +28,41 @@ cat("Fitting Poisson model\n")
 m_pois <- glmmTMB(
   formula = form_richness,
   data = data_subset,
-  family = poisson())
+  family = poisson()
+)
 cat("Fitting hurdle Poisson model\n")
 m_hpois <- glmmTMB(
   formula = form_richness,
   ziformula = ziform,
   data = data_subset,
-  family = truncated_poisson())
+  family = truncated_poisson()
+)
 cat("Fitting negative binomial model\n")
 m_nbinom <- glmmTMB(
   formula = form_richness,
   data = data_subset,
-  family = nbinom2())
+  family = nbinom2()
+)
 cat("Fitting hurdle negative binomial model\n")
 m_hnbinom <- glmmTMB(
   formula = form_richness,
   ziformula = ziform,
   data = data_subset,
-  family = truncated_nbinom2())
+  family = truncated_nbinom2()
+)
 cat("Fitting generalized Poisson model\n")
 m_genpois <- glmmTMB(
   formula = form_richness,
   data = data_subset,
-  family = genpois())
+  family = genpois()
+)
 cat("Fitting hurdle generalized Poisson model\n")
 m_hgenpois <- glmmTMB(
   formula = form_richness,
   ziformula = ziform,
   data = data_subset,
-  family = truncated_genpois())
+  family = truncated_genpois()
+)
 
 mlist <- list(
   pois = m_pois,
@@ -120,7 +126,8 @@ marginaleffects::plot_predictions(
   condition = c("total_count"),
   re.form = NA,
   vcov = TRUE,
-  type = "response") +
+  type = "response"
+) +
   labs(y = "Voorspeld aantal taxa")
 ```
 
@@ -130,7 +137,8 @@ marginaleffects::plot_predictions(
   condition = c("landgebruik", "diepte"),
   re.form = NA,
   vcov = TRUE,
-  type = "response") +
+  type = "response"
+) +
   labs(y = "Voorspeld aantal taxa")
 ```
 
@@ -141,14 +149,14 @@ Stepwise model selection:
 
 ```{r}
 variables_no_collinearity <- c(
-  "total_count", 
-  "landgebruik", 
-  "diepte", 
-  "cmon_plot_id", 
-  "c_density", 
-  "cn_stockbased", 
-  "swc_vol", 
-  "ph_kcl", 
+  "total_count",
+  "landgebruik",
+  "diepte",
+  "cmon_plot_id",
+  "c_density",
+  "cn_stockbased",
+  "swc_vol",
+  "ph_kcl",
   "bd"
 )
 
@@ -157,11 +165,12 @@ cat(
   paste(
     "De originele dataset heeft",
     nr1,
-  "rijen.\n"
+    "rijen.\n"
   )
 )
 data_subset <- data_subset[
-  complete.cases(data_subset[ , variables_no_collinearity]), ]
+  complete.cases(data_subset[, variables_no_collinearity]),
+]
 nr2 <- nrow(data_subset)
 
 cat(
@@ -169,7 +178,7 @@ cat(
     "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
     één van de covariaten, heeft de dataset",
     nr2,
-  "rijen.\n"
+    "rijen.\n"
   )
 )
 ```
@@ -182,13 +191,13 @@ Dit wordt het `full model`.
 ```{r extend-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
-  . ~ . 
-  + swc_vol
-  + c_density
-  + cn_stockbased
-  + swc_vol
-  + poly(ph_kcl, 2)
-  + bd
+  . ~ .
+    + swc_vol
+    + c_density
+    + cn_stockbased
+    + swc_vol
+    + poly(ph_kcl, 2)
+    + bd
 )
 
 m_richness_full <- update(
@@ -209,7 +218,6 @@ coefs_df <- rbind(
   data.frame(Model = "Base", base_model_coefs),
   data.frame(Model = "Full", full_model_coefs)
 )
-
 ```
 
 ```{r plot-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
@@ -221,14 +229,18 @@ ggplot(
   geom_errorbar(
     aes(
       ymin = estimate - std.error,
-      ymax = estimate + std.error),
-    width = 0.2, position = position_dodge(0.9)) +
+      ymax = estimate + std.error
+    ),
+    width = 0.2, position = position_dodge(0.9)
+  ) +
   coord_flip() +
   theme_minimal() +
-  labs(title = "Coefficient Estimates and Standard Errors",
-       x = "Predictor",
-       y = "Estimate",
-       fill = "Model")
+  labs(
+    title = "Coefficient Estimates and Standard Errors",
+    x = "Predictor",
+    y = "Estimate",
+    fill = "Model"
+  )
 ```
 
 
@@ -241,9 +253,10 @@ model_set <- dredge(
   m.lim = c(NA, 7),
   fixed = ~
     cond(log(total_count + 1))
-  + cond(landgebruik)
-  + cond(diepte)
-  + (1 | cmon_plot_id))
+    + cond(landgebruik)
+      + cond(diepte)
+      + (1 | cmon_plot_id)
+)
 ```
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
@@ -258,7 +271,7 @@ Visualisatie van modellen die minder dan 4 AICc verschillen van het model met la
 ```{r}
 dd <- subset(model_set, delta < 4)
 
-par(mar = c(3,5,6,4))
+par(mar = c(3, 5, 6, 4))
 plot(dd, labAsExpr = TRUE)
 ```
 
@@ -293,13 +306,17 @@ interactingvars <- stringr::str_split(interactingvars, ":") %>%
   unique()
 efvars <- efvars[!efvars %in% interactingvars]
 efvars <- stringr::str_replace_all(
-  efvars, "^(\\w+\\()?(.+?)(\\))?$", "\\2")
+  efvars, "^(\\w+\\()?(.+?)(\\))?$", "\\2"
+)
 efvars <- ifelse(
-  efvars == "diepte:landgebruik", "landgebruik:diepte", efvars)
+  efvars == "diepte:landgebruik", "landgebruik:diepte", efvars
+)
 efvars <- ifelse(
-  efvars == "total_count + 1", "total_count", efvars)
+  efvars == "total_count + 1", "total_count", efvars
+)
 efvars <- ifelse(
-  efvars == "ph_kcl, 2", "ph_kcl", efvars)
+  efvars == "ph_kcl, 2", "ph_kcl", efvars
+)
 
 p <- vector(mode = "list", length = length(efvars))
 p <- set_names(p, efvars)
@@ -309,7 +326,8 @@ for (i in efvars) {
     nd <- insight::get_datagrid(
       lowest_aic,
       by = conds,
-      length = 50)
+      length = 50
+    )
     pl <- marginaleffects::plot_predictions(
       model = lowest_aic,
       by = conds,
@@ -319,11 +337,12 @@ for (i in efvars) {
       points = 0.1,
       re.form = NA
     )
-    } else {
+  } else {
     nd <- insight::get_datagrid(
       lowest_aic,
       by = i,
-      length = 50)
+      length = 50
+    )
     pl <- marginaleffects::plot_predictions(
       lowest_aic,
       by = i,
@@ -333,7 +352,7 @@ for (i in efvars) {
       points = 0.1,
       re.form = NA
     )
-    }
+  }
   p[[i]] <- pl
 }
 
