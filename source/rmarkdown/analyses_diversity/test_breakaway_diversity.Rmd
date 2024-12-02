@@ -29,15 +29,16 @@ mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # noli
 library(breakaway)
 ```
 
-# Inlezen data
+# Read data
 
 ```{r inlezen}
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
-    "data", 
+    "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_13.csv")
+    "MBAG_stratfile_v2_cleaned_13.csv"
+  )
 ) %>%
   janitor::clean_names() %>%
   rename(
@@ -53,7 +54,8 @@ metadata <- readr::read_csv(
       landgebruik_mbag,
       levels = c(
         "Akker", "Tijdelijk grasland", "Blijvend grasland",
-        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras")
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras"
+      )
     ),
     diepte = gsub("_|/", "-", diepte) |> factor()
   )
@@ -63,19 +65,18 @@ load(
     mbag_bodem_folder,
     "data", "statistiek", "Annelida", "phyloseq",
     "physeq_Olig01_Annelida_species.Rdata"
-    )
   )
+)
 
-physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |> 
+physeq_olig01_annelida_species <- physeq_Olig01_Annelida_species |> # nolint
   phyloseq::subset_samples(
     !Landgebruik_MBAG %in% c("Moeras", "Heide")
   )
-
 ```
 
 
 ```{r}
-br <- breakaway(physeq_Olig01_Annelida_species)
+br <- breakaway(physeq_olig01_annelida_species)
 br_tbl <- summary(br)
 ```
 
@@ -85,24 +86,26 @@ br_tbl
 
 
 ```{r}
-combined <- br_tbl |> 
-  inner_join(metadata, by = join_by(sample_names == sample)) |> 
+combined <- br_tbl |>
+  inner_join(metadata, by = join_by(sample_names == sample)) |>
   filter(
     !landgebruik_mbag %in% c("Moeras", "Heide")
-  ) |> 
+  ) |>
   mutate(
     landgebruik_mbag = factor(
       landgebruik_mbag,
-      levels = c("Akker", "Tijdelijk grasland", "Blijvend grasland",
-                 "Residentieel grasland", "Natuurgrasland")
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
     )
   )
 ```
 
 
 ```{r}
-combined |> 
-  filter(error < 1e-7 ) %>%
+combined |>
+  filter(error < 1e-7) %>%
   count(landgebruik_mbag)
 ```
 
@@ -118,12 +121,12 @@ ma <- betta(
   formula = estimate ~ landgebruik_mbag,
   ses = error,
   data = combined
-  )
+)
 ma$table
 ```
 
 
-Instead, using meta-analytic capabilities of brms package:
+Instead, using meta-analytic capabilities of `brms` package:
 
 ```{r}
 library(brms)
@@ -135,12 +138,7 @@ ma_brms <- brm(
   family = "skew_normal",
   backend = "cmdstanr",
   cores = 4
-#  ,
-#  algorithm = "pathfinder",
-#  history_size = 100,
-#  psis_resample = TRUE
 )
-
 ```
 
 ```{r}
@@ -151,7 +149,7 @@ summary(ma_brms)
 conditional_effects(
   ma_brms,
   "landgebruik_mbag:diepte"
-  )
+)
 ```
 
-The result is very much comparable to what we obtained via glmmTMB with an offset term - so probably not much added value.
+The result is very much comparable to what we obtained via `glmmTMB` with an offset term - so probably not much added value.

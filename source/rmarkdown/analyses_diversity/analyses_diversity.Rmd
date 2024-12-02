@@ -34,14 +34,10 @@ mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # noli
 
 ```{r helper-zi-disp}
 inflation_dispersion <- function(model) {
-  test2 <- check_zeroinflation(model, tolerance = 0.1)
-  zeroes_within_tolerance <- between(
-    test2$ratio,
-    1 - test2$tolerance,
-    1 + test2$tolerance)
+  test2 <- performance::check_zeroinflation(model, tolerance = 0.1)
   zero_inflation <- test2$ratio < 1 - test2$tolerance
   zero_deflation <- test2$ratio > 1 + test2$tolerance
-  test <- check_overdispersion(model)
+  test <- performance::check_overdispersion(model)
   is_overdispersed <- test$p_value < 0.05 & test$dispersion_ratio > 1
   is_underdispersed <- test$p_value < 0.05 & test$dispersion_ratio < 1
   out <- list(
@@ -62,15 +58,17 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_v2.csv")
+    "mbag_combined_dataframe_v2.csv"
+  )
 )
 
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
-    "data", 
+    "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_13.csv")
+    "MBAG_stratfile_v2_cleaned_13.csv"
+  )
 ) %>%
   janitor::clean_names() %>%
   rename(
@@ -86,11 +84,11 @@ metadata <- readr::read_csv(
       landgebruik_mbag,
       levels = c(
         "Akker", "Tijdelijk grasland", "Blijvend grasland",
-        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras")
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras"
+      )
     ),
     diepte = gsub("_|/", "-", diepte) |> factor()
   )
-
 ```
 
 In `mbag_combined_dataframe_v2.csv` zitten de samples zonder taxa niet in (na te vragen)!
@@ -99,7 +97,7 @@ In `mbag_combined_dataframe_v2.csv` zitten de samples zonder taxa niet in (na te
 sum(diversiteit$observed == 0)
 ```
 
-Deze nulwaarnemingen moeten we terug toevoegen (observed wordt dan 0, maar Shannon en Simpson zijn dan niet gedefinieerd).
+Deze nulwaarnemingen moeten we terug toevoegen (`observed` wordt dan 0, maar Shannon en Simpson zijn dan niet gedefinieerd).
 
 ```{r}
 groups <- diversiteit %>%
@@ -108,14 +106,15 @@ groups <- diversiteit %>%
 samples <- metadata %>%
   distinct(sample)
 
-#nrow(groups) * nrow(samples)
 samples_groups <- expand_grid(
-  samples, groups)
+  samples, groups
+)
 
 combined <- samples_groups %>%
   full_join(
     diversiteit,
-    by = c("sample", "primerset", "group", "unit")) %>%
+    by = c("sample", "primerset", "group", "unit")
+  ) %>%
   mutate(
     observed = ifelse(is.na(observed), 0, observed),
     total_count = ifelse(is.na(total_count), 0, total_count)
@@ -207,7 +206,8 @@ metadata %>%
     swc_vol, c_density, cn_stockbased, swc_vol, ph_kcl, bd
   ) %>%
   pivot_longer(
-    cols = c(swc_vol, c_density, cn_stockbased, swc_vol, ph_kcl, bd)) %>%
+    cols = c(swc_vol, c_density, cn_stockbased, swc_vol, ph_kcl, bd)
+  ) %>%
   ggplot(aes(x = landgebruik, y = value)) +
   geom_violin() +
   geom_sina(alpha = 0.3) +
@@ -234,12 +234,14 @@ inputs <- combined %>%
 pmap(
   inputs,
   function(
-    group = group,
-    primerset = primerset,
-    unit = unit) {
+      group = group,
+      primerset = primerset,
+      unit = unit) {
     knit_expand(
-      here("source", "rmarkdown", "analyses_diversity",
-           "_child_model_observed_richness.Rmd"),
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_observed_richness.Rmd"
+      ),
       group = group,
       primerset = primerset,
       unit = unit
@@ -248,7 +250,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-#clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 execute_code <- function(rmd) {
   # Extract R code from the rmd content
@@ -276,12 +278,14 @@ inputs <- combined %>%
 pmap(
   inputs,
   function(
-    group = group,
-    primerset = primerset,
-    unit = unit) {
+      group = group,
+      primerset = primerset,
+      unit = unit) {
     knit_expand(
-      here("source", "rmarkdown", "analyses_diversity",
-           "_child_model_shannon.Rmd"),
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_shannon.Rmd"
+      ),
       group = group,
       primerset = primerset,
       unit = unit
@@ -290,7 +294,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-#clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 knit_child(text = rmd, quiet = TRUE) %>%
   cat()
@@ -308,12 +312,14 @@ inputs <- combined %>%
 pmap(
   inputs,
   function(
-    group = group,
-    primerset = primerset,
-    unit = unit) {
+      group = group,
+      primerset = primerset,
+      unit = unit) {
     knit_expand(
-      here("source", "rmarkdown", "analyses_diversity",
-           "_child_model_simpson.Rmd"),
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_simpson.Rmd"
+      ),
       group = group,
       primerset = primerset,
       unit = unit
@@ -322,7 +328,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-#clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 knit_child(text = rmd, quiet = TRUE) %>%
   cat()

@@ -1,5 +1,5 @@
 ---
-title: "Collembola: verschillen in taxonomische samenstelling tussen groepen van stalen"
+title: "`Collembola`: verschillen in taxonomische samenstelling tussen groepen van stalen"
 author: "Sam Lambrechts, Io Deflem, Emma Cartuyvels, Hans Van Calster"
 date: "`r Sys.Date()`"
 output:
@@ -39,9 +39,10 @@ mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
 
 
 if (!"GenomeInfoDbData" %in% rownames(installed.packages())) {
-install.packages(
-  "GenomeInfoDbData",
-  repos = "https://bioconductor.org/packages/3.17/data/annotation")
+  install.packages(
+    "GenomeInfoDbData",
+    repos = "https://bioconductor.org/packages/3.17/data/annotation"
+  )
 }
 if (!"sccomp" %in% rownames(installed.packages())) {
   remotes::install_github("stemangiola/sccomp")
@@ -61,15 +62,15 @@ Deze tabelletjes kunnen best gewoon csv bestanden zijn die we inlezen.
 ```
 ```{r load-rdata-file}
 path_naar_bestand <- file.path(
-    mbag_folder,
-    "4c_bodembiodiversiteit",
-    "data",
-    "statistiek",
-    "Coll01",
-    "met_otu_legetaxonomie",
-    "phyloseq",
-    "physeq_Coll01_Collembola_species.Rdata"
-  )
+  mbag_folder,
+  "4c_bodembiodiversiteit",
+  "data",
+  "statistiek",
+  "Coll01",
+  "met_otu_legetaxonomie",
+  "phyloseq",
+  "physeq_Coll01_Collembola_species.Rdata"
+)
 
 load(path_naar_bestand)
 ```
@@ -81,9 +82,13 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 ```{r create-tidytacos-objects}
 physeq <- physeq_Coll01_Collembola.species
 
-physeq_known_species <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "species"]))
+physeq_known_species <- subset_taxa(
+  physeq, !grepl("_otu", tax_table(physeq)[, "species"])
+)
 
-physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "genus"]))
+physeq_known_genera <- subset_taxa(
+  physeq, !grepl("_otu", tax_table(physeq)[, "genus"])
+)
 
 
 
@@ -98,10 +103,12 @@ tidy_physeq <- tidytacos::from_phyloseq(physeq) %>%
   tidytacos::mutate_samples(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
     Landgebruik_MBAG = factor(
-    Landgebruik_MBAG,
-    levels = c(
-      "Akker", "Tijdelijk grasland", "Blijvend grasland",
-      "Residentieel grasland", "Natuurgrasland"))
+      Landgebruik_MBAG,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    )
   )
 
 ranks <- physeq_known_species %>%
@@ -115,10 +122,12 @@ tidy_physeq_known_species <- tidytacos::from_phyloseq(physeq_known_species) %>%
   tidytacos::mutate_samples(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
     Landgebruik_MBAG = factor(
-    Landgebruik_MBAG,
-    levels = c(
-      "Akker", "Tijdelijk grasland", "Blijvend grasland",
-      "Residentieel grasland", "Natuurgrasland"))
+      Landgebruik_MBAG,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    )
   )
 
 ranks <- physeq_known_genera %>%
@@ -132,10 +141,12 @@ tidy_physeq_known_genera <- tidytacos::from_phyloseq(physeq_known_genera) %>%
   tidytacos::mutate_samples(
     Datum_staalname = lubridate::mdy_hm(Datum_staalname),
     Landgebruik_MBAG = factor(
-    Landgebruik_MBAG,
-    levels = c(
-      "Akker", "Tijdelijk grasland", "Blijvend grasland",
-      "Residentieel grasland", "Natuurgrasland"))
+      Landgebruik_MBAG,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    )
   )
 ```
 
@@ -157,7 +168,7 @@ tidy_physeq %>%
       paste(collapse = "; ") %>%
       stringr::str_sub(start = 1, end = 13),
     period = interval(start = min(Datum_staalname), end = max(Datum_staalname)),
-    ) %>%
+  ) %>%
   kable()
 ```
 
@@ -208,7 +219,8 @@ tidy_physeq %>%
   geom_point(aes(x = Datum_staalname, y = total_count, colour = Staalnemer)) +
   geom_smooth(aes(
     x = Datum_staalname, y = total_count,
-    colour = Staalnemer, fill = Staalnemer)) +
+    colour = Staalnemer, fill = Staalnemer
+  )) +
   scale_y_log10(breaks = c(1e+03, 1e+04, 1e+05, 3e+05, 1e+06))
 ```
 
@@ -219,9 +231,9 @@ We definiëren een functie die volgende stappen uitvoert:
 -   (optioneel) We verwijderen taxa die minder dan `frequency_threshold` (instelbaar) voorkomen in de stalen
     -   voordeel: dit zijn taxa die weinig informatie dragen
     -   nadeel: indien zeldzame taxa geclusterd zitten in een groep, missen we dit patroon als we ze verwijderen
--   (optioneel) "rarefy" de samples tot een gelijk aantal reads (instelbaar)
+-   (optioneel) `"rarefy"` de samples tot een gelijk aantal reads (instelbaar)
     -   voordeel: eventueel vertekening door verschillen in totaal aantal reads tussen stalen wordt weggewerkt; kan zeker van belang zijn als er systematische verschillen in totaal aantal reads zitten tussen de groepen die we willen vergelijken (zie vorige sectie)
-    -   nadeel: dit is een randomisatieprocedure die in feite 10 - 100-tal keer zou herhaald moeten worden waarna de resultaten van elk van de random datasets gecombineerd worden (vergelijkbaar met "multiple imputation"); bij een ordinatie is er echter geen manier om tot een consensus ordinatie te komen
+    -   nadeel: dit is een randomisatieprocedure die in feite 10 - 100-tal keer zou herhaald moeten worden waarna de resultaten van elk van de random datasets gecombineerd worden (vergelijkbaar met `"multiple imputation"`); bij een ordinatie is er echter geen manier om tot een consensus ordinatie te komen
 -   We transformeren met de robuuste "centered-log-ratio" transformatie omdat we werken met compositionele data waar enkel relatieve verschillen in abundantie betekenisvol zijn
 -   Eerst voeren we een principale componenten analyse uit op deze data
     -   de afstanden tussen samples in de ordinatieruimte zijn dan Euclidische afstanden tussen "centered-log-ratio" getransformeerde variabelen - dit is in de literatuur ook bekend als de Aitchinson afstand.
@@ -235,8 +247,7 @@ calc_ordinations <- function(
     rarefy_even_reads = NULL,
     frequency_threshold = 0,
     cumulative_prop_explained = 0.9,
-    use_rank = NULL
-) {
+    use_rank = NULL) {
   set.seed(20315)
 
   data <- tacos_data %>%
@@ -248,9 +259,10 @@ calc_ordinations <- function(
       }
     } %>%
     tidytacos::filter_counts(
-      .by = "taxon_id", n() > frequency_threshold)
+      .by = "taxon_id", n() > frequency_threshold
+    )
 
-  
+
   if (!is.null(rarefy_even_reads)) {
     message(paste("samples rarefied to", rarefy_even_reads, "reads"))
     data <- data %>%
@@ -264,17 +276,21 @@ calc_ordinations <- function(
       id_cols = "sample_id",
       names_from = "taxon_id",
       values_from = "count",
-      values_fill = 0)
+      values_fill = 0
+    )
 
   pca1 <- prcomp(
     vegan::decostand(
       counts %>% select(-"sample_id"),
-      method = "rclr"))
+      method = "rclr"
+    )
+  )
   d <- pca1$sdev^2
   truncate_axis <- sum(cumsum(d) / sum(d) < cumulative_prop_explained)
   message(sprintf(
     "Calculating tsne based on first %s axes from PCA solution",
-    truncate_axis))
+    truncate_axis
+  ))
   tsne1 <- tsne::tsne(pca1$x[, 1:truncate_axis])
 
   plotdata <-
@@ -282,7 +298,8 @@ calc_ordinations <- function(
       as_tibble(vegan::scores(pca1, display = "sites", choices = 1:2)),
       as_tibble(tsne1),
       counts %>%
-        dplyr::select(.data$sample_id)) %>%
+        dplyr::select(.data$sample_id)
+    ) %>%
     left_join(data$samples, by = "sample_id")
 
   return(list(pca = pca1, tsne = tsne1, plotdata = plotdata))
@@ -292,30 +309,39 @@ plot_pca <- function(plotdata, colour = NULL) {
   ggpca <- plotdata %>%
     ggplot() +
     geom_point(
-      aes(x = .data$PC1, y = .data$PC2, colour = {{colour}})
+      aes(x = .data$PC1, y = .data$PC2, colour = {{ colour }})
     ) +
     geom_vline(xintercept = 0, alpha = 0.3) +
     geom_hline(yintercept = 0, alpha = 0.3) +
-    stat_ellipse(aes(
-      x = .data$PC1, y = .data$PC2, colour = {{colour}}),
-      level = 0.95) +
-    labs(x = "Eerste principale component",
-         y = "Tweede principale component")
-    return(ggpca)
+    stat_ellipse(
+      aes(
+        x = .data$PC1, y = .data$PC2, colour = {{ colour }}
+      ),
+      level = 0.95
+    ) +
+    labs(
+      x = "Eerste principale component",
+      y = "Tweede principale component"
+    )
+  return(ggpca)
 }
 
 plot_tsne <- function(plotdata, colour = NULL) {
   ggtsne <- plotdata %>%
     ggplot() +
     geom_point(
-      aes(x = .data$V1, y = .data$V2, colour = {{colour}})) +
+      aes(x = .data$V1, y = .data$V2, colour = {{ colour }})
+    ) +
     geom_vline(xintercept = 0, alpha = 0.3) +
     geom_hline(yintercept = 0, alpha = 0.3) +
     stat_ellipse(aes(
-      x = .data$V1, y = .data$V2, colour = {{colour}}), level = 0.95) +
-    labs(x = "Eerste t-SNE as",
-         y = "Tweede t-SNE as")
-    return(ggtsne)
+      x = .data$V1, y = .data$V2, colour = {{ colour }}
+    ), level = 0.95) +
+    labs(
+      x = "Eerste t-SNE as",
+      y = "Tweede t-SNE as"
+    )
+  return(ggtsne)
 }
 ```
 
@@ -325,7 +351,8 @@ plot_tsne <- function(plotdata, colour = NULL) {
 ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   frequency_threshold = 0,
-  rarefy_even_reads = 1e+05)
+  rarefy_even_reads = 1e+05
+)
 ```
 
 ```{r}
@@ -356,7 +383,8 @@ ordination <- calc_ordinations(
   tacos_data = tidy_physeq,
   use_rank = "genus",
   frequency_threshold = 0,
-  rarefy_even_reads = 1e+05)
+  rarefy_even_reads = 1e+05
+)
 ```
 
 ```{r}
@@ -398,8 +426,10 @@ sccomp_data_collembola <- tidy_physeq %>%
   ) %>%
   tidytacos::everything() %>%
   mutate(count = as.integer(count)) %>%
-  select(taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
-         Landgebruik_MBAG, genus, occurrence) %>%
+  select(
+    taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
+    Landgebruik_MBAG, genus, occurrence
+  ) %>%
   filter(
     complete.cases(.)
   )
@@ -415,9 +445,9 @@ if (!file.exists(here("source", "brms_models", "s_collembola_genus.rds"))) {
     .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
-    + Diepte
-    + Landgebruik_MBAG:Diepte
-    + (1 | Cmon_PlotID),
+      + Diepte
+        + Landgebruik_MBAG:Diepte
+        + (1 | Cmon_PlotID),
     .sample = sample_id,
     .cell_group = taxon_id,
     .count = count,
@@ -425,11 +455,15 @@ if (!file.exists(here("source", "brms_models", "s_collembola_genus.rds"))) {
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_collembola_genus,
-          here("source", "brms_models", "s_collembola_genus.rds"))
+  saveRDS(
+    s_collembola_genus,
+    here("source", "brms_models", "s_collembola_genus.rds")
+  )
 }
 
-s_collembola_genus <- readRDS(here("source", "brms_models", "s_collembola_genus.rds"))
+s_collembola_genus <- readRDS(
+  here("source", "brms_models", "s_collembola_genus.rds")
+)
 ```
 
 ### Model evaluatie
@@ -498,25 +532,30 @@ s_collembola_predictions <- sccomp::sccomp_predict(
   s_collembola_genus,
   formula_composition = ~
     Landgebruik_MBAG +
-    Diepte +
-    Landgebruik_MBAG:Diepte,
+      Diepte +
+      Landgebruik_MBAG:Diepte,
   new_data = my_new_data,
   number_of_draws = 2000,
-  mcmc_seed = 1254)
+  mcmc_seed = 1254
+)
 
 sortering <- s_collembola_genus %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, genus),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, genus),
+    by = join_by(taxon_id)
+  ) %>%
   arrange(c_lower)
 
 s_collembola_predictions <- s_collembola_predictions %>%
   left_join(my_new_data, by = join_by(sample_id)) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, genus),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, genus),
+    by = join_by(taxon_id)
+  ) %>%
   mutate(
     taxon_id = factor(taxon_id, levels = sortering$taxon_id),
     genus = factor(genus, levels = sortering$genus)
@@ -535,11 +574,12 @@ s_collembola_predictions %>%
       y = proportion_mean,
       ymin = proportion_lower,
       ymax = proportion_upper,
-      colour = Diepte),
+      colour = Diepte
+    ),
     position = position_dodge(width = 0.4),
     alpha = 0.7
   ) +
-  facet_wrap(~ genus, scales = "free_y") +
+  facet_wrap(~genus, scales = "free_y") +
   scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
@@ -552,9 +592,12 @@ We zien een duidelijke toename van _Megalothorax_, en een duidelijke afname van 
 s_collembola_predictions %>%
   ggplot() +
   geom_col(
-    aes(x = Landgebruik_MBAG,
-        y = proportion_mean,
-        fill = genus)) +
+    aes(
+      x = Landgebruik_MBAG,
+      y = proportion_mean,
+      fill = genus
+    )
+  ) +
   facet_grid(~Diepte) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
@@ -580,8 +623,10 @@ sccomp_data_collembola <- tidy_physeq_known_genera %>%
   ) %>%
   tidytacos::everything() %>%
   mutate(count = as.integer(count)) %>%
-  select(taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
-         Landgebruik_MBAG, genus, occurrence) %>%
+  select(
+    taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
+    Landgebruik_MBAG, genus, occurrence
+  ) %>%
   filter(
     complete.cases(.)
   )
@@ -592,14 +637,16 @@ Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq_kn
 
 ```{r sccomp-Collembola-known-genus}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola_known_genera.rds"))) {
+if (
+  !file.exists(here("source", "brms_models", "s_collembola_known_genera.rds"))
+) {
   s_collembola_known_genera <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
-    + Diepte
-    + Landgebruik_MBAG:Diepte
-    + (1 | Cmon_PlotID),
+      + Diepte
+        + Landgebruik_MBAG:Diepte
+        + (1 | Cmon_PlotID),
     .sample = sample_id,
     .cell_group = taxon_id,
     .count = count,
@@ -607,11 +654,15 @@ if (!file.exists(here("source", "brms_models", "s_collembola_known_genera.rds"))
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_collembola_known_genera,
-          here("source", "brms_models", "s_collembola_known_genera.rds"))
+  saveRDS(
+    s_collembola_known_genera,
+    here("source", "brms_models", "s_collembola_known_genera.rds")
+  )
 }
 
-s_collembola_known_genera <- readRDS(here("source", "brms_models", "s_collembola_known_genera.rds"))
+s_collembola_known_genera <- readRDS(
+  here("source", "brms_models", "s_collembola_known_genera.rds")
+)
 ```
 
 ### Model evaluatie
@@ -679,25 +730,30 @@ s_collembola_predictions <- sccomp::sccomp_predict(
   s_collembola_known_genera,
   formula_composition = ~
     Landgebruik_MBAG +
-    Diepte +
-    Landgebruik_MBAG:Diepte,
+      Diepte +
+      Landgebruik_MBAG:Diepte,
   new_data = my_new_data,
   number_of_draws = 2000,
-  mcmc_seed = 1254)
+  mcmc_seed = 1254
+)
 
 sortering <- s_collembola_known_genera %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, genus),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, genus),
+    by = join_by(taxon_id)
+  ) %>%
   arrange(c_lower)
 
 s_collembola_predictions <- s_collembola_predictions %>%
   left_join(my_new_data, by = join_by(sample_id)) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, genus),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, genus),
+    by = join_by(taxon_id)
+  ) %>%
   mutate(
     taxon_id = factor(taxon_id, levels = sortering$taxon_id),
     genus = factor(genus, levels = sortering$genus)
@@ -716,11 +772,12 @@ s_collembola_predictions %>%
       y = proportion_mean,
       ymin = proportion_lower,
       ymax = proportion_upper,
-      colour = Diepte),
+      colour = Diepte
+    ),
     position = position_dodge(width = 0.4),
     alpha = 0.7
   ) +
-  facet_wrap(~ genus, scales = "free_y") +
+  facet_wrap(~genus, scales = "free_y") +
   scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
@@ -733,9 +790,12 @@ We zien een duidelijke toename van _Megalothorax_, _Protaphorura_, en een duidel
 s_collembola_predictions %>%
   ggplot() +
   geom_col(
-    aes(x = Landgebruik_MBAG,
-        y = proportion_mean,
-        fill = genus)) +
+    aes(
+      x = Landgebruik_MBAG,
+      y = proportion_mean,
+      fill = genus
+    )
+  ) +
   facet_grid(~Diepte) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
@@ -761,8 +821,10 @@ sccomp_data_collembola <- tidy_physeq %>%
   ) %>%
   tidytacos::everything() %>%
   mutate(count = as.integer(count)) %>%
-  select(taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
-         Landgebruik_MBAG, species, occurrence) %>%
+  select(
+    taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
+    Landgebruik_MBAG, species, occurrence
+  ) %>%
   filter(
     complete.cases(.)
   )
@@ -778,9 +840,9 @@ if (!file.exists(here("source", "brms_models", "s_collembola_species.rds"))) {
     .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
-    + Diepte
-    + Landgebruik_MBAG:Diepte
-    + (1 | Cmon_PlotID),
+      + Diepte
+        + Landgebruik_MBAG:Diepte
+        + (1 | Cmon_PlotID),
     .sample = sample_id,
     .cell_group = taxon_id,
     .count = count,
@@ -788,11 +850,15 @@ if (!file.exists(here("source", "brms_models", "s_collembola_species.rds"))) {
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_collembola_species,
-          here("source", "brms_models", "s_collembola_species.rds"))
+  saveRDS(
+    s_collembola_species,
+    here("source", "brms_models", "s_collembola_species.rds")
+  )
 }
 
-s_collembola_species <- readRDS(here("source", "brms_models", "s_collembola_species.rds"))
+s_collembola_species <- readRDS(
+  here("source", "brms_models", "s_collembola_species.rds")
+)
 ```
 
 ### Model evaluatie
@@ -819,8 +885,8 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   Sprake van bimodaliteit? In 't292' ( _Megalothorax_ _incertus_) akker? Maar wel verdwenen voor _Megalothorax_ ( _incertus_) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tusen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
--   Idem voor _Folsomia_ _candida_ 't298' in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
+-   Sprake van bimodaliteit? In `'t292'` (`_Megalothorax_ _incertus_`) akker? Maar wel verdwenen voor `_Megalothorax_` (`_incertus_`) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tussen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
+-   Idem voor `_Folsomia_ _candida_` `'t298'` in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
 
 ```{r sccomp-boxplot-landgebruik-species}
 plots$boxplot[[1]]
@@ -861,25 +927,30 @@ s_collembola_predictions <- sccomp::sccomp_predict(
   s_collembola_species,
   formula_composition = ~
     Landgebruik_MBAG +
-    Diepte +
-    Landgebruik_MBAG:Diepte,
+      Diepte +
+      Landgebruik_MBAG:Diepte,
   new_data = my_new_data,
   number_of_draws = 2000,
-  mcmc_seed = 1254)
+  mcmc_seed = 1254
+)
 
 sortering <- s_collembola_species %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, species),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, species),
+    by = join_by(taxon_id)
+  ) %>%
   arrange(c_lower)
 
 s_collembola_predictions <- s_collembola_predictions %>%
   left_join(my_new_data, by = join_by(sample_id)) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, species),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, species),
+    by = join_by(taxon_id)
+  ) %>%
   mutate(
     taxon_id = factor(taxon_id, levels = sortering$taxon_id),
     species = factor(species, levels = sortering$species)
@@ -887,8 +958,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-Duidelijk geen toename van _Megalothorax_ _incertus_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van _Megalothorax_ met afnemende landgebruiksintensiteit moet dus aan andere _Megalothorax_ soorten te wijten zijn? Duidelijke afname van _Folsomia_ _candida_ en _Isotomurus_ _maculatus_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
-_Megalothorax_ _incertus_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
+Duidelijk geen toename van `_Megalothorax_ _incertus_` met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van `_Megalothorax_` met afnemende landgebruiksintensiteit moet dus aan andere `_Megalothorax_` soorten te wijten zijn? Duidelijke afname van `_Folsomia_ _candida_` en `_Isotomurus_ _maculatus_` (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
+`_Megalothorax_ _incertus_` komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
 
 ```{r plot-sccomp-predictions-species}
 s_collembola_predictions %>%
@@ -899,11 +970,12 @@ s_collembola_predictions %>%
       y = proportion_mean,
       ymin = proportion_lower,
       ymax = proportion_upper,
-      colour = Diepte),
+      colour = Diepte
+    ),
     position = position_dodge(width = 0.4),
     alpha = 0.7
   ) +
-  facet_wrap(~ species, scales = "free_y") +
+  facet_wrap(~species, scales = "free_y") +
   scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
@@ -914,9 +986,12 @@ We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
 s_collembola_predictions %>%
   ggplot() +
   geom_col(
-    aes(x = Landgebruik_MBAG,
-        y = proportion_mean,
-        fill = species)) +
+    aes(
+      x = Landgebruik_MBAG,
+      y = proportion_mean,
+      fill = species
+    )
+  ) +
   facet_grid(~Diepte) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
@@ -943,8 +1018,10 @@ sccomp_data_collembola <- tidy_physeq_known_species %>%
   ) %>%
   tidytacos::everything() %>%
   mutate(count = as.integer(count)) %>%
-  select(taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
-         Landgebruik_MBAG, species, occurrence) %>%
+  select(
+    taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
+    Landgebruik_MBAG, species, occurrence
+  ) %>%
   filter(
     complete.cases(.)
   )
@@ -955,14 +1032,16 @@ Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq_kn
 
 ```{r sccomp-Collembola-known-species}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola_known_species.rds"))) {
+if (
+  !file.exists(here("source", "brms_models", "s_collembola_known_species.rds"))
+) {
   s_collembola_known_species <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
-    + Diepte
-    + Landgebruik_MBAG:Diepte
-    + (1 | Cmon_PlotID),
+      + Diepte
+        + Landgebruik_MBAG:Diepte
+        + (1 | Cmon_PlotID),
     .sample = sample_id,
     .cell_group = taxon_id,
     .count = count,
@@ -970,11 +1049,15 @@ if (!file.exists(here("source", "brms_models", "s_collembola_known_species.rds")
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_collembola_known_species,
-          here("source", "brms_models", "s_collembola_known_species.rds"))
+  saveRDS(
+    s_collembola_known_species,
+    here("source", "brms_models", "s_collembola_known_species.rds")
+  )
 }
 
-s_collembola_known_species <- readRDS(here("source", "brms_models", "s_collembola_known_species.rds"))
+s_collembola_known_species <- readRDS(
+  here("source", "brms_models", "s_collembola_known_species.rds")
+)
 ```
 
 ### Model evaluatie
@@ -1001,7 +1084,7 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   Op het eerste zicht geen sprake van bimodaliteit??? : de boxplot zit in de zone met proporties tussen x en x.x, terwijl er een groep van punten is die clustert tussen y.y en y. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
+-   Op het eerste zicht geen sprake van bimodaliteit??? : de boxplot zit in de zone met proporties tussen `x` en `x.x`, terwijl er een groep van punten is die clustert tussen `y.y` en `y`. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen).
 
 ```{r sccomp-boxplot-landgebruik-known-species}
 plots$boxplot[[1]]
@@ -1042,25 +1125,30 @@ s_collembola_predictions <- sccomp::sccomp_predict(
   s_collembola_known_species,
   formula_composition = ~
     Landgebruik_MBAG +
-    Diepte +
-    Landgebruik_MBAG:Diepte,
+      Diepte +
+      Landgebruik_MBAG:Diepte,
   new_data = my_new_data,
   number_of_draws = 2000,
-  mcmc_seed = 1254)
+  mcmc_seed = 1254
+)
 
 sortering <- s_collembola_known_species %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, species),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, species),
+    by = join_by(taxon_id)
+  ) %>%
   arrange(c_lower)
 
 s_collembola_predictions <- s_collembola_predictions %>%
   left_join(my_new_data, by = join_by(sample_id)) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, species),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, species),
+    by = join_by(taxon_id)
+  ) %>%
   mutate(
     taxon_id = factor(taxon_id, levels = sortering$taxon_id),
     species = factor(species, levels = sortering$species)
@@ -1068,8 +1156,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-Duidelijk geen toename van _Megalothorax_ _incertus_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. Wel een duidelijke toename van _Megalothorax_ _minimus_, _Isotoma_ _viridis_, _Protaphorura_ _armata_, en _Megalothorax_ _willemi_ (deze laatste enkel in de 10-30) met afnemende landgebruiksintensiteit. Duidelijke afname van _Folsomia_ _candida_ en _Isotomurus_ _maculatus_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit.
-_Megalothorax_ _incertus_, _Megalothorax_ _willemi_, en _Folsomia_ _candida_ lijken meer voor te komen in 10-30 cm dan 0-10 cm, terwijl _Willowsia_ _nigromaculata_, _Isotomurus_ _maculatus_, en _Sminthurus_ _viridis_ meer voor lijken te komen in 0-10 cm, dan 10-30 cm.
+Duidelijk geen toename van `_Megalothorax_ _incertus_` met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. Wel een duidelijke toename van `_Megalothorax_ _minimus_`, `_Isotoma_ _viridis_`, `_Protaphorura_ _armata_`, en `_Megalothorax_ _willemi_` (deze laatste enkel in de 10-30) met afnemende landgebruiksintensiteit. Duidelijke afname van `_Folsomia_ _candida_` en `_Isotomurus_ _maculatus_` (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit.
+`_Megalothorax_ _incertus_`, `_Megalothorax_ _willemi_`, en `_Folsomia_ _candida_` lijken meer voor te komen in 10-30 cm dan 0-10 cm, terwijl `_Willowsia_ _nigromaculata_`, `_Isotomurus_ _maculatus_`, en `_Sminthurus_ _viridis_` meer voor lijken te komen in 0-10 cm, dan 10-30 cm.
 
 ```{r plot-sccomp-predictions-known-species}
 s_collembola_predictions %>%
@@ -1080,11 +1168,12 @@ s_collembola_predictions %>%
       y = proportion_mean,
       ymin = proportion_lower,
       ymax = proportion_upper,
-      colour = Diepte),
+      colour = Diepte
+    ),
     position = position_dodge(width = 0.4),
     alpha = 0.7
   ) +
-  facet_wrap(~ species, scales = "free_y") +
+  facet_wrap(~species, scales = "free_y") +
   scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
@@ -1095,15 +1184,18 @@ We kunnen dit (zonder credibiliteitsinterval) ook als volgt voorstellen:
 s_collembola_predictions %>%
   ggplot() +
   geom_col(
-    aes(x = Landgebruik_MBAG,
-        y = proportion_mean,
-        fill = species)) +
+    aes(
+      x = Landgebruik_MBAG,
+      y = proportion_mean,
+      fill = species
+    )
+  ) +
   facet_grid(~Diepte) +
   theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
 ```
 
 
-## `sccomp`: differentiële samenstelling en variabiliteitsanalyse op soortniveau met alle OTUs met een minimum occurence van 5
+## `sccomp`: differentiële samenstelling en variabiliteitsanalyse op soortniveau met alle OTUs met een minimum voorkomen van 5
 
 ```{r sccomp-inputs-all-species}
 max_taxa <- 207
@@ -1120,8 +1212,10 @@ sccomp_data_collembola <- tidy_physeq %>%
   ) %>%
   tidytacos::everything() %>%
   mutate(count = as.integer(count)) %>%
-  select(taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
-         Landgebruik_MBAG, species, occurrence) %>%
+  select(
+    taxon_id, sample_id, count, sample, Cmon_PlotID, Diepte,
+    Landgebruik_MBAG, species, occurrence
+  ) %>%
   filter(
     complete.cases(.)
   )
@@ -1130,18 +1224,20 @@ sccomp_data_collembola <- tidy_physeq %>%
 Voor deze analyse, aggregeren we de taxa tot `r used_rank` niveau en beperken we de analyse tot de `r max_taxa` taxa met hoogste prevalentie.
 Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq$counts$count) * 100)` % van alle reads.
 
-Hier dus eens getest met alle OTUs met een occurrence van minstens 5 (in dit geval de 207 meest prevalente OTUs)
+Hier dus eens getest met alle OTUs met een voorkomen van minstens 5 (in dit geval de 207 meest voorkomende OTUs)
 
 ```{r sccomp-collembola-all-species, eval=FALSE}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola_207_species.rds"))) {
+if (
+  !file.exists(here("source", "brms_models", "s_collembola_207_species.rds"))
+) {
   s_collembola_207_species <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
       Landgebruik_MBAG
-    + Diepte
-    + Landgebruik_MBAG:Diepte
-    + (1 | Cmon_PlotID),
+      + Diepte
+        + Landgebruik_MBAG:Diepte
+        + (1 | Cmon_PlotID),
     .sample = sample_id,
     .cell_group = taxon_id,
     .count = count,
@@ -1150,15 +1246,17 @@ if (!file.exists(here("source", "brms_models", "s_collembola_207_species.rds")))
     max_sampling_iterations = 2000,
     bimodal_mean_variability_association = FALSE
   )
-  saveRDS(s_collembola_207_species,
-          here("source", "brms_models", "s_collembola_207_species.rds"))
+  saveRDS(
+    s_collembola_207_species,
+    here("source", "brms_models", "s_collembola_207_species.rds")
+  )
 }
-
-
 ```
 
 ```{r sccomp-collembola-all-species-load, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
-s_collembola_207_species <- readRDS(here("source", "brms_models", "s_collembola_207_species.rds"))
+s_collembola_207_species <- readRDS(
+  here("source", "brms_models", "s_collembola_207_species.rds")
+)
 ```
 
 
@@ -1177,25 +1275,30 @@ s_collembola_predictions <- sccomp::sccomp_predict(
   s_collembola_207_species,
   formula_composition = ~
     Landgebruik_MBAG +
-    Diepte +
-    Landgebruik_MBAG:Diepte,
+      Diepte +
+      Landgebruik_MBAG:Diepte,
   new_data = my_new_data,
   number_of_draws = 2000,
-  mcmc_seed = 1254)
+  mcmc_seed = 1254
+)
 
 sortering <- s_collembola_207_species %>%
   filter(parameter == "Landgebruik_MBAGNatuurgrasland") %>%
   select(taxon_id, c_lower) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, species),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, species),
+    by = join_by(taxon_id)
+  ) %>%
   arrange(c_lower)
 
 s_collembola_predictions <- s_collembola_predictions %>%
   left_join(my_new_data, by = join_by(sample_id)) %>%
-  left_join(sccomp_data_collembola %>%
-              distinct(taxon_id, species),
-            by = join_by(taxon_id)) %>%
+  left_join(
+    sccomp_data_collembola %>%
+      distinct(taxon_id, species),
+    by = join_by(taxon_id)
+  ) %>%
   mutate(
     taxon_id = factor(taxon_id, levels = sortering$taxon_id),
     species = factor(species, levels = sortering$species)
@@ -1203,8 +1306,8 @@ s_collembola_predictions <- s_collembola_predictions %>%
 ```
 
 De volgende figuur toont de modelvoorspellingen.
-Duidelijk geen toename van _xx_ _xx_ met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van _xx_ met afnemende landgebruiksintensiteit moet dus aan andere _xx_ soorten te wijten zijn? Duidelijke afname van _xx_ _xx_ en _xx_ _xx_ (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
-_xx_ _xx_ komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
+Duidelijk geen toename van `_xx_ _xx_` met afnemende landgebruiksintensiteit. Integendeel, duidelijk lager in natuurgrasland. De voorheen geobserveerde toename van `_xx_` met afnemende landgebruiksintensiteit moet dus aan andere `_xx_` soorten te wijten zijn? Duidelijke afname van `_xx_ _xx_` en `_xx_ _xx_` (deze laatste enkel op basis van de 0-10 cm) met afnemende landgebruiksintensiteit
+`_xx_ _xx_` komt duidelijk meer voor in 10-30 cm dan 0-10 cm.
 
 ```{r plot-sccomp-predictions-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 # Filter out species with "_otu" in their names
@@ -1213,15 +1316,15 @@ filtered_species_data <- s_collembola_predictions %>%
 
 # Find unique species from the filtered data and split them into chunks of 9
 unique_species <- unique(filtered_species_data$species)
-species_chunks <- split(unique_species, ceiling(seq_along(unique_species)/9))
+species_chunks <- split(unique_species, ceiling(seq_along(unique_species) / 9))
 
 # Loop through each chunk and create a plot
 plots <- list() # To store the plots
 for (i in seq_along(species_chunks)) {
   # Subset the data for the current chunk of species
-  subset_data <- filtered_species_data %>% 
+  subset_data <- filtered_species_data %>%
     filter(species %in% species_chunks[[i]])
-  
+
   # Create the plot for the current subset
   p <- subset_data %>%
     ggplot() +
@@ -1231,22 +1334,20 @@ for (i in seq_along(species_chunks)) {
         y = proportion_mean,
         ymin = proportion_lower,
         ymax = proportion_upper,
-        colour = Diepte),
+        colour = Diepte
+      ),
       position = position_dodge(width = 0.4),
       alpha = 0.7
     ) +
-    facet_wrap(~ species, scales = "free_y", ncol = 3) +
+    facet_wrap(~species, scales = "free_y", ncol = 3) +
     scale_y_log10(breaks = c(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1)) +
     theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 0))
-  
+
   # Save the plot in the list
   plots[[i]] <- p
 }
 
 # Now you can print or save each plot separately
-# For example, to view the first set of plots, you can do:
-# print(plots[[1]])
-# And so on for each plot in 'plots'
 ```
 
 ```{r print-all-plots, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
@@ -1279,8 +1380,8 @@ Als de blauwe boxen goed overeenkomen met de geobserveerde boxen en data, dan is
 Deze boxplot figuren leren ons dat het model de data goed kan beschrijven, maar dat er mogelijkheden zijn om het model te verbeteren:
 
 -   er zijn mogelijk verschillen in variantie tussen de groepen: we kunnen dus eventueel de variantie ook modelleren in functie van deze factoren
--   Sprake van bimodaliteit? In 't292' ( _xx_ _xx_) akker? Maar wel verdwenen voor _xx_ ( _xx_) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tusen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
--   Idem voor _xx_ _xx_ 't298' in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
+-   Sprake van bimodaliteit? In `'t292'` (`_xx_ _xx_`) akker? Maar wel verdwenen voor `_xx_` (`_xx_`) dus in natuurgraslanden?: de boxplot zit in de zone met proporties tussen 0 en 0.25, terwijl er een groep van punten is die clustert tussen 0.25 en 1, en vooral tussen 0.5 en 1. Na te gaan of deze outliers kunnen verklaard worden met een ontbrekende covariaat (indien niet, kunnen we ze eventueel uit de analyse verwijderen)?
+-   Idem voor `_xx_ _xx_` `'t298'` in tijdelijk grasland? de boxplot zit in de zone met proporties tussen x en x, terwijl er een groep van punten is die clustert tussen y en y
 
 ```{r sccomp-boxplot-landgebruik-all-species, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
 plots$boxplot[[1]]
