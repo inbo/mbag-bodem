@@ -1,0 +1,157 @@
+---
+title: "Comparison of diversity among land-use types and depths using approach from R package `breakaway`"
+author: "Hans Van Calster"
+date: '`r Sys.Date()`'
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE)
+library(here)
+opts_chunk$set(echo = TRUE, error = TRUE, out.width = "100%")
+opts_knit$set(root.dir = here::here())
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(purrr)
+
+mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
+library(breakaway)
+```
+
+# Inlezen data
+
+```{r inlezen}
+metadata <- readr::read_csv(
+  file.path(
+    mbag_bodem_folder,
+    "data", 
+    "Stratificatie_MBAG_plots",
+    "MBAG_stratfile_v2_cleaned_13.csv")
+) %>%
+  janitor::clean_names() %>%
+  rename(
+    ph_kcl = p_h_k_cl,
+    swc_grav = sw_cgrav,
+    swc_vol = sw_cvol,
+    cn_stockbased = c_n_stockbased,
+    c_density = cdensity,
+    n_density = ndensity
+  ) %>%
+  mutate(
+    landgebruik = factor(
+      landgebruik_mbag,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras")
+    ),
+    diepte = gsub("_|/", "-", diepte) |> factor()
+  )
+
+load(
+  file.path(
+    mbag_bodem_folder,
+    "data", "statistiek", "Annelida", "phyloseq",
+    "physeq_Olig01_Annelida_species.Rdata"
+    )
+  )
+
+physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |> 
+  phyloseq::subset_samples(
+    !Landgebruik_MBAG %in% c("Moeras", "Heide")
+  )
+
+```
+
+
+```{r}
+br <- breakaway(physeq_Olig01_Annelida_species)
+br_tbl <- summary(br)
+```
+
+```{r}
+br_tbl
+```
+
+
+```{r}
+combined <- br_tbl |> 
+  inner_join(metadata, by = join_by(sample_names == sample)) |> 
+  filter(
+    !landgebruik_mbag %in% c("Moeras", "Heide")
+  ) |> 
+  mutate(
+    landgebruik_mbag = factor(
+      landgebruik_mbag,
+      levels = c("Akker", "Tijdelijk grasland", "Blijvend grasland",
+                 "Residentieel grasland", "Natuurgrasland")
+    )
+  )
+```
+
+
+```{r}
+combined |> 
+  filter(error < 1e-7 ) %>%
+  count(landgebruik_mbag)
+```
+
+
+Perform meta-analysis:
+
+
+The `breakaway::betta` function seems too limited in scope as it only allows formulas of the form `y ~ x|group`.
+
+
+```{r}
+ma <- betta(
+  formula = estimate ~ landgebruik_mbag,
+  ses = error,
+  data = combined
+  )
+ma$table
+```
+
+
+Instead, using meta-analytic capabilities of brms package:
+
+```{r}
+library(brms)
+# adding a small value to error to avoid problems with error == 0
+ma_brms <- brm(
+  estimate | se(error + 0.01, sigma = TRUE) ~
+    landgebruik_mbag * diepte + (1 | cmon_plot_id),
+  data = combined,
+  family = "skew_normal",
+  backend = "cmdstanr",
+  cores = 4
+#  ,
+#  algorithm = "pathfinder",
+#  history_size = 100,
+#  psis_resample = TRUE
+)
+
+```
+
+```{r}
+summary(ma_brms)
+```
+
+```{r}
+conditional_effects(
+  ma_brms,
+  "landgebruik_mbag:diepte"
+  )
+```
+
+The result is very much comparable to what we obtained via glmmTMB with an offset term - so probably not much added value.

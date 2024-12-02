@@ -1,0 +1,252 @@
+---
+title: "testing differential abundance analysis using R package `rademu`"
+author: "Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE)
+library(here)
+opts_chunk$set(echo = TRUE, error = TRUE, out.width = "100%")
+opts_knit$set(root.dir = here::here())
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(purrr)
+mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
+library(radEmu)
+library(phyloseq)
+```
+
+# Inlezen data
+
+```{r inlezen}
+metadata <- readr::read_csv(
+  file.path(
+    mbag_bodem_folder,
+    "data", 
+    "Stratificatie_MBAG_plots",
+    "MBAG_stratfile_v2_cleaned_13.csv")
+) %>%
+  janitor::clean_names() %>%
+  rename(
+    ph_kcl = p_h_k_cl,
+    swc_grav = sw_cgrav,
+    swc_vol = sw_cvol,
+    cn_stockbased = c_n_stockbased,
+    c_density = cdensity,
+    n_density = ndensity
+  ) %>%
+  mutate(
+    landgebruik = factor(
+      landgebruik_mbag,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras")
+    ),
+    diepte = gsub("_|/", "-", diepte) |> factor()
+  )
+load(
+  file.path(
+    mbag_bodem_folder,
+    "data", "statistiek", "Annelida", "phyloseq",
+    "physeq_Olig01_Annelida_species.Rdata"
+    )
+  )
+physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |> 
+  phyloseq::subset_samples(
+    !Landgebruik_MBAG %in% c("Moeras", "Heide")
+  )
+```
+
+
+
+```{r}
+sample_data(physeq_Olig01_Annelida_species)$Landgebruik_MBAG <- factor(
+  sample_data(physeq_Olig01_Annelida_species)$Landgebruik_MBAG,
+  levels = c(
+    "Akker", "Tijdelijk grasland", "Blijvend grasland",
+    "Residentieel grasland", "Natuurgrasland")
+)
+
+```
+
+>Next, we want to confirm that all samples have at least one non-zero count across the categories we’ve chosen and that all categories have at least one non-zero count across the samples we’ve chosen.
+
+```{r}
+sum(rowSums(otu_table(physeq_Olig01_Annelida_species)) == 0)
+sum(colSums(otu_table(physeq_Olig01_Annelida_species)) == 0)
+```
+
+```{r}
+# reduce data size a bit, because emuFit on full dataset takes a long time
+# here aggregating to genus
+physeq_Olig01_Annelida_genus <- physeq_Olig01_Annelida_species |>
+  phyloseq::tax_glom(taxrank = "genus")
+```
+
+
+
+```{r}
+m_fit <- emuFit(
+  formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte, 
+  Y = physeq_Olig01_Annelida_genus,
+  cluster = sample_data(physeq_Olig01_Annelida_genus)$Cmon_PlotID,
+  run_score_tests = FALSE) 
+
+m_fit$estimation_converged
+```
+
+Visualise:
+
+```{r}
+coeftab <- as_tibble(m_fit$coef)
+
+genustab <- phyloseq::tax_table(physeq_Olig01_Annelida_genus)
+
+genustbl <- as_tibble(
+  genustab@.Data
+) |> 
+  mutate(
+    category = dimnames(genustab)[[1]]) |> 
+  rowwise() |> 
+  mutate(
+    across(
+      all_of(c("phylum", "class", "order", "family", "genus")),
+      \(x) !grepl("_otu", x),
+      .names = "{.col}_"
+    ),
+    index = sum(c_across(phylum_:genus_)),
+    resolved_rank = c("phylum", "class", "order", "family", "genus")[index]
+  ) |> 
+  ungroup() |> 
+  dplyr::select(phylum:category, resolved_rank) |> 
+  mutate(
+    resolved_name = case_when(
+      resolved_rank == "genus" ~ genus,
+      resolved_rank == "family" ~ family,
+      resolved_rank == "order" ~ order,
+      resolved_rank == "class" ~ class,
+      TRUE ~ phylum
+    ),
+    resolved_higher = case_when(
+      resolved_rank == "genus" ~ family,
+      resolved_rank == "family" ~ family,
+      resolved_rank == "order" ~ order,
+      resolved_rank == "class" ~ class,
+      TRUE ~ phylum
+    )
+  )
+
+coeftab |>
+  inner_join(genustbl) |> 
+  mutate(
+    genus = factor(genus, levels = unique(genus[order(resolved_higher)]))
+  ) |> 
+  ggplot() +
+  geom_pointrange(
+    aes(
+      x = genus,
+      y = estimate, ymin = lower, ymax = upper,
+      colour = resolved_higher)
+  ) + 
+  facet_wrap(~covariate)
+
+```
+
+Identify taxa for which you want robust score tests:
+
+For instance, which taxa at depth 0 - 10 are more likely to occur or not occur in Natuurgrasland compared to the reference category Akker:
+
+The following code chunk takes a very long time to run and is therefore not evaluated.
+But it can be run in parallel: https://statdivlab.github.io/radEmu/articles/parallel_radEmu.html
+
+A trial for one taxon took >30 minutes (did not wait to finish) to calculate the score test.
+This would need to be multiplied by the number of taxa of interest to get the time to run the chunk below.
+
+
+
+
+```{r eval=FALSE}
+coefselection <- coeftab |> 
+  filter(
+    covariate == "Landgebruik_MBAGNatuurgrasland",
+    sign(lower) == sign(upper)
+  )
+
+
+covariate_to_test <- which(
+  rownames(m_fit$B) == "Landgebruik_MBAGNatuurgrasland")
+taxa_to_test <- which(
+  coefselection$category %in% colnames(m_fit$B)
+  )
+m_refit <- emuFit(
+  formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte, 
+  Y = physeq_Olig01_Annelida_genus,
+  test_kj = data.frame(
+    k = covariate_to_test, 
+    j = taxa_to_test[1]),
+  fitted_model = m_fit,
+  refit = FALSE,
+  run_score_tests = TRUE
+)
+
+m_refit$coef$pval[taxa_to_test]
+```
+
+Visualise only the significant (p-value <= 0.05) taxa according to the score test:
+
+```{r eval=FALSE}
+as_tibble(m_refit$coef) |>
+  inner_join(genustbl) |>
+  filter(
+    covariate == "Landgebruik_MBAGNatuurgrasland",
+    categorie %in% coefselection$category,
+    pval <= 0.05
+  ) %>%
+  mutate(
+    genus = factor(genus, levels = unique(genus[order(resolved_higher)]))
+  ) |> 
+  ggplot() +
+  geom_pointrange(
+    aes(
+      x = genus,
+      y = estimate, ymin = lower, ymax = upper,
+      colour = resolved_higher)
+  ) +
+  labs(
+    title = "Natuurgrasland vs Akker (diepte 0-10)"
+  )
+```
+
+
+
+More details of radEmu approach:
+
+- ‘we introduce a Firth penalty on β derived from a formal equivalence between our model and the multinomial logistic model’ (Clausen en Willis, 2024, p. 6)
+
+- ‘we first introduce a Poisson log likelihood for our model.’ (Clausen en Willis, 2024, p. 6)
+
+- ‘Note that the profile likelihood (8) is equal to a multinomial log likelihood with a logistic link (up to a constant). This accords with both known results about the marginal Poisson distribution of multinomial random variables (Birch, 1963), and our observations on identifiability of β (only p × (J − 1) parameters can be identified in a multinomial logistic regression of a J-dimensional outcome on p regressors)’ (Clausen en Willis, 2024, p. 6)
+
+- they show that the model is robust against model-misspecification: simulated data generated under a zero-inflated negative binomial (instead of poisson) still had favourable type I error
+    - but a drawback is that you cannot rely on the confidence intervals to judge significance: the score test needs to be computed. In case of modelmisspecification, I think the confidence intervals will likely be too narrow (given that data are usually overdispersed compared to the Poisson)
+
+- compared to `sccomp` this is a different approach:
+		- focusses on compositional nature of the data
+		- independent beta-binomial models under constraint that sum of probabilities across taxa equals 1
+		- logit-based fold differences
+		- compared to the multinomial logistic model, sccomp can cope directly with excess variance through the beta-binomial (instead of relying on 'robust' procedures to make inferences). This is important for this type of data.
+		- see Table 1 of [Mangiola et al 2023](https://doi.org/10.1073/pnas.2203828120) where the radEmu approach can be fit in (most similar to ANCOM-BC2 according to Clausen en Willis 2024 paper).
+
+
