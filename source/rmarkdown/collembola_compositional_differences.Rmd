@@ -82,9 +82,13 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 ```{r create-tidytacos-objects}
 physeq <- physeq_Coll01_Collembola.species
 
-physeq_known_species <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "species"]))
+physeq_known_species <- subset_taxa(
+  physeq, !grepl("_otu", tax_table(physeq)[, "species"])
+)
 
-physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "genus"]))
+physeq_known_genera <- subset_taxa(
+  physeq, !grepl("_otu", tax_table(physeq)[, "genus"])
+)
 
 
 
@@ -457,7 +461,9 @@ if (!file.exists(here("source", "brms_models", "s_collembola_genus.rds"))) {
   )
 }
 
-s_collembola_genus <- readRDS(here("source", "brms_models", "s_collembola_genus.rds"))
+s_collembola_genus <- readRDS(
+  here("source", "brms_models", "s_collembola_genus.rds")
+)
 ```
 
 ### Model evaluatie
@@ -631,7 +637,9 @@ Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq_kn
 
 ```{r sccomp-Collembola-known-genus}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola_known_genera.rds"))) {
+if (
+  !file.exists(here("source", "brms_models", "s_collembola_known_genera.rds"))
+) {
   s_collembola_known_genera <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
@@ -652,7 +660,9 @@ if (!file.exists(here("source", "brms_models", "s_collembola_known_genera.rds"))
   )
 }
 
-s_collembola_known_genera <- readRDS(here("source", "brms_models", "s_collembola_known_genera.rds"))
+s_collembola_known_genera <- readRDS(
+  here("source", "brms_models", "s_collembola_known_genera.rds")
+)
 ```
 
 ### Model evaluatie
@@ -846,7 +856,9 @@ if (!file.exists(here("source", "brms_models", "s_collembola_species.rds"))) {
   )
 }
 
-s_collembola_species <- readRDS(here("source", "brms_models", "s_collembola_species.rds"))
+s_collembola_species <- readRDS(
+  here("source", "brms_models", "s_collembola_species.rds")
+)
 ```
 
 ### Model evaluatie
@@ -1020,7 +1032,9 @@ Dit is goed voor `r round(sum(sccomp_data_collembola$count) / sum(tidy_physeq_kn
 
 ```{r sccomp-Collembola-known-species}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola_known_species.rds"))) {
+if (
+  !file.exists(here("source", "brms_models", "s_collembola_known_species.rds"))
+) {
   s_collembola_known_species <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
@@ -1041,7 +1055,9 @@ if (!file.exists(here("source", "brms_models", "s_collembola_known_species.rds")
   )
 }
 
-s_collembola_known_species <- readRDS(here("source", "brms_models", "s_collembola_known_species.rds"))
+s_collembola_known_species <- readRDS(
+  here("source", "brms_models", "s_collembola_known_species.rds")
+)
 ```
 
 ### Model evaluatie
@@ -1212,7 +1228,9 @@ Hier dus eens getest met alle OTUs met een occurrence van minstens 5 (in dit gev
 
 ```{r sccomp-collembola-all-species, eval=FALSE}
 fs::dir_create(here("source", "brms_models"))
-if (!file.exists(here("source", "brms_models", "s_collembola_207_species.rds"))) {
+if (
+  !file.exists(here("source", "brms_models", "s_collembola_207_species.rds"))
+) {
   s_collembola_207_species <- sccomp_estimate(
     .data = sccomp_data_collembola,
     formula_composition = ~
@@ -1236,7 +1254,9 @@ if (!file.exists(here("source", "brms_models", "s_collembola_207_species.rds")))
 ```
 
 ```{r sccomp-collembola-all-species-load, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}
-s_collembola_207_species <- readRDS(here("source", "brms_models", "s_collembola_207_species.rds"))
+s_collembola_207_species <- readRDS(
+  here("source", "brms_models", "s_collembola_207_species.rds")
+)
 ```
 
 
@@ -1328,9 +1348,6 @@ for (i in seq_along(species_chunks)) {
 }
 
 # Now you can print or save each plot separately
-# For example, to view the first set of plots, you can do:
-# print(plots[[1]])
-# And so on for each plot in 'plots'
 ```
 
 ```{r print-all-plots, eval=file.exists("here("source", "brms_models", "s_collembola_207_species.rds")")}

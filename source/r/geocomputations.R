@@ -61,16 +61,18 @@ landusemetrics_grid_cell <- function(
     layer_group_by_col = "",
     progress = FALSE) {
   require(duckdb)
-  if (inherits(layer, "SpatRaster") | inherits(layer, "RasterLayer")) {
+  require(dplyr)
+  if (inherits(layer, "SpatRaster") || inherits(layer, "RasterLayer")) {
     crs_grid <- gsub("^((.*?),\\n\\s*?){2}", "", sf::st_crs(grid_cell)$wkt)
     crs_layer <- gsub("^((.*?),\\n\\s*?){2}", "", terra::crs(layer))
     assertthat::assert_that(crs_grid == crs_layer)
 
     landcoverfraction <- function(df) {
       df %>%
-        mutate(frac_total = coverage_fraction / sum(coverage_fraction)) %>%
-        group_by(!!!syms(grid_group_by_col), value) %>%
-        summarize(freq = sum(frac_total), .groups = "drop_last")
+        mutate(frac_total = .data$coverage_fraction /
+          sum(.data$coverage_fraction)) %>%
+        group_by(!!!syms(grid_group_by_col), .data$value) %>%
+        summarize(freq = sum(.data$frac_total), .groups = "drop_last")
     }
 
     res <- exactextractr::exact_extract(
@@ -88,11 +90,11 @@ landusemetrics_grid_cell <- function(
   if (inherits(layer, "sf")) {
     assertthat::assert_that(sf::st_crs(grid_cell)$wkt == sf::st_crs(layer)$wkt)
 
-    int <- st_intersection(layer, grid_cell)
+    int <- sf::st_intersection(layer, grid_cell)
 
     cell_areas <- grid_cell %>%
       select(!!!syms(grid_group_by_col)) %>%
-      mutate(cell_area = sf::st_area(geometry)) %>%
+      mutate(cell_area = sf::st_area(.data$geometry)) %>%
       sf::st_drop_geometry()
 
     temparrow <- tempfile(fileext = ".parquet")
@@ -108,10 +110,10 @@ landusemetrics_grid_cell <- function(
       group_by(
         !!!syms(grid_group_by_col),
         !!!syms(layer_group_by_col),
-        cell_area
+        .data$cell_area
       ) %>%
-      summarise(area_m2 = sum(area)) %>%
-      mutate(area_prop = area_m2 / cell_area) %>%
+      summarise(area_m2 = sum(.data$area)) %>%
+      mutate(area_prop = .data$area_m2 / .data$cell_area) %>%
       collect()
 
     return(int)

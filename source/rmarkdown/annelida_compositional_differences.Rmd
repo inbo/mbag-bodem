@@ -633,7 +633,9 @@ if (!file.exists(here("source", "brms_models", "s_annelida_293_species.rds"))) {
   )
 }
 
-s_annelida_293_species <- readRDS(here("source", "brms_models", "s_annelida_293_species.rds"))
+s_annelida_293_species <- readRDS(
+  here("source", "brms_models", "s_annelida_293_species.rds")
+)
 ```
 
 ### Model evaluatie
@@ -775,9 +777,6 @@ for (i in seq_along(species_chunks)) {
 }
 
 # Now you can print or save each plot separately
-# For example, to view the first set of plots, you can do:
-# print(plots[[1]])
-# And so on for each plot in 'plots'
 ```
 
 ```{r}

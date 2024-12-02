@@ -246,7 +246,10 @@ tidy_physeq_rarefied %>%
 
 ```{r}
 # Create a new combined column
-combined_column <- paste(sample_data(physeq_rarefied)$Landgebruik_MBAG, sample_data(physeq_rarefied)$Diepte, sep = "_")
+combined_column <- paste(sample_data(physeq_rarefied)$Landgebruik_MBAG,
+  sample_data(physeq_rarefied)$Diepte,
+  sep = "_"
+)
 
 # Add the new combined column to the sample metadata with the desired name
 sample_data(physeq_rarefied)$Landgebruik_MBAG_diepte <- combined_column
@@ -255,8 +258,16 @@ sample_data(physeq_rarefied)$Landgebruik_MBAG_diepte <- combined_column
 physeq_rarefied <- merge_phyloseq(physeq_rarefied, sample_data(physeq_rarefied))
 
 
-if (system(command = "which ktImportText", intern = FALSE, ignore.stderr = TRUE, ignore.stdout = TRUE) != 1) {
-  psadd::plot_krona(physeq_rarefied, "MBAG_Olig01_Annelida_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte", "Landgebruik_MBAG_diepte", trim = T)
+if (system(
+  command = "which ktImportText", intern = FALSE, ignore.stderr = TRUE,
+  ignore.stdout = TRUE
+) != 1) {
+  psadd::plot_krona(
+    physeq_rarefied,
+    "MBAG_Olig01_Annelida_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte",
+    "Landgebruik_MBAG_diepte",
+    trim = TRUE
+  )
 }
 ```
 

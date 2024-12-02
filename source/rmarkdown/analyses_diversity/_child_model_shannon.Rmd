@@ -31,7 +31,10 @@ if (!zeroes) {
     family = Gamma(link = "log")
   )
 } else {
-  cat("Zeroes detected (only one taxum observed): Fitting zero-inflated Gamma model")
+  cat(
+    "Zeroes detected (only one taxum observed):
+    Fitting zero-inflated Gamma model"
+  )
 
   m_shannon <- glmmTMB(
     formula = form_shannon,

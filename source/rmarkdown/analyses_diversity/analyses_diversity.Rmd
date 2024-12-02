@@ -35,11 +35,6 @@ mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # noli
 ```{r helper-zi-disp}
 inflation_dispersion <- function(model) {
   test2 <- check_zeroinflation(model, tolerance = 0.1)
-  zeroes_within_tolerance <- between(
-    test2$ratio,
-    1 - test2$tolerance,
-    1 + test2$tolerance
-  )
   zero_inflation <- test2$ratio < 1 - test2$tolerance
   zero_deflation <- test2$ratio > 1 + test2$tolerance
   test <- check_overdispersion(model)
@@ -111,7 +106,6 @@ groups <- diversiteit %>%
 samples <- metadata %>%
   distinct(sample)
 
-# nrow(groups) * nrow(samples)
 samples_groups <- expand_grid(
   samples, groups
 )
@@ -256,7 +250,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 execute_code <- function(rmd) {
   # Extract R code from the rmd content
@@ -300,7 +294,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 knit_child(text = rmd, quiet = TRUE) %>%
   cat()
@@ -334,7 +328,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 knit_child(text = rmd, quiet = TRUE) %>%
   cat()

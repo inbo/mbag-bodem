@@ -68,7 +68,7 @@ load(
   )
 )
 
-physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |>
+physeq_olig01_annelida_species <- physeq_Olig01_Annelida_species |> # nolint
   phyloseq::subset_samples(
     !Landgebruik_MBAG %in% c("Moeras", "Heide")
   )
@@ -76,7 +76,7 @@ physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |>
 
 
 ```{r}
-br <- breakaway(physeq_Olig01_Annelida_species)
+br <- breakaway(physeq_olig01_annelida_species)
 br_tbl <- summary(br)
 ```
 
@@ -138,10 +138,6 @@ ma_brms <- brm(
   family = "skew_normal",
   backend = "cmdstanr",
   cores = 4
-  #  ,
-  #  algorithm = "pathfinder",
-  #  history_size = 100,
-  #  psis_resample = TRUE
 )
 ```
 

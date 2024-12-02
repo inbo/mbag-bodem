@@ -27,7 +27,7 @@ conflicted::conflicts_prefer(dplyr::select, dplyr::filter)
 # Inlezen data
 
 ```{r inlezen}
-mbag_shared_drive <- "G:/Gedeelde drives/PRJ_MBAG"
+mbag_shared_drive <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
 bodem_meta <- read_excel(
   file.path(
     mbag_shared_drive,
@@ -57,7 +57,11 @@ nematodenstalen <- read_excel(
 
 
 ```{r inlezen-gis}
-filepath <- "Z:/Projects/PRJ_MBAG/4c_bodembiodiversiteit/steekproef/MBAG_eDNA_sampling"
+filepath <-
+  file.path(
+    "Z:",
+    "Projects/PRJ_MBAG/4c_bodembiodiversiteit/steekproef/MBAG_eDNA_sampling"
+  )
 
 bodem_meta_sf <- read_sf(filepath) %>%
   janitor::clean_names() %>%
@@ -142,7 +146,7 @@ Een deel van de plots zijn momenteel nog in analyse, maar binnenkort hebben we w
 
 ```{r landbouwstreken}
 landbouwstreken <- read_sf(
-  "S:/Vlaanderen/Landbouw/Landbouwstreken_België/Lbstrbel.shp"
+  "S:/Vlaanderen/Landbouw/Landbouwstreken_België/Lbstrbel.shp" # nolint
 ) %>%
   janitor::clean_names() %>%
   st_transform(crs = 31370)

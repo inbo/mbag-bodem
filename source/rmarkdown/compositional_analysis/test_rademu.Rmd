@@ -65,7 +65,7 @@ load(
     "physeq_Olig01_Annelida_species.Rdata"
   )
 )
-physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |>
+physeq_olig01_annelida_species <- physeq_Olig01_Annelida_species |> # nolint
   phyloseq::subset_samples(
     !Landgebruik_MBAG %in% c("Moeras", "Heide")
   )
@@ -74,8 +74,8 @@ physeq_Olig01_Annelida_species <- physeq_Olig01_Annelida_species |>
 
 
 ```{r}
-sample_data(physeq_Olig01_Annelida_species)$Landgebruik_MBAG <- factor(
-  sample_data(physeq_Olig01_Annelida_species)$Landgebruik_MBAG,
+sample_data(physeq_olig01_annelida_species)$Landgebruik_MBAG <- factor(
+  sample_data(physeq_olig01_annelida_species)$Landgebruik_MBAG,
   levels = c(
     "Akker", "Tijdelijk grasland", "Blijvend grasland",
     "Residentieel grasland", "Natuurgrasland"
@@ -86,14 +86,14 @@ sample_data(physeq_Olig01_Annelida_species)$Landgebruik_MBAG <- factor(
 >Next, we want to confirm that all samples have at least one non-zero count across the categories we’ve chosen and that all categories have at least one non-zero count across the samples we’ve chosen.
 
 ```{r}
-sum(rowSums(otu_table(physeq_Olig01_Annelida_species)) == 0)
-sum(colSums(otu_table(physeq_Olig01_Annelida_species)) == 0)
+sum(rowSums(otu_table(physeq_olig01_annelida_species)) == 0)
+sum(colSums(otu_table(physeq_olig01_annelida_species)) == 0)
 ```
 
 ```{r}
 # reduce data size a bit, because emuFit on full dataset takes a long time
 # here aggregating to genus
-physeq_Olig01_Annelida_genus <- physeq_Olig01_Annelida_species |>
+physeq_olig01_annelida_genus <- physeq_olig01_annelida_species |>
   phyloseq::tax_glom(taxrank = "genus")
 ```
 
@@ -102,8 +102,8 @@ physeq_Olig01_Annelida_genus <- physeq_Olig01_Annelida_species |>
 ```{r}
 m_fit <- emuFit(
   formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte,
-  Y = physeq_Olig01_Annelida_genus,
-  cluster = sample_data(physeq_Olig01_Annelida_genus)$Cmon_PlotID,
+  Y = physeq_olig01_annelida_genus,
+  cluster = sample_data(physeq_olig01_annelida_genus)$Cmon_PlotID,
   run_score_tests = FALSE
 )
 
@@ -115,7 +115,7 @@ Visualise:
 ```{r}
 coeftab <- as_tibble(m_fit$coef)
 
-genustab <- phyloseq::tax_table(physeq_Olig01_Annelida_genus)
+genustab <- phyloseq::tax_table(physeq_olig01_annelida_genus)
 
 genustbl <- as_tibble(
   genustab@.Data
@@ -197,7 +197,7 @@ taxa_to_test <- which(
 )
 m_refit <- emuFit(
   formula = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte,
-  Y = physeq_Olig01_Annelida_genus,
+  Y = physeq_olig01_annelida_genus,
   test_kj = data.frame(
     k = covariate_to_test,
     j = taxa_to_test[1]

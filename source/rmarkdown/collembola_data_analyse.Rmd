@@ -33,7 +33,9 @@ library(dplyr)
 library(rstatix)
 library(dunn.test) # installatie was nodig op hpc
 library(compositions) # installatie was nodig op hpc
-library(sf) # installatie nodig op hpc, alsook van de dependcy "units", voor units was ook installatie texinfo nodig, installatie units en dus ook sf niet gelukt op hpc
+library(sf) # installatie nodig op hpc, alsook van de dependcy "units",
+# voor units was ook installatie texinfo nodig,
+# installatie units en dus ook sf niet gelukt op hpc
 
 #### Handig pakket met veel phyloseq add-ons
 if (!"psadd" %in% rownames(installed.packages())) {
@@ -58,7 +60,8 @@ if (!"microViz" %in% rownames(installed.packages())) {
   )
 }
 
-# voor microviz was het ook nodig om de microbiome en ComplexHeatmap packages te installeren via biocmanager op hpc
+# voor microviz was het ook nodig om de microbiome en ComplexHeatmap packages te
+# installeren via biocmanager op hpc
 
 library(tidytacos) # installatie was nodig op hpc
 library(glmmTMB) # installatie was nodig op hpc
@@ -100,8 +103,12 @@ Het bestand dat wordt ingelezen is `r basename(path_naar_bestand)`.
 ```{r hernoem-object}
 physeq <- physeq_Coll01_Collembola
 
-physeq_known_species <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "species"]))
-physeq_known_genera <- subset_taxa(physeq, !grepl("_otu", tax_table(physeq)[, "genus"]))
+physeq_known_species <- subset_taxa(
+  physeq, !grepl("_otu", tax_table(physeq)[, "species"])
+)
+physeq_known_genera <- subset_taxa(
+  physeq, !grepl("_otu", tax_table(physeq)[, "genus"])
+)
 ```
 
 ```{r}
@@ -319,7 +326,10 @@ tidy_physeq_rarefied %>%
 
 ```{r krona-plot}
 # Create a new combined column
-combined_column <- paste(sample_data(physeq_rarefied)$Landgebruik_MBAG, sample_data(physeq_rarefied)$Diepte, sep = "_")
+combined_column <- paste(sample_data(physeq_rarefied)$Landgebruik_MBAG,
+  sample_data(physeq_rarefied)$Diepte,
+  sep = "_"
+)
 
 # Add the new combined column to the sample metadata with the desired name
 sample_data(physeq_rarefied)$Landgebruik_MBAG_diepte <- combined_column
@@ -328,8 +338,16 @@ sample_data(physeq_rarefied)$Landgebruik_MBAG_diepte <- combined_column
 physeq_rarefied <- merge_phyloseq(physeq_rarefied, sample_data(physeq_rarefied))
 
 
-if (system(command = "which ktImportText", intern = FALSE, ignore.stderr = TRUE, ignore.stdout = TRUE) != 1) {
-  psadd::plot_krona(physeq_rarefied, "MBAG_Olig01_collembola_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte", "Landgebruik_MBAG_diepte", trim = T)
+if (system(
+  command = "which ktImportText", intern = FALSE, ignore.stderr = TRUE,
+  ignore.stdout = TRUE
+) != 1) {
+  psadd::plot_krona(
+    physeq_rarefied,
+    "MBAG_Olig01_collembola_rar_species_alle_stalen_Landgebruik_MBAG_per_diepte",
+    "Landgebruik_MBAG_diepte",
+    trim = TRUE
+  )
 }
 ```
 
