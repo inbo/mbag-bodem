@@ -206,7 +206,7 @@ m_refit$coef$pval[taxa_to_test]
 
 Visualise only the significant (p-value <= 0.05) taxa according to the score test:
 
-```{r}
+```{r eval=FALSE}
 as_tibble(m_refit$coef) |>
   inner_join(genustbl) |>
   filter(
