@@ -1,0 +1,276 @@
+---
+title: "`inseKP` dataset"
+author: "Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    code_folding: hide
+editor_options:
+  markdown:
+    wrap: sentence
+bibliography: references.yaml
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(here)
+opts_chunk$set(echo = TRUE, out.width = "100%")
+opts_knit$set(root.dir = here::here())
+
+if (!"phyloseq" %in% rownames(installed.packages())) {
+  remotes::install_github("joey711/phyloseq")
+}
+library(phyloseq)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+if (!"tidytacos" %in% rownames(installed.packages())) {
+  remotes::install_github("lebeerlab/tidytacos")
+}
+library(tidytacos)
+if (!"sccomp" %in% rownames(installed.packages())) {
+  remotes::install_github("mangiolalaboratory/sccomp")
+}
+library(sccomp)
+
+mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
+
+```
+
+# Inlezen data
+
+```{r}
+insekp <- readRDS(
+  file.path(
+    mbag_folder,
+    "4c_bodembiodiversiteit",
+    "data", "statistiek", "InseKP", "community_composition", "data",
+    "insekp.swarm.idtaxa.all.rds"
+  )
+)
+```
+
+```{r}
+tt_insekp <- tidytacos::from_phyloseq(insekp)
+```
+
+
+```{r}
+tt_insekp_all <- tidytacos::everything(tt_insekp)
+
+names(tt_insekp_all)
+
+scdata <- tt_insekp_all |>
+  filter(
+    !Landgebruik_MBAG %in% c("Heide", "Moeras")
+  ) |>
+  mutate(
+    Diepte = factor(
+      Diepte,
+      levels = c("0-10", "10/30"),
+      labels = c("0-10", "10-30")
+    ),
+    Landgebruik_MBAG = factor(
+      Landgebruik_MBAG,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    )
+  ) |>
+  select(
+    count,
+    sample_id,
+    taxon_id,
+    Cmon_PlotID,
+    Diepte,
+    Landgebruik_MBAG,
+    phylum,
+    class,
+    order,
+    family,
+    genus,
+    species
+  )
+```
+
+```{r}
+scdata <- scdata |>
+  mutate(
+    species_group = case_when(
+      phylum ==  "Annelida" ~ "Annelida",
+      class == "Collembola" ~ "Collembola",
+      phylum == "Arthropoda" & class != "Collembola" ~
+        "Arthropoda excl collembola",
+      TRUE ~ NA
+    )
+  )
+
+scdata |>
+  group_by(phylum, class, species_group) |>
+  summarise(
+    n_species = n_distinct(species),
+    n_observations = n()
+  )
+
+```
+
+```{r}
+scdata <- scdata |>
+  filter(
+    !is.na(species_group)
+  )
+```
+
+```{r}
+prevalences <- scdata %>%
+  group_by(species_group, phylum, class, order, family, genus, species) %>%
+  summarise(
+    n_observations = n(),
+    n_reads = sum(count),
+    .groups = "drop"
+  ) %>%
+  arrange(species_group, -n_observations, -n_reads)
+
+prevalences %>%
+  select(species_group, species, n_observations, n_reads) %>%
+  kable()
+```
+
+```{r}
+prevalences <- prevalences |>
+  mutate(
+    taxon_resolved = gsub("unclassified_", "", species)
+  )
+```
+
+
+```{r}
+scdata_annelida <- scdata |>
+  filter(
+    species_group == "Annelida"
+  ) |> 
+  inner_join(
+    prevalences,
+    by = join_by(phylum, class, order, family, genus, species, species_group)
+  )
+  
+scdata_annelida |> 
+  mutate(count_class = cut(
+    count, c(1, 10, 100, 1000, Inf),
+    include.lowest = TRUE)) |> 
+  count(taxon_resolved, count_class) |>
+  kable()
+```
+
+
+```{r}
+# need to aggregate because different swarms/ASV/OTU can have same
+# taxon_resolved within a sample
+scdata_annelida <- scdata_annelida |>
+  group_by(sample_id, taxon_resolved, Cmon_PlotID, Diepte, Landgebruik_MBAG) |>
+  summarise(count = sum(count), .groups = "drop")
+```
+
+```{r}
+# restricting further for testing only, not needed for serious runs
+scdata_annelida <- scdata_annelida |>
+  group_by(taxon_resolved) |>
+  filter(n() > 30) |>
+  ungroup()
+```
+
+
+```{r}
+m1 <- sccomp_estimate(
+  .data = scdata_annelida,
+  formula_composition = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte
+   + (1 | Cmon_PlotID),
+  formula_variability = ~ 1,
+  .sample = sample_id,
+  .cell_group = taxon_resolved,
+  .abundance = count,
+  cores = 4,
+  bimodal_mean_variability_association = FALSE,
+  percent_false_positive = 5,
+  inference_method = "pathfinder", # 'hmc'
+  history_size = 50, # passed to ..., cmdstanr method .$pathfinder of $sampling (igv hmc)
+  verbose = FALSE
+)
+
+```
+
+```{r}
+m1
+```
+
+Check Rhat!
+
+- Rhat < 1.01 is OK
+- Rhat between 1.01 and 1.1 is worrying
+- Rhat > 1.1 bad
+
+
+```{r}
+hist(m1$c_rhat)
+```
+
+Check ESS (effective sample size)!
+
+- ESS > 100 is OK
+- ESS between 20 and 100 might be enough
+- ESS < 20 problematic
+
+```{r}
+hist(m1$c_ess_bulk)
+hist(m1$c_ess_tail)
+```
+
+If problems:
+
+- try "hmc" algorithm
+- increase number of iterations
+
+Calculate FDR:
+
+```{r}
+m1_test <- sccomp_test(m1)
+
+```
+
+Visualize? (errors)
+
+```{r error=TRUE}
+plot_1D_intervals(m1_test)
+```
+
+E.g. which taxa differ significantly between akker and Natuurgrasland for diepte == 0-10
+
+```{r}
+m1_test |>
+  filter(
+    parameter == "Landgebruik_MBAGNatuurgrasland",
+    c_FDR <= 0.05
+  ) |>
+  mutate(taxon_resolved = reorder(taxon_resolved, c_effect)) |>
+  ggplot() +
+  geom_pointrange(
+    aes(x = taxon_resolved, y = c_effect, ymin = c_lower, ymax = c_upper)
+  ) +
+  geom_hline(yintercept = 0) +
+  coord_flip()
+```
+
+Interpretation aid (the code below does not work; not sure how to fix):
+
+```{r error = TRUE}
+m1_test |>
+  sccomp::sccomp_proportional_fold_change(
+    formula_composition = ~ 0 + Landgebruik_MBAG,
+    from = "Akker",
+    to = "Natuurgrasland"
+  )
+```
+
