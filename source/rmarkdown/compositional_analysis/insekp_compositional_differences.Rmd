@@ -39,7 +39,7 @@ mbag_folder <- "G:/Gedeelde drives/PRJ_MBAG" # nolint
 
 ```
 
-# Inlezen data
+# Read data
 
 ```{r}
 insekp <- readRDS(
@@ -151,16 +151,16 @@ prevalences <- prevalences |>
 scdata_annelida <- scdata |>
   filter(
     species_group == "Annelida"
-  ) |> 
+  ) |>
   inner_join(
     prevalences,
     by = join_by(phylum, class, order, family, genus, species, species_group)
   )
-  
-scdata_annelida |> 
+
+scdata_annelida |>
   mutate(count_class = cut(
     count, c(1, 10, 100, 1000, Inf),
-    include.lowest = TRUE)) |> 
+    include.lowest = TRUE)) |>
   count(taxon_resolved, count_class) |>
   kable()
 ```
@@ -196,7 +196,8 @@ m1 <- sccomp_estimate(
   bimodal_mean_variability_association = FALSE,
   percent_false_positive = 5,
   inference_method = "pathfinder", # 'hmc'
-  history_size = 50, # passed to ..., cmdstanr method .$pathfinder of $sampling (igv hmc)
+  # passed to ..., cmdstanr method .$pathfinder of $sampling (igv hmc)
+  history_size = 50,
   verbose = FALSE
 )
 
@@ -230,10 +231,10 @@ hist(m1$c_ess_tail)
 
 If problems:
 
-- try "hmc" algorithm
+- try `"hmc"` algorithm
 - increase number of iterations
 
-Calculate FDR:
+Calculate `FDR`:
 
 ```{r}
 m1_test <- sccomp_test(m1)
@@ -246,7 +247,7 @@ Visualize? (errors)
 plot_1D_intervals(m1_test)
 ```
 
-E.g. which taxa differ significantly between akker and Natuurgrasland for diepte == 0-10
+E.g. which taxa differ significantly between `akker` and `Natuurgrasland` for `diepte == 0-10`.
 
 ```{r}
 m1_test |>
