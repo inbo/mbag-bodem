@@ -282,6 +282,9 @@ lowest_aic <- get.models(dd, 1)[[1]]
 summary(lowest_aic)
 ```
 
+```{r m-richness-anova-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+car::Anova(lowest_aic) |> print(digits = 2)
+```
 
 ```{r error=TRUE}
 p <- performance::check_predictions(lowest_aic)
