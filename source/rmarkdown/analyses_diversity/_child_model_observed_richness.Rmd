@@ -195,7 +195,6 @@ form_richness_full <- update(
     + swc_vol
     + c_density
     + cn_stockbased
-    + swc_vol
     + poly(ph_kcl, 2)
     + bd
 )
