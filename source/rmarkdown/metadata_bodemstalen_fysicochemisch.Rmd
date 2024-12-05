@@ -1,0 +1,189 @@
+---
+title: "Verkenning fysicochemische metadata eDNA bodemstalen"
+author: "Sam Lambrechts, Bruno De Vos, Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: "hide"
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir = here::here("source/rmarkdown"))
+opts_chunk$set(
+  echo = TRUE,
+  dev = "png",
+  dpi = 300,
+  fig.width = 7, #inches
+  fig.height = 5)
+library(car)
+library(corrplot)
+library(ggplot2)
+library(dplyr)
+library(moments)
+conflicted::conflicts_prefer(dplyr::select, dplyr::filter)
+```
+
+```{r cache=TRUE, include=FALSE}
+1+1
+# een trukje om te zorgen dat de folder met figuren, die aangemaakt wordt als je
+# knit, bewaard blijft in /metadata_bodemstalen_fysicochemisch_files/figure-html
+```
+
+
+
+# Inlezen data
+
+```{r inlezen}
+mbag_shared_drive <- "G:/Gedeelde drives/PRJ_MBAG"
+
+subdirectory <- "4c_bodembiodiversiteit/data/Stratificatie_MBAG_plots"
+
+full_directory_path <- file.path(mbag_shared_drive, subdirectory)
+
+file_name <- "MBAG_stratfile_v2_cleaned_12.csv"
+
+file_path <- file.path(full_directory_path, file_name)
+
+df <- read.csv(file_path, stringsAsFactors = FALSE)
+```
+
+# Verkenning
+
+## Samenvattende statistieken en statistische verdeling
+
+```{r}
+glimpse(df)
+
+df <- df %>%
+  mutate(
+    Bermen = factor(
+      Bermen,
+      levels = c(0, 1),
+      labels = c("Geen berm", "Berm")),
+    Cmon_GRTS_Rank = factor(Cmon_GRTS_Rank),
+    CmonLU19 = factor(CmonLU19),
+    MBAG_eDNA_staal = factor(MBAG_eDNA_staal),
+    MBAG_Nematoden_staal = factor(MBAG_Nematoden_staal))
+```
+
+```{r}
+numeric_cols <- sapply(df, is.numeric)
+df_numeric <- df[, numeric_cols]
+
+df_numeric_clean <- df_numeric[, apply(df_numeric, 2, var, na.rm = TRUE) != 0]
+
+# de Lambert coordinaten laten we ook buiten beschouwing
+df_numeric_clean <- df_numeric_clean %>%
+  select(-c_LB72X, -c_LB72Y)
+```
+
+
+```{r summary-stats}
+summary_stats <- df_numeric_clean %>%
+  tidyr::pivot_longer(cols = everything()) %>%
+  summarise(
+    mean = mean(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    min = min(value, na.rm = TRUE),
+    max = max(value, na.rm = TRUE),
+    skewness = moments::skewness(value, na.rm = TRUE),
+    kurtosis = moments::kurtosis(value, na.rm = TRUE),
+    .by = c(name)
+  )
+kable(summary_stats, digits = 2)
+```
+
+Histogrammen en qq-plots kunnen helpen om in te schatten hoe de data verdeeld zijn en of een transformatie van de data nuttig kan zijn.
+Normaliteit is echter geen vereiste om verklarende variabelen te gebruiken in een regressiemodel.
+Enkel de residuen van een (veralgemeend lineair) regressiemodel moeten normaal verdeeld zijn.
+
+
+```{r histogrammen}
+df_numeric_clean %>%
+  tidyr::pivot_longer(cols = everything()) %>%
+  ggplot() +
+  geom_histogram(
+    aes(x = value)
+  ) +
+  facet_wrap(~ name, scales = "free")
+```
+
+```{r qqplots}
+df_numeric_clean %>%
+  tidyr::pivot_longer(cols = everything()) %>%
+  ggplot(aes(sample = value)) +
+  stat_qq_line() +
+  stat_qq() +
+  facet_wrap(~ name, scales = "free")
+```
+
+De textuurvariabelen zijn een voorbeeld van compositionele data (net zoals eDNA reads) en kunnen we beter voorstellen in een textuurdriehoek:
+
+```{r ternaryplot}
+ggtern::ggtern(
+  data = df,
+  ggtern::aes(Textuur_Zandfractie, Textuur_kleifractie, Textuur_leemfractie)) + 
+   ggtern::geom_mask() +
+   geom_point(
+     ggtern::aes(
+       colour = Landgebruik_MBAG,
+       shape = Landgebruik_MBAG)) + 
+   ggtern::theme_ggtern() +
+   ggtern::theme_showarrows() +
+   ggtern::theme_clockwise()
+```
+
+## Multicollineariteit
+
+We checken multicollineariteit tussen covariaten.
+Significante paarsgewijze correlaties met absolute waarden groter dan 0.7 kunnen op problemen wijzen.
+Variance inflation factoren groter dan 5 zijn mogelijk problematisch en groter dan 10 zijn zeker problematisch.
+
+
+Paarsgewijze correlaties (Spearman's rank correlaties):
+
+```{r pairwise-correlations}
+cor_matrix <- cor(
+  df_numeric_clean,
+  use = "pairwise.complete.obs",
+  method = "spearman")
+
+corrplot(
+  cor_matrix,
+  method = "color",
+  type = "upper",
+  order = "hclust",
+  insig = "blank",
+  tl.col = "black",
+  tl.srt = 45,
+  tl.cex = 0.7)
+```
+
+```{r Display-highly-correlated-pairs}
+high_cor <- which(abs(cor_matrix) > 0.7 & abs(cor_matrix) < 1, arr.ind = TRUE)
+high_cor_pairs <- data.frame(
+  Var1 = rownames(cor_matrix)[high_cor[,1]],
+  Var2 = colnames(cor_matrix)[high_cor[,2]],
+  Correlation = cor_matrix[high_cor]
+)
+high_cor_pairs <- high_cor_pairs[!duplicated(t(apply(high_cor_pairs[,1:2], 1, sort))),]
+high_cor_pairs <- high_cor_pairs[order(-abs(high_cor_pairs$Correlation)),]
+kable(high_cor_pairs, digits = 2)
+```
+
+Variance inflation factors:
+
+```{r multicollinearity}
+constant_response <- rep(1, nrow(df_numeric_clean))
+vif_model <- lm(constant_response ~ ., data = df_numeric_clean)
+vif_results <- vif(vif_model)
+```
+
+```{r display-vif-results}
+kable(vif_results, digits = 2)
+```
+
