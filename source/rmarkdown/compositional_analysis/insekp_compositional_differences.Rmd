@@ -184,16 +184,28 @@ scdata_annelida <- scdata_annelida |>
 
 
 ```{r}
+sccomp_dir <- here::here(
+    "source", "rmarkdown", "compositional_analysis", "sccomp_draws_files"
+  )
+fs::dir_create(sccomp_dir)
+gi_file <- file.path(sccomp_dir, ".gitignore")
+fs::file_create(
+  gi_file
+)
+writeLines(
+  text = c("*", "!.gitignore"),
+  con = gi_file
+)
 m1 <- sccomp_estimate(
   .data = scdata_annelida,
-  formula_composition = ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte
-   + (1 | Cmon_PlotID),
+  formula_composition =
+    ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte + (1 | Cmon_PlotID),
   formula_variability = ~ 1,
   .sample = sample_id,
   .cell_group = taxon_resolved,
   .abundance = count,
   cores = 4,
-  output_directory = "sccomp_draws_files", # might want to change this
+  output_directory = sccomp_dir, # might want to change this
   bimodal_mean_variability_association = FALSE,
   percent_false_positive = 5,
   inference_method = "pathfinder", # 'hmc'
@@ -238,7 +250,14 @@ If problems:
 Calculate `FDR`:
 
 ```{r}
-m1_test <- sccomp_test(m1)
+threshold <- 0.1
+
+m1_test <- sccomp_test(
+  m1,
+  test_composition_above_logit_fold_change = threshold
+)
+
+
 
 ```
 
@@ -248,21 +267,63 @@ Visualize? (errors)
 plot_1D_intervals(m1_test)
 ```
 
-E.g. which taxa differ significantly between `akker` and `Natuurgrasland` for `diepte == 0-10`.
+E.g. which taxa differ significantly from `akker` can be calculated with contrasts:
 
 ```{r}
-m1_test |>
+m1_contrast <- sccomp_test(
+  m1,
+  contrasts = c(
+    a_ng_010 = "Landgebruik_MBAGNatuurgrasland",
+    a_ng_1030 = "-`Diepte10-30` + Landgebruik_MBAGNatuurgrasland + `Landgebruik_MBAGNatuurgrasland:Diepte10-30`",
+    a_tg_010 = "`Landgebruik_MBAGTijdelijk grasland`",
+    a_tg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGTijdelijk grasland` + `Landgebruik_MBAGTijdelijk grasland:Diepte10-30`",
+    a_bg_010 = "`Landgebruik_MBAGBlijvend grasland`",
+    a_bg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGBlijvend grasland` + `Landgebruik_MBAGBlijvend grasland:Diepte10-30`",
+    a_rg_010 = "`Landgebruik_MBAGResidentieel grasland`",
+    a_rg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGResidentieel grasland` + `Landgebruik_MBAGResidentieel grasland:Diepte10-30`"
+    ),
+  test_composition_above_logit_fold_change = threshold
+)
+
+m1_plots <- m1_contrast |>
   filter(
-    parameter == "Landgebruik_MBAGNatuurgrasland",
     c_FDR <= 0.05
   ) |>
-  mutate(taxon_resolved = reorder(taxon_resolved, c_effect)) |>
-  ggplot() +
-  geom_pointrange(
-    aes(x = taxon_resolved, y = c_effect, ymin = c_lower, ymax = c_upper)
-  ) +
-  geom_hline(yintercept = 0) +
-  coord_flip()
+  mutate(
+    Diepte = ifelse(grepl("010", parameter), "0-10", "10-30"),
+    Landgebruik = gsub("^a_(.*)_\\d+", "\\1", parameter),
+    Landgebruik = factor(
+      Landgebruik,
+      levels = c("tg", "bg", "rg", "ng"),
+      labels = c("Tijdelijk grasland", "Blijvend grasland",
+                 "Residentieel grasland", "Natuurgrasland")
+    )) |>
+  group_by(Landgebruik) |>
+  nest() |>
+  mutate(
+    plot = purrr::map2(
+      data, Landgebruik,
+      function(x, y) {
+        x$taxon_resolved <- reorder(x$taxon_resolved, x$c_effect)
+        ggplot(x) +
+          geom_pointrange(
+            aes(
+              x = taxon_resolved, y = c_effect, ymin = c_lower, ymax = c_upper,
+              colour  = Diepte),
+            position = position_dodge(width = 0.5)
+          ) +
+          geom_hline(yintercept = 0) +
+          geom_hline(yintercept = threshold, alpha = 0.2) +
+          geom_hline(yintercept = -threshold, alpha = 0.2) +
+          coord_flip() +
+          labs(title = y)
+        }
+    )
+  )
+
+patchwork::wrap_plots(
+  m1_plots$plot, guides = "collect", axis_titles = "collect"
+  ) & patchwork::plot_annotation(title = "Verschillen met akkers")
 ```
 
 Interpretation aid (the code below does not work; not sure how to fix):
