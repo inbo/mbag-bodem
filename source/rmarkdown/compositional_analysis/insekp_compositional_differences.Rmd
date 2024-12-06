@@ -209,16 +209,40 @@ m1 <- sccomp_estimate(
   bimodal_mean_variability_association = FALSE,
   percent_false_positive = 5,
   inference_method = "pathfinder", # 'hmc'
-  # passed to ..., cmdstanr method .$pathfinder of $sampling (igv hmc)
-  history_size = 50,
+  # ... passed to cmdstanr method $sampling (igv hmc)
   verbose = FALSE
 )
 
 ```
 
 ```{r}
-m1
+head(m1, n = 10)
 ```
+
+```{r eval=FALSE}
+test <- cmdstanr::as_cmdstan_fit(
+  file.path(
+    sccomp_dir,
+    "glm_multi_beta_binomial-202412051111-1-6c1f45.csv")
+)
+
+# dim(test$draws)
+# the model contains 50 x 80 = 4000 posterior samples for 31875 parameters
+# (incl transformed parameters)
+test$metadata$method # pathfinder
+test$metadata$history_size # 100
+test$metadata$num_paths # 50
+test$metadata$num_draws # 80
+test$metadata$stan_variable_sizes$beta # 10 beta's for 25 taxa
+test$metadata$stan_variable_sizes$alpha # an intercept for 25 taxa
+test$metadata$stan_variable_sizes$random_effect # 211 random intercepts for 24
+# etcetera
+pars <- lapply(
+  test$metadata$stan_variable_sizes, FUN = \(x) matrixStats::product(x)
+)
+sum(unlist(pars)) # 31875
+```
+
 
 Check Rhat!
 
@@ -249,27 +273,10 @@ If problems:
 
 Calculate `FDR`:
 
-```{r}
-threshold <- 0.1
-
-m1_test <- sccomp_test(
-  m1,
-  test_composition_above_logit_fold_change = threshold
-)
-
-
-
-```
-
-Visualize? (errors)
-
-```{r error=TRUE}
-plot_1D_intervals(m1_test)
-```
-
 E.g. which taxa differ significantly from `akker` can be calculated with contrasts:
 
 ```{r}
+threshold <- 0.1
 m1_contrast <- sccomp_test(
   m1,
   contrasts = c(
@@ -285,6 +292,28 @@ m1_contrast <- sccomp_test(
   test_composition_above_logit_fold_change = threshold
 )
 
+```
+
+These contrasts are in logit (=log-odds) scale and represent log-odds ratios:
+
+$$
+\begin{align*}
+\log\left(\frac{P_{R_{0-10}}}{1-P_{R_{0-10}}}\right) = \text{log-odds } R_{0-10}
+\tag*{Intercept parameter: Akker (R for reference) and Diepte 0-10}\\
+
+\text{log odds } T_{0-10} - \text{log odds } R_{0-10} & =
+\log\left(\frac{\text{odds } T_{0-10}}{\text{odds } R_{0-10}}\right)
+\tag*{Land-use T parameter = difference contrast}
+\end{align*}
+$$
+
+We can transform the difference contrasts from the log-odds differences to odds-ratios for visualisation and easier interpretation.
+
+A value of 2 means that the odds one of the grassland types for the taxon is double the odds in agricultural fields.
+Conversely, an odds-ratio equal to 0.5 means that the odds for the taxon is half of the odds in agricultural fields.
+Only taxa that are significant after FDR correction are shown.
+
+```{r}
 m1_plots <- m1_contrast |>
   filter(
     c_FDR <= 0.05
@@ -315,21 +344,31 @@ m1_plots <- m1_contrast |>
           geom_hline(yintercept = 0) +
           geom_hline(yintercept = threshold, alpha = 0.2) +
           geom_hline(yintercept = -threshold, alpha = 0.2) +
+          scale_y_continuous(
+            breaks = log(c(1/50, 1/20, 1/10, 1/5, 1/2, 1, 2, 5, 10, 20, 50)),
+            labels = \(x) format(exp(x), drop0trailing = TRUE)
+          ) +
           coord_flip() +
-          labs(title = y)
+          labs(
+            title = y, y = "Odds-ratio"
+          )
         }
     )
   )
 
 patchwork::wrap_plots(
-  m1_plots$plot, guides = "collect", axis_titles = "collect"
-  ) & patchwork::plot_annotation(title = "Verschillen met akkers")
+  m1_plots$plot,
+  guides = "collect",
+  axis_titles = "collect"
+  ) &
+  patchwork::plot_annotation(title = "Verschillen met akkers")
 ```
+
 
 Interpretation aid (the code below does not work; not sure how to fix):
 
 ```{r error = TRUE}
-m1_test |>
+m1 |>
   sccomp::sccomp_proportional_fold_change(
     formula_composition = ~ 0 + Landgebruik_MBAG,
     from = "Akker",
