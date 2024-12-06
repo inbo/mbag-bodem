@@ -10,7 +10,6 @@ output:
 editor_options:
   markdown:
     wrap: sentence
-bibliography: references.yaml
 ---
 
 ```{r setup, include=FALSE}
@@ -185,7 +184,7 @@ scdata_annelida <- scdata_annelida |>
 
 ```{r}
 sccomp_dir <- here::here(
-    "source", "rmarkdown", "compositional_analysis", "sccomp_draws_files"
+    "data", "compositional_analysis", "sccomp_draws_files"
   )
 fs::dir_create(sccomp_dir)
 gi_file <- file.path(sccomp_dir, ".gitignore")
@@ -226,7 +225,6 @@ test <- cmdstanr::as_cmdstan_fit(
     "glm_multi_beta_binomial-202412051111-1-6c1f45.csv")
 )
 
-# dim(test$draws)
 # the model contains 50 x 80 = 4000 posterior samples for 31875 parameters
 # (incl transformed parameters)
 test$metadata$method # pathfinder
@@ -281,13 +279,13 @@ m1_contrast <- sccomp_test(
   m1,
   contrasts = c(
     a_ng_010 = "Landgebruik_MBAGNatuurgrasland",
-    a_ng_1030 = "-`Diepte10-30` + Landgebruik_MBAGNatuurgrasland + `Landgebruik_MBAGNatuurgrasland:Diepte10-30`",
+    a_ng_1030 = "-`Diepte10-30` + Landgebruik_MBAGNatuurgrasland + `Landgebruik_MBAGNatuurgrasland:Diepte10-30`", # nolint
     a_tg_010 = "`Landgebruik_MBAGTijdelijk grasland`",
-    a_tg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGTijdelijk grasland` + `Landgebruik_MBAGTijdelijk grasland:Diepte10-30`",
+    a_tg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGTijdelijk grasland` + `Landgebruik_MBAGTijdelijk grasland:Diepte10-30`", # nolint
     a_bg_010 = "`Landgebruik_MBAGBlijvend grasland`",
-    a_bg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGBlijvend grasland` + `Landgebruik_MBAGBlijvend grasland:Diepte10-30`",
+    a_bg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGBlijvend grasland` + `Landgebruik_MBAGBlijvend grasland:Diepte10-30`", # nolint
     a_rg_010 = "`Landgebruik_MBAGResidentieel grasland`",
-    a_rg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGResidentieel grasland` + `Landgebruik_MBAGResidentieel grasland:Diepte10-30`"
+    a_rg_1030 = "-`Diepte10-30` + `Landgebruik_MBAGResidentieel grasland` + `Landgebruik_MBAGResidentieel grasland:Diepte10-30`" # nolint
     ),
   test_composition_above_logit_fold_change = threshold
 )
@@ -299,7 +297,7 @@ These contrasts are in logit (=log-odds) scale and represent log-odds ratios:
 $$
 \begin{align*}
 \log\left(\frac{P_{R_{0-10}}}{1-P_{R_{0-10}}}\right) = \text{log-odds } R_{0-10}
-\tag*{Intercept parameter: Akker (R for reference) and Diepte 0-10}\\
+\tag*{Intercept parameter: Akker (R for reference) and 0-10 cm}\\
 
 \text{log odds } T_{0-10} - \text{log odds } R_{0-10} & =
 \log\left(\frac{\text{odds } T_{0-10}}{\text{odds } R_{0-10}}\right)
@@ -311,7 +309,7 @@ We can transform the difference contrasts from the log-odds differences to odds-
 
 A value of 2 means that the odds one of the grassland types for the taxon is double the odds in agricultural fields.
 Conversely, an odds-ratio equal to 0.5 means that the odds for the taxon is half of the odds in agricultural fields.
-Only taxa that are significant after FDR correction are shown.
+Only taxa that are significant after `FDR` correction are shown.
 
 ```{r}
 m1_plots <- m1_contrast |>
@@ -345,7 +343,8 @@ m1_plots <- m1_contrast |>
           geom_hline(yintercept = threshold, alpha = 0.2) +
           geom_hline(yintercept = -threshold, alpha = 0.2) +
           scale_y_continuous(
-            breaks = log(c(1/50, 1/20, 1/10, 1/5, 1/2, 1, 2, 5, 10, 20, 50)),
+            breaks = log(
+              c(1 / 50, 1 / 20, 1 / 10, 1 / 5, 1 / 2, 1, 2, 5, 10, 20, 50)),
             labels = \(x) format(exp(x), drop0trailing = TRUE)
           ) +
           coord_flip() +
