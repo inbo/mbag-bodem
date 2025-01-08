@@ -58,7 +58,7 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_unique_v10"
+    "mbag_combined_dataframe_INBO_ILVO_unique_v10.csv"
   )
 )
 
@@ -67,7 +67,7 @@ metadata <- readr::read_csv(
     mbag_bodem_folder,
     "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_17"
+    "MBAG_stratfile_v2_cleaned_17.csv"
   )
 ) %>%
   janitor::clean_names() %>%
