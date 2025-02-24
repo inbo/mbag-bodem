@@ -32,6 +32,7 @@ library(tidytacos)
 
 
 ```{r emmeans-stuff}
+# cf https://github.com/JenniNiku/gllvm/discussions/159
 library(emmeans)
 recover_data.gllvm <- function(object, component = c("main", "LV"), ...){
  component <- match.arg(component)
@@ -245,6 +246,7 @@ ann <- everything(tt_ann) %>%
 TO DO: include random effect for plot location. How??
 
 
+
 ```{r}
 ann_wide <- ann %>%
   pivot_wider(names_from = genus, values_from = pa)
@@ -284,17 +286,44 @@ constr_ord <- gllvm(
   num.lv = 2,
   sd.errors = TRUE)
 
+ordiplot(
+  constr_ord, symbols = TRUE, s.colors = ann_wide$diepte,
+  ind.spp = NULL,
+  biplot = TRUE
+)
+
 constr_ord_emm <- emmeans(
   constr_ord, ~ landgebruik,
   by = c("species", "diepte"))
 
-constr_ord_contrasts <- contrast(constr_ord_emm, method = "trt.vs.ctrl") |>
+head(constr_ord_emm)
+# contrasts in link = probit scale
+constr_ord_contrasts <-
+  contrast(
+    constr_ord_emm, method = "trt.vs.ctrl",
+    type = "response") |>
   confint()
+
+# probit differences backtransform to percentage point changes
+ppc <- function(d, r) pnorm(d + r) - pnorm(r)
+
+reference_akker <- constr_ord_emm %>%
+  as_tibble() %>%
+  filter(landgebruik == "Akker") %>%
+  select(-landgebruik) %>%
+  rename_with(.cols = where(is.double), \(x) paste0("akker_", x))
 
 plots <- constr_ord_contrasts %>%
   as_tibble() %>%
+  inner_join(reference_akker) %>%
   group_by(contrast) |>
   filter(SE < 5) %>%
+  filter(sign(asymp.LCL) == sign(asymp.UCL)) %>%
+  mutate(
+    estimate = ppc(estimate, akker_emmean),
+    asymp.LCL = ppc(asymp.LCL, akker_asymp.LCL),
+    asymp.UCL = ppc(asymp.UCL, akker_asymp.UCL)
+  ) %>%
   nest() |>
   mutate(
     plot = purrr::map2(
@@ -304,21 +333,17 @@ plots <- constr_ord_contrasts %>%
         ggplot(x) +
           geom_pointrange(
             aes(
-              x = species, y = estimate, ymin = asymp.LCL,
+              x = species,
+              y = estimate,
+              ymin = asymp.LCL,
               ymax = asymp.UCL,
               colour  = diepte),
             position = position_dodge(width = 0.5)
           ) +
           geom_hline(yintercept = 0) +
-          scale_y_continuous(
-            breaks = log(
-              c(1 / 50, 1 / 20, 1 / 10, 1 / 5, 1 / 2, 1, 2, 5, 10, 20, 50)),
-            labels = \(x) format(exp(x), drop0trailing = TRUE)
-          ) +
-          coord_flip() +
-          labs(
-            title = y, y = "Odds-ratio"
-          )
+          scale_y_continuous(labels = scales::percent) +
+          labs(y = "Verschil in kans op voorkomen") +
+          coord_flip()
         }
     )
   )
@@ -331,4 +356,11 @@ patchwork::wrap_plots(
   patchwork::plot_annotation(title = "Verschillen met akkers")
 
 ```
+
+> The latent variables ui can be thought of as unmeasured environmental variables, or as ordination scores, capturing the main axes of covariation of abundance (after controlling for observed predictors xi). We assume that these latent variables are independent across sites and standard normally distributed. 
+
+>  $\alpha_i$ are optional site effects which can be chosen as either fixed or random effects ($\alpha_i \approx \mathcal{N}(\mu,\,\sigma^{2})$). The row effects urn:x-wiley:2041210X:media:mee313303:mee313303-math-0011 can be included for site total abundance standardization, that is, all other terms in the model can then be subsequently interpreted as modelling relative abundance or compositional effects 
+
+
+
 
