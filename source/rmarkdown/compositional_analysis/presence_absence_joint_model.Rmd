@@ -28,6 +28,7 @@ mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # noli
 library(gllvm)
 library(phyloseq)
 library(tidytacos)
+library(corrplot)
 ```
 
 
@@ -229,19 +230,18 @@ ann <- everything(tt_ann) %>%
   janitor::clean_names() %>%
   dplyr::select(count, sample, cmon_plot_id, genus) %>%
   mutate(pa = ifelse(count >= threshold_present, 1, 0)) %>%
-  dplyr::select(-count) %>%
   inner_join(design, by = join_by(sample)) %>%
   complete(
     nesting(sample, cmon_plot_id, diepte, landgebruik),
     genus,
-    fill = list(pa = 0)
+    fill = list(pa = 0, count = 0)
   ) %>%
   rename(id = sample)
 
 ```
 
 
-
+# GLLVM
 
 TO DO: include random effect for plot location. How??
 
@@ -249,6 +249,7 @@ TO DO: include random effect for plot location. How??
 
 ```{r}
 ann_wide <- ann %>%
+  select(-count) %>%
   pivot_wider(names_from = genus, values_from = pa)
 
 y <- ann_wide %>%
@@ -263,6 +264,10 @@ x_env <- ann_wide %>%
 design <- x_env %>%
   dplyr::select(id, cmon_plot_id)
 
+```
+
+```{r}
+
 # unconstrained ordination without row effect
 unc_ord <- gllvm(
   y = y,
@@ -270,12 +275,30 @@ unc_ord <- gllvm(
   num.lv = 2,
   sd.errors = TRUE)
 
+```
+
+```{r}
+
 .pardefault <- par()
 ordiplot(
   unc_ord, symbols = TRUE, s.colors = ann_wide$diepte,
   ind.spp = NULL,
   biplot = TRUE
 )
+
+```
+
+
+```{r}
+cormat_unc_ord <- getResidualCor(unc_ord)
+corrplot(
+  cormat_unc_ord,
+  diag = FALSE,
+  type = "lower", method = "square", tl.srt = 25, order = "hclust")
+```
+
+
+```{r}
 
 # constrained ordination without row effect
 constr_ord <- gllvm(
@@ -286,11 +309,29 @@ constr_ord <- gllvm(
   num.lv = 2,
   sd.errors = TRUE)
 
+```
+
+```{r}
+
 ordiplot(
   constr_ord, symbols = TRUE, s.colors = ann_wide$diepte,
   ind.spp = NULL,
   biplot = TRUE
 )
+
+```
+
+
+```{r}
+cormat_constr_ord <- getResidualCor(constr_ord)
+corrplot(
+  cormat_constr_ord,
+  diag = FALSE,
+  type = "lower", method = "square", tl.srt = 25, order = "hclust")
+```
+
+
+```{r}
 
 constr_ord_emm <- emmeans(
   constr_ord, ~ landgebruik,
@@ -342,7 +383,8 @@ plots <- constr_ord_contrasts %>%
           ) +
           geom_hline(yintercept = 0) +
           scale_y_continuous(labels = scales::percent) +
-          labs(y = "Verschil in kans op voorkomen") +
+          labs(y = "Verschil in kans op voorkomen",
+               title = y) +
           coord_flip()
         }
     )
@@ -356,6 +398,7 @@ patchwork::wrap_plots(
   patchwork::plot_annotation(title = "Verschillen met akkers")
 
 ```
+
 
 > The latent variables ui can be thought of as unmeasured environmental variables, or as ordination scores, capturing the main axes of covariation of abundance (after controlling for observed predictors xi). We assume that these latent variables are independent across sites and standard normally distributed. 
 
