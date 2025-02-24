@@ -156,7 +156,19 @@ emmeans::.emm_register("gllvm","gllvm")
 ```
 
 
+```{r input-parameters}
+threshold_present <- 1
+min_prevalence <- 30
+```
+
+
 # Read data
+
+
+The following files are used as input for the analyses:
+
+-   "MBAG_stratfile_v2_cleaned_17.csv"
+-   "physeq_Olig01_Annelida_species.Rdata"
 
 ```{r inlezen}
 metadata <- readr::read_csv(
@@ -199,7 +211,7 @@ physeq_olig01_annelida_species <- physeq_Olig01_Annelida_species |> # nolint
   )
 ```
 
-
+Land use types `Moeras` and `Heide` are removed from the dataset.
 
 ```{r}
 sample_data(physeq_olig01_annelida_species)$Landgebruik_MBAG <- factor(
@@ -211,16 +223,20 @@ sample_data(physeq_olig01_annelida_species)$Landgebruik_MBAG <- factor(
 )
 ```
 
+We aggregate the taxonomic resolution to the genus level.
+
 ```{r}
 # aggregating to genus
 physeq_olig01_annelida_genus <- physeq_olig01_annelida_species |>
   phyloseq::tax_glom(taxrank = "genus")
 ```
 
+We use a threshold for read counts equal to `r threshold_present` to consider a taxon as present.
+Thus, taxa with fewer than `r threshold_present` read counts are coded as absent from a sample.
+
 ```{r}
 tt_ann <- from_phyloseq(physeq_olig01_annelida_genus)
 
-threshold_present <- 1
 
 design <- metadata %>%
   filter(!landgebruik %in% c("Moeras", "Heide")) %>%
@@ -241,11 +257,42 @@ ann <- everything(tt_ann) %>%
 
 ```
 
+We further restrict the data by including only taxa which have a prevalence equal or higher than `r min_prevalence`.
+
+```{r}
+ann <- ann %>%
+  filter(
+    sum(pa) >= min_prevalence,
+    .by = c(genus)
+  )
+```
+
 
 # GLLVM
 
+GLLVM = Generalized linear latent variable models.
+
+> The latent variables $u_i$ can be thought of as unmeasured environmental variables, or as ordination scores, capturing the main axes of covariation of abundance (after controlling for observed predictors $x_i$). We assume that these latent variables are independent across sites and standard normally distributed. 
+
+>  $\alpha_i$ are optional site effects which can be chosen as either fixed or random effects ($\alpha_i \approx \mathcal{N}(\mu,\,\sigma^{2})$). The row effects $\alpha_i$ can be included for site total abundance standardization, that is, all other terms in the model can then be subsequently interpreted as modelling relative abundance or compositional effects
+
 TO DO: include random effect for plot location. How??
 
+For this model, we transformed the count data to presence absence data.
+The reason why we do this, is that we are currently unsure how the count data from eDNA surveys should be handled (but see next section about `sccomp` and the comparison).
+
+GLLVM deals with correlation between taxa by inclusion of latent variables.
+Latent variables are similar in spirit to classical ordination axes (such as principal components in a PCA).
+It is therefore also called a model-based ordination approach.
+
+GLLVM requires you to specify the number of latent variables and we fix this in this exercise to two latent variables.
+
+In a first attempt, and to get familiar with GLLVM, we will fit a model with two latent variables but no covariates.
+This can be considered an "unconstrained" ordination.
+
+As GLLVM is just an extension of GLM (generalized linear models), we also need to tell the model which distribution for the response variables should be used.
+In our case, we choose a binomial distribution with a probit link.
+The probit link is different from the normally chosen logit link for binomial models and this has to do with the fitting algorithm (default method uses a variational approximation method) which cannot deal with logit link.
 
 
 ```{r}
@@ -256,9 +303,6 @@ ann_wide <- ann %>%
 y <- ann_wide %>%
   dplyr::select(where(is.numeric)) %>%
   as.matrix()
-# restrict to taxa with prevalence >= prevalence
-min_prevalence <- 30
-y <- y[,colSums(y) >= min_prevalence]
 
 x_env <- ann_wide %>%
   dplyr::select(where(\(x) is.factor(x) | is.character(x)))
@@ -268,29 +312,37 @@ design <- x_env %>%
 ```
 
 ```{r}
-
 # unconstrained ordination without row effect
 unc_ord <- gllvm(
   y = y,
   family = binomial(link = "probit"),
   num.lv = 2,
   sd.errors = TRUE)
-
 ```
 
-```{r}
+The taxon correlations can be visualised using a classical biplot or more directly using a correlation matrix plot.
+The sort order of taxa in the correlation plot is determined by a hierarchical clustering of the taxa.
 
+```{r}
+covars <- c("landgebruik", "diepte")
+plotlis <- vector("list", length(covars))
 .pardefault <- par()
-ordiplot(
-  unc_ord, symbols = TRUE, s.colors = ann_wide$diepte,
-  ind.spp = NULL,
-  biplot = TRUE
-)
+par(mfrow = c(1,2), mar=c(4,4,2,2))
+for (i in seq_along(covars)) {
+  ordiplot(
+    unc_ord, symbols = TRUE,
+    s.colors = ann_wide[[covars[i]]],
+    ind.spp = NULL,
+    biplot = TRUE,
+    main = covars[i]
+  )
+}
 
 ```
 
 
 ```{r}
+par(.pardefault)
 cormat_unc_ord <- getResidualCor(unc_ord)
 corrplot(
   cormat_unc_ord,
@@ -298,9 +350,9 @@ corrplot(
   type = "lower", method = "square", tl.srt = 25, order = "hclust")
 ```
 
+Next, we add covariates `landgebruik`, `diepte` and their interaction to the model and again show the resulting biplot and correlation plot.
 
 ```{r}
-
 # constrained ordination without row effect
 constr_ord <- gllvm(
   y = y,
@@ -313,13 +365,19 @@ constr_ord <- gllvm(
 ```
 
 ```{r}
-
-ordiplot(
-  constr_ord, symbols = TRUE, s.colors = ann_wide$diepte,
-  ind.spp = NULL,
-  biplot = TRUE
-)
-
+plotlis <- vector("list", length(covars))
+par(mfrow = c(1,2), mar=c(4,4,2,2))
+for (i in seq_along(covars)) {
+  ordiplot(
+    constr_ord,
+    symbols = TRUE,
+    s.colors = ann_wide[[covars[i]]],
+    ind.spp = NULL,
+    biplot = TRUE,
+    main = covars[i]
+  )
+}
+par(.pardefault)
 ```
 
 
@@ -332,8 +390,9 @@ corrplot(
 ```
 
 
-```{r gllvm-contrasts}
+Finally, we can calculate difference contrast for land use types where we choose `Akker` as the reference level against which is compared.
 
+```{r gllvm-contrasts}
 constr_ord_emm <- emmeans(
   constr_ord, ~ landgebruik,
   by = c("species", "diepte"))
@@ -397,13 +456,9 @@ patchwork::wrap_plots(
   axis_titles = "collect"
   ) &
   patchwork::plot_annotation(title = "Verschillen met akkers")
-
 ```
 
 
-> The latent variables ui can be thought of as unmeasured environmental variables, or as ordination scores, capturing the main axes of covariation of abundance (after controlling for observed predictors xi). We assume that these latent variables are independent across sites and standard normally distributed. 
-
->  $\alpha_i$ are optional site effects which can be chosen as either fixed or random effects ($\alpha_i \approx \mathcal{N}(\mu,\,\sigma^{2})$). The row effects urn:x-wiley:2041210X:media:mee313303:mee313303-math-0011 can be included for site total abundance standardization, that is, all other terms in the model can then be subsequently interpreted as modelling relative abundance or compositional effects 
 
 
 # SCCOMP
