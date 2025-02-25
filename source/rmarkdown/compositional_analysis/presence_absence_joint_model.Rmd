@@ -41,125 +41,269 @@ conflicted::conflicts_prefer(
 
 
 ```{r emmeans-stuff}
+# nolint start
 # cf https://github.com/JenniNiku/gllvm/discussions/159
 library(emmeans)
-recover_data.gllvm <- function(object, component = c("main", "LV"), ...){
- component <- match.arg(component)
-  if(component == "main"){
+recover_data.gllvm <- function(object, component = c("main", "LV"), ...) {
+  component <- match.arg(component)
+  if (component == "main") {
     fcall <- getCall(object)
-    X = object$X
-    if(is.null(fcall$formula)){
-      stop("Model without formula not yet implemented. Please refit your model using the formula argument.")
-      # fcall$formula = as.formula(object$formula)
+    X <- object$X
+    if (is.null(fcall$formula)) {
+      stop("Model without formula not yet implemented.
+           Please refit your model using the formula argument.")
     }
-  }else{
+  } else {
     fcall <- getCall(object)
-    X = object$lv.X
+    X <- object$lv.X
     object$X <- X
-    if(is.null(fcall$lv.formula)){
-      stop("Model without lv.formula not yet implemented. Please refit your model using the formula argument.")
+    if (is.null(fcall$lv.formula)) {
+      stop("Model without lv.formula not yet implemented.
+           Please refit your model using the formula argument.")
     }
     fcall$formula <- fcall$lv.formula
   }
-  
- fcall$formula <- as.formula(paste0("~0+species+",paste0("species:", labels(terms(as.formula(fcall$formula))), collapse = "+")))
- X = cbind(do.call("rbind",replicate(ncol(object$y),data.frame(X,check.rows = FALSE),simplify=FALSE)),species = as.factor(rep(colnames(object$y),each=nrow(object$X))))
- frm = model.frame(fcall$formula, X)
- 
-  emmeans:::recover_data.call(getCall(object), trms = terms(fcall$formula), na.action = NULL, data = X, params = "pi", frame = frm, pwts = NULL, addl.vars = NULL)
+
+  fcall$formula <- as.formula(
+    paste0(
+      "~0+species+",
+      paste0("species:",
+        labels(terms(as.formula(fcall$formula))),
+        collapse = "+"
+      )
+    )
+  )
+  X <- cbind(
+    do.call(
+      "rbind",
+      replicate(
+        ncol(object$y),
+        data.frame(X, check.rows = FALSE),
+        simplify = FALSE
+      )
+    ),
+    species = as.factor(
+      rep(
+        colnames(object$y),
+        each = nrow(object$X)
+      )
+    )
+  )
+  frm <- model.frame(fcall$formula, X)
+
+  emmeans:::recover_data.call(
+    getCall(object),
+    trms = terms(fcall$formula),
+    na.action = NULL,
+    data = X,
+    params = "pi",
+    frame = frm,
+    pwts = NULL,
+    addl.vars = NULL
+  )
 }
 
 
-emm_basis.gllvm = function(object, trms, xlev, grid, component = c("main", "LV"), ...){
-  # if(is.null(object$call$formula)){
-  #   fcall <- getCall(object)
-  #   fcall$formula = as.formula(object$formula)
-  #   fcall$formula <- as.formula(paste0("~0+",paste0(labels(terms(as.formula(fcall$formula))),":species",collapse = "+")))
-  #   trms = terms(as.formula(object$formula))
-  #   }
-  component = match.arg(component)
-   xlev$species = colnames(object$y) # make sure species ordering is correctly retained
+emm_basis.gllvm <- function(
+    object, trms, xlev, grid, component = c("main", "LV"), ...) {
+  component <- match.arg(component)
+  xlev$species <- colnames(object$y)
+  # make sure species ordering is correctly retained
 
-  if(component == "main"){
-    m = model.frame(trms, grid, na.action = na.pass, xlev = xlev)
-    X = model.matrix(trms, m)
-    
-    bhat = cbind(object$param$beta0,object$params$Xcoef)
-    V = vcov(object) # per species organized
-    V <- V[row.names(V)=="b", colnames(V)=="b"]
-    #reorder V to per covariate
-    V <- V[order(rep(1:ncol(bhat),times=ncol(object$y))),order(rep(1:ncol(bhat),times=ncol(object$y)))]
-  }else if((object$num.lv.c+object$num.RR)>0 && component == "LV"){
-    m = model.frame(trms, grid, na.action = na.pass, xlev = xlev)
-    X = model.matrix(trms, m)
-    
-    bhat = cbind(object$params$beta0, object$params$theta[,1:(object$num.lv.c+object$num.RR),drop=FALSE]%*%t(object$params$LvXcoef))
-    V = gllvm:::RRse(object, return.covb = TRUE) # per covariate organised
+  if (component == "main") {
+    m <- model.frame(trms, grid, na.action = na.pass, xlev = xlev)
+    X <- model.matrix(trms, m)
+
+    bhat <- cbind(object$param$beta0, object$params$Xcoef)
+    V <- vcov(object) # per species organized
+    V <- V[row.names(V) == "b", colnames(V) == "b"]
+    # reorder V to per covariate
+    V <- V[
+      order(
+        rep(1:ncol(bhat),
+          times = ncol(object$y)
+        )
+      ),
+      order(
+        rep(1:ncol(bhat),
+          times = ncol(object$y)
+        )
+      )
+    ]
+  } else if ((object$num.lv.c + object$num.RR) > 0 && component == "LV") {
+    m <- model.frame(trms, grid, na.action = na.pass, xlev = xlev)
+    X <- model.matrix(trms, m)
+
+    bhat <- cbind(
+      object$params$beta0,
+      object$params$theta[
+        ,
+        1:(object$num.lv.c + object$num.RR),
+        drop = FALSE
+      ] %*% t(
+        object$params$LvXcoef
+      )
+    )
+    V <- gllvm:::RRse(
+      object,
+      return.covb = TRUE
+    ) # per covariate organised
     covMat <- object$Hess$cov.mat.mod
-    colnames(covMat) <- row.names(covMat) <- names(object$TMBfn$par[object$Hess$incl])
-    Sb <- covMat[colnames(covMat)=="b",colnames(covMat)=="b"]
-    if(!object$beta0com){
-      bidx <- rep(c(TRUE,rep(FALSE,ncol(Sb)/ncol(object$y)-1)), ncol(object$y))
-    }else{
-      bidx <- c(TRUE,rep(FALSE, ncol(Sb)-1))
+    colnames(covMat) <- row.names(covMat) <-
+      names(object$TMBfn$par[object$Hess$incl])
+    Sb <- covMat[
+      colnames(covMat) == "b",
+      colnames(covMat) == "b"
+    ]
+    if (!object$beta0com) {
+      bidx <- rep(
+        c(
+          TRUE,
+          rep(
+            FALSE,
+            ncol(Sb) / ncol(object$y) - 1
+          )
+        ),
+        ncol(object$y)
+      )
+    } else {
+      bidx <- c(TRUE, rep(FALSE, ncol(Sb) - 1))
     }
-    Sb <- Sb[bidx,bidx]
-    
-    # Add covariances for intercept.
-    K = ncol(object$lv.X.design)
-    d = object$num.lv.c+object$num.RR
-    p = ncol(object$y)
+    Sb <- Sb[bidx, bidx]
 
-    covMat <- covMat[colnames(covMat)%in%c("b","b_lv","lambda"),colnames(covMat)%in%c("b","b_lv","lambda")]
-    covMat <- covMat[c(bidx,rep(TRUE,sum(colnames(covMat)%in%c("b_lv","lambda")))),c(bidx,rep(TRUE,sum(colnames(covMat)%in%c("b_lv","lambda"))))]
-    #add first row and column of zeros before b_lv, for first species
-    covMat <- rbind(covMat[1:(p+d*K),, drop=FALSE],0,covMat[-c(1:(p+d*K)),, drop=FALSE])
-    covMat <- cbind(covMat[,1:(p+d*K), drop=FALSE],0,covMat[,-c(1:(p+d*K)), drop=FALSE])
-    
-    if(d>1){
-      idx<-which(c(upper.tri(object$params$theta[,1:d],diag=T)))[-1]
-      
-      #add zeros where necessary
-      for(q in 1:length(idx)){
-        covMat <- rbind(covMat[1:(p+d*K+idx[q]-1),],0,covMat[(p+d*K+idx[q]):ncol(covMat),])
-        covMat <- cbind(covMat[,1:(p+d*K+idx[q]-1)],0,covMat[,(p+d*K+idx[q]):ncol(covMat)])
+    # Add covariances for intercept.
+    K <- ncol(object$lv.X.design)
+    d <- object$num.lv.c + object$num.RR
+    p <- ncol(object$y)
+
+    covMat <- covMat[
+      colnames(covMat) %in% c("b", "b_lv", "lambda"),
+      colnames(covMat) %in% c("b", "b_lv", "lambda")
+    ]
+    covMat <- covMat[
+      c(
+        bidx,
+        rep(
+          TRUE,
+          sum(
+            colnames(covMat) %in% c("b_lv", "lambda")
+          )
+        )
+      ),
+      c(
+        bidx,
+        rep(
+          TRUE,
+          sum(colnames(covMat) %in% c("b_lv", "lambda"))
+        )
+      )
+    ]
+    # add first row and column of zeros before b_lv, for first species
+    covMat <- rbind(
+      covMat[1:(p + d * K), , drop = FALSE],
+      0,
+      covMat[-c(1:(p + d * K)), , drop = FALSE]
+    )
+    covMat <- cbind(
+      covMat[, 1:(p + d * K), drop = FALSE],
+      0,
+      covMat[, -c(1:(p + d * K)), drop = FALSE]
+    )
+
+    if (d > 1) {
+      idx <- which(
+        c(upper.tri(object$params$theta[, 1:d], diag = T))
+      )[-1]
+
+      # add zeros where necessary
+      for (q in 1:length(idx)) {
+        covMat <- rbind(
+          covMat[1:(p + d * K + idx[q] - 1), ],
+          0,
+          covMat[(p + d * K + idx[q]):ncol(covMat), ]
+        )
+        covMat <- cbind(
+          covMat[, 1:(p + d * K + idx[q] - 1)],
+          0,
+          covMat[, (p + d * K + idx[q]):ncol(covMat)]
+        )
       }
     }
-    row.names(covMat)[row.names(covMat)==""]<-colnames(covMat)[colnames(covMat)==""]<-"lambda"
-    
-    covLb <- covMat[colnames(covMat) =="lambda",colnames(covMat)=="b",drop=FALSE]
-    if(object$beta0com){
-      covLb <- do.call(cbind,replicate(ncol(object$y),covLB, simplify=FALSE))
-    }
-    covLB <- covMat[colnames(covMat)=="lambda",colnames(covMat)=="b_lv", drop=FALSE]
-    covb_lvb <- covMat[colnames(covMat) =="b_lv",colnames(covMat)=="b",drop=FALSE]
-    if(object$beta0com){
-      covb_lvb <- do.call(cbind,replicate(ncol(object$y),covb_lvb, simplify=FALSE))
-    }
-    covBb <- matrix(0,  K*p,ncol(object$y))
+    row.names(covMat)[
+      row.names(covMat) == ""
+    ] <-
+      colnames(covMat)[colnames(covMat) == ""] <- "lambda"
 
-    for(k in 1:K){
-        for(j in 1:p){
-          for(j2 in 1:p){
-            for(q in 1:d){
-              covBb[j+p*(k-1),j2] <- covBb[j+p*(k-1),j2]+object$params$LvXcoef[k,d]*covLb[j+p*(q-1),j2]+object$params$theta[j,q]*covb_lvb[(q-1)*K+k,j2]
-            }
-        }
-        }
+    covLb <- covMat[colnames(covMat) == "lambda", colnames(covMat) == "b",
+      drop = FALSE
+    ]
+    if (object$beta0com) {
+      covLb <- do.call(
+        cbind,
+        replicate(
+          ncol(object$y),
+          covLB,
+          simplify = FALSE
+        )
+      )
     }
-  V = rbind(cbind(Sb,t(covBb)),cbind(covBb,V))
-  }else{
+    covLB <- covMat[
+      colnames(covMat) == "lambda",
+      colnames(covMat) == "b_lv",
+      drop = FALSE
+    ]
+    covb_lvb <- covMat[
+      colnames(covMat) == "b_lv",
+      colnames(covMat) == "b",
+      drop = FALSE
+    ]
+    if (object$beta0com) {
+      covb_lvb <- do.call(
+        cbind,
+        replicate(
+          ncol(object$y),
+          covb_lvb,
+          simplify = FALSE
+        )
+      )
+    }
+    covBb <- matrix(0, K * p, ncol(object$y))
+
+    for (k in 1:K) {
+      for (j in 1:p) {
+        for (j2 in 1:p) {
+          for (q in 1:d) {
+            covBb[j + p * (k - 1), j2] <-
+              covBb[j + p * (k - 1), j2] +
+              object$params$LvXcoef[k, d] *
+                covLb[j + p * (q - 1), j2] +
+              object$params$theta[j, q] *
+                covb_lvb[(q - 1) * K + k, j2]
+          }
+        }
+      }
+    }
+    V <- rbind(cbind(Sb, t(covBb)), cbind(covBb, V))
+  } else {
     stop("Invalid model.")
   }
 
-  nbasis=matrix(NA)
-  dfargs = list(df = Inf)
-  dffun <- function(k, dfargs)Inf
-  
-  list(X=X, bhat=c(bhat), nbasis = nbasis, V=V,dffun = dffun, dfargs = dfargs)
+  nbasis <- matrix(NA)
+  dfargs <- list(df = Inf)
+  dffun <- function(k, dfargs) Inf
+
+  list(
+    X = X,
+    bhat = c(bhat),
+    nbasis = nbasis,
+    V = V,
+    dffun = dffun,
+    dfargs = dfargs
+  )
 }
 
-emmeans::.emm_register("gllvm","gllvm")
+emmeans::.emm_register("gllvm", "gllvm")
+# nolint end
 ```
 
 
@@ -310,7 +454,6 @@ ann <- everything(tt_ann) %>%
     fill = list(pa = 0, count = 0)
   ) %>%
   rename(id = sample)
-
 ```
 
 We further restrict the data by including only taxa which have a prevalence equal or higher than `r min_prevalence`.
@@ -362,7 +505,6 @@ x_env <- ann_wide %>%
   dplyr::select(where(\(x) is.factor(x) | is.character(x)))
 design <- x_env %>%
   dplyr::select(id, cmon_plot_id)
-
 ```
 
 ```{r}
@@ -374,7 +516,8 @@ unc_ord <- gllvm(
   num.lv = 2,
   sd.errors = TRUE,
   seed = seeds,
-  control.start = list(n.inits = ninits))
+  control.start = list(n.inits = ninits)
+)
 ```
 
 The taxon correlations can be visualised using a classical biplot or more directly using a correlation matrix plot.
@@ -384,17 +527,17 @@ The sort order of taxa in the correlation plot is determined by a hierarchical c
 covars <- c("landgebruik", "diepte")
 plotlis <- vector("list", length(covars))
 .pardefault <- par()
-par(mfrow = c(1,2), mar=c(4,4,2,2))
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 2))
 for (i in seq_along(covars)) {
   ordiplot(
-    unc_ord, symbols = TRUE,
+    unc_ord,
+    symbols = TRUE,
     s.colors = ann_wide[[covars[i]]],
     ind.spp = NULL,
     biplot = TRUE,
     main = covars[i]
   )
 }
-
 ```
 
 
@@ -404,7 +547,8 @@ cormat_unc_ord <- getResidualCor(unc_ord)
 corrplot(
   cormat_unc_ord,
   diag = FALSE,
-  type = "lower", method = "square", tl.srt = 25, order = "hclust")
+  type = "lower", method = "square", tl.srt = 25, order = "hclust"
+)
 ```
 
 Next, we add covariates `landgebruik`, `diepte` and their interaction to the model and again show the resulting biplot and correlation plot.
@@ -419,12 +563,13 @@ constr_ord <- gllvm(
   num.lv = 2,
   sd.errors = TRUE,
   seed = seeds,
-  control.start = list(n.init = ninits))
+  control.start = list(n.init = ninits)
+)
 ```
 
 ```{r warning=FALSE}
 plotlis <- vector("list", length(covars))
-par(mfrow = c(1,2), mar=c(4,4,2,2))
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 2))
 for (i in seq_along(covars)) {
   ordiplot(
     constr_ord,
@@ -444,7 +589,8 @@ cormat_constr_ord <- getResidualCor(constr_ord)
 corrplot(
   cormat_constr_ord,
   diag = FALSE,
-  type = "lower", method = "square", tl.srt = 25, order = "hclust")
+  type = "lower", method = "square", tl.srt = 25, order = "hclust"
+)
 ```
 
 
@@ -452,14 +598,17 @@ Finally, we can calculate difference contrast for land use types where we choose
 
 ```{r gllvm-contrasts}
 constr_ord_emm <- emmeans(
-  constr_ord, ~ landgebruik,
-  by = c("species", "diepte"))
+  constr_ord, ~landgebruik,
+  by = c("species", "diepte")
+)
 
 # contrasts in link = probit scale
 constr_ord_contrasts <-
   contrast(
-    constr_ord_emm, method = "trt.vs.ctrl",
-    type = "response") |>
+    constr_ord_emm,
+    method = "trt.vs.ctrl",
+    type = "response"
+  ) |>
   confint()
 
 # probit differences backtransform to percentage point changes
@@ -495,15 +644,18 @@ plots <- constr_ord_contrasts %>%
               y = estimate,
               ymin = asymp.LCL,
               ymax = asymp.UCL,
-              colour  = diepte),
+              colour = diepte
+            ),
             position = position_dodge(width = 0.5)
           ) +
           geom_hline(yintercept = 0) +
           scale_y_continuous(labels = scales::percent) +
-          labs(y = "Verschil in kans op voorkomen",
-               title = y) +
+          labs(
+            y = "Verschil in kans op voorkomen",
+            title = y
+          ) +
           coord_flip()
-        }
+      }
     )
   )
 
@@ -511,7 +663,7 @@ patchwork::wrap_plots(
   plots$plot,
   guides = "collect",
   axis_titles = "collect"
-  ) &
+) &
   patchwork::plot_annotation(title = "Verschillen met akkers")
 ```
 
@@ -522,8 +674,8 @@ We use `sccomp` package, but it can also be done with `gllvm` (see section about
 
 ```{r sccomp-model}
 sccomp_dir <- here::here(
-    "data", "compositional_analysis", "sccomp_draws_files"
-  )
+  "data", "compositional_analysis", "sccomp_draws_files"
+)
 fs::dir_create(sccomp_dir)
 gi_file <- file.path(sccomp_dir, ".gitignore")
 fs::file_create(
@@ -543,7 +695,7 @@ m1 <- sccomp_estimate(
   .data = ann_sccomp,
   formula_composition =
     ~ landgebruik + diepte + landgebruik:diepte + (1 | cmon_plot_id),
-  formula_variability = ~ 1,
+  formula_variability = ~1,
   .sample = id,
   .cell_group = genus,
   .abundance = count,
@@ -601,10 +753,9 @@ m1_contrast <- sccomp_test(
     a_bg_1030 = "-`diepte10-30` + `landgebruikBlijvend grasland` + `landgebruikBlijvend grasland:diepte10-30`", # nolint
     a_rg_010 = "`landgebruikResidentieel grasland`",
     a_rg_1030 = "-`diepte10-30` + `landgebruikResidentieel grasland` + `landgebruikResidentieel grasland:diepte10-30`" # nolint
-    ),
+  ),
   test_composition_above_logit_fold_change = threshold
 )
-
 ```
 
 These contrasts are in logit (=log-odds) scale and represent log-odds ratios:
@@ -637,9 +788,12 @@ m1_plots <- m1_contrast |>
     Landgebruik = factor(
       Landgebruik,
       levels = c("tg", "bg", "rg", "ng"),
-      labels = c("Tijdelijk grasland", "Blijvend grasland",
-                 "Residentieel grasland", "Natuurgrasland")
-    )) |>
+      labels = c(
+        "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    )
+  ) |>
   group_by(Landgebruik) |>
   nest() |>
   mutate(
@@ -651,7 +805,8 @@ m1_plots <- m1_contrast |>
           geom_pointrange(
             aes(
               x = genus, y = c_effect, ymin = c_lower, ymax = c_upper,
-              colour  = Diepte),
+              colour = Diepte
+            ),
             position = position_dodge(width = 0.5)
           ) +
           geom_hline(yintercept = 0) +
@@ -659,14 +814,15 @@ m1_plots <- m1_contrast |>
           geom_hline(yintercept = -threshold, alpha = 0.2) +
           scale_y_continuous(
             breaks = log(
-              c(1 / 50, 1 / 20, 1 / 10, 1 / 5, 1 / 2, 1, 2, 5, 10, 20, 50)),
+              c(1 / 50, 1 / 20, 1 / 10, 1 / 5, 1 / 2, 1, 2, 5, 10, 20, 50)
+            ),
             labels = \(x) format(exp(x), drop0trailing = TRUE)
           ) +
           coord_flip() +
           labs(
             title = y, y = "Odds-ratio"
           )
-        }
+      }
     )
   )
 
@@ -674,7 +830,7 @@ patchwork::wrap_plots(
   m1_plots$plot,
   guides = "collect",
   axis_titles = "collect"
-  ) &
+) &
   patchwork::plot_annotation(title = "Verschillen met akkers")
 ```
 
@@ -704,12 +860,14 @@ sccomp_effects <- m1_contrast |>
     landgebruik = factor(
       landgebruik,
       levels = c("tg", "bg", "rg", "ng"),
-      labels = c("Tijdelijk grasland", "Blijvend grasland",
-                 "Residentieel grasland", "Natuurgrasland")
+      labels = c(
+        "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
     ),
     contrast = paste0(landgebruik, " - Akker"),
     effect_sign = sign(c_effect)
-    ) %>%
+  ) %>%
   select(genus, diepte, contrast, effect_sign, effect = c_effect) %>%
   mutate(method = "sccomp")
 
@@ -730,10 +888,10 @@ combined <- bind_rows(gllvm_effects, sccomp_effects)
 
 combined %>%
   mutate(effect_sign = factor(
-    effect_sign, levels = c(-1, 1),
+    effect_sign,
+    levels = c(-1, 1),
     labels = c("negative", "positive")
-    )
-  ) %>%
+  )) %>%
   ggplot() +
   geom_point(aes(x = method, y = genus, colour = effect_sign)) +
   facet_grid(contrast ~ diepte, scales = "free_y")
@@ -744,10 +902,10 @@ combined %>%
 ```{r table1, tab.cap="(ref:table1)"}
 combined %>%
   mutate(effect_sign = factor(
-    effect_sign, levels = c(-1, 1),
+    effect_sign,
+    levels = c(-1, 1),
     labels = c("negative", "positive")
-    )
-  ) %>%
+  )) %>%
   summarise(
     genus = paste(genus, collapse = "\n"),
     .by = c(diepte, contrast, effect_sign, method)
@@ -774,11 +932,13 @@ sccomp_effects_not_filtered <- m1_contrast |>
     landgebruik = factor(
       landgebruik,
       levels = c("tg", "bg", "rg", "ng"),
-      labels = c("Tijdelijk grasland", "Blijvend grasland",
-                 "Residentieel grasland", "Natuurgrasland")
+      labels = c(
+        "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
     ),
     contrast = paste0(landgebruik, " - Akker")
-    ) %>%
+  ) %>%
   select(genus, diepte, contrast, effect = c_effect) %>%
   mutate(method = "sccomp")
 
@@ -819,48 +979,47 @@ They are generated from a log-normal distribution, so some taxa will increase in
 ```{r fun-generate-counts}
 # Function to generate synthetic count data with condition-dependent means
 generate_counts_condition <- function(
-    n_samples = 100, 
-    n_taxa = 5, 
-    base_means = NULL, 
+    n_samples = 100,
+    n_taxa = 5,
+    base_means = NULL,
     fold_changes = NULL,
     dispersion = 0.3,
-    condition = NULL
-) {
+    condition = NULL) {
   # Generate base means if not provided
-  if(is.null(base_means)) {
-    base_means <- rexp(n_taxa, rate = 1/100)
+  if (is.null(base_means)) {
+    base_means <- rexp(n_taxa, rate = 1 / 100)
   }
-  
+
   # Generate fold changes if not provided
-  if(is.null(fold_changes)) {
+  if (is.null(fold_changes)) {
     # Random fold changes - some up, some down
     fold_changes <- exp(rnorm(n_taxa, mean = 0, sd = 0.5))
   }
-  
+
   # Generate condition if not provided
-  if(is.null(condition)) {
-    condition <- rep(c("control", "treatment"), each = n_samples/2)
+  if (is.null(condition)) {
+    condition <- rep(c("control", "treatment"), each = n_samples / 2)
   }
-  
+
   # Create matrix to store counts
   counts <- matrix(0, nrow = n_samples, ncol = n_taxa)
-  
+
   # Generate counts for each sample based on condition
-  for(i in 1:n_samples) {
+  for (i in 1:n_samples) {
     # Apply fold change to means for treatment samples
-    if(condition[i] == "treatment") {
+    if (condition[i] == "treatment") {
       sample_means <- base_means * fold_changes
     } else {
       sample_means <- base_means
     }
-    
+
     # Generate counts from negative binomial
-    counts[i, ] <- rnbinom(n_taxa, mu = sample_means, size = 1/dispersion)
+    counts[i, ] <- rnbinom(n_taxa, mu = sample_means, size = 1 / dispersion)
   }
-  
+
   # Add column names
   colnames(counts) <- paste0("taxon_", 1:n_taxa)
-  
+
   # Return both counts and condition
   list(
     counts = counts,
@@ -875,16 +1034,18 @@ generate_counts_condition <- function(
 # Function to run sccomp analysis
 run_sccomp_analysis <- function(counts, condition) {
   counts_df <- as.data.frame(counts) %>%
-    mutate(condition = condition,
-           sample = paste0("s", 1:n())
-           ) %>%
+    mutate(
+      condition = condition,
+      sample = paste0("s", seq_len(n()))
+    ) %>%
     pivot_longer(
       -c(sample, condition),
-      names_to = "taxon", values_to = "count") %>%
+      names_to = "taxon", values_to = "count"
+    ) %>%
     mutate(
       sample = factor(sample),
       condition = factor(condition),
-      taxon = factor(taxon),
+      taxon = factor(taxon), # nolint: object_usage_linter
       count = as.integer(count)
     )
 
@@ -892,8 +1053,8 @@ run_sccomp_analysis <- function(counts, condition) {
   # Run sccomp
   results <- sccomp_estimate(
     counts_df,
-    formula_composition = ~ condition,
-    .cell_group = taxon,
+    formula_composition = ~condition,
+    .cell_group = taxon, # nolint: object_usage_linter
     .sample = sample,
     .abundance = count,
     verbose = FALSE
@@ -907,10 +1068,11 @@ run_sccomp_analysis <- function(counts, condition) {
 # Function to run radEmu analysis
 run_rademu_analysis <- function(counts, condition) {
   counts_df <- as.data.frame(counts) %>%
-    mutate(condition = condition,
-           sample = paste0("s", 1:n())
+    mutate(
+      condition = condition,
+      sample = paste0("s", seq_len(n()))
     )
-  
+
   y_df <- counts_df %>%
     tibble::column_to_rownames(var = "sample") %>%
     dplyr::select(-c(condition))
@@ -920,40 +1082,36 @@ run_rademu_analysis <- function(counts, condition) {
 
   # Run radEmu
   results <- emuFit(
-    formula = ~ condition,
+    formula = ~condition,
     data = data_df,
     Y = y_df
   )
-  
+
   return(results)
 }
-
 ```
 
 ```{r fun-run-gllvm}
 # Function to run gllvm analysis
 run_gllvm_analysis <- function(counts, condition) {
-  x_df <- data.frame(condition = condition) %>%
-    mutate(
-      sample = paste0("s", 1:n())
-    )
   x <- data.frame(condition = condition)
   design <- data.frame(
     sample = paste0("s", seq_along(condition))
-    )
-  
+  )
+
   # Run gllvm
   results <- gllvm(
     y = counts,
     X = x,
     studyDesign = design,
-    formula = ~ condition,
+    formula = ~condition,
     family = "negative.binomial",
     row.eff = ~ (1 | sample),
     num.lv = 2,
     sd.errors = TRUE,
     seed = seeds,
-    control.start = list(n.inits = ninits))
+    control.start = list(n.inits = ninits)
+  )
 
   return(results)
 }
@@ -964,18 +1122,17 @@ run_gllvm_analysis <- function(counts, condition) {
 set.seed(123)
 n_samples <- 100
 n_taxa <- 20
-condition <- rep(c("control", "treatment"), each = n_samples/2)
+condition <- rep(c("control", "treatment"), each = n_samples / 2)
 
 # Generate data with condition-dependent means
 data <- generate_counts_condition(
-  n_samples = n_samples, 
+  n_samples = n_samples,
   n_taxa = n_taxa,
   condition = condition,
-  fold_changes = exp(rnorm(n_taxa, mean = 0, sd = 0.3)) # Some taxa up, some down
+  # Some taxa up, some down
+  fold_changes = exp(rnorm(n_taxa, mean = 0, sd = 0.3))
 )
 
-# counts <- data$counts
-# condition <- data$condition
 
 # look at the count data
 glimpse(as_tibble(data$counts))
@@ -1050,7 +1207,7 @@ comparison_sccomp <- full_sccomp %>%
   mutate(
     diff_c_effect = full_c_effect - subset_c_effect
   ) %>%
-  # focus only on the effect of treatment 
+  # focus only on the effect of treatment
   # (difference between treatment and control)
   # not the intercept
   filter(parameter == "conditiontreatment")
@@ -1095,17 +1252,20 @@ Especially, `gllvm` and `radEmu` are very similar, possibly because they target 
 # compare all
 ################
 comparison_sccomp %>%
-  rename(covariate = parameter,
-         full_estimate = full_c_effect,
-         subset_estimate = subset_c_effect,
-         diff_estimate = diff_c_effect) %>%
+  rename(
+    covariate = parameter,
+    full_estimate = full_c_effect,
+    subset_estimate = subset_c_effect,
+    diff_estimate = diff_c_effect
+  ) %>%
   mutate(method = "sccomp") %>%
   bind_rows(comparison_rademu %>%
-              mutate(method = "rademu")) %>% 
+    mutate(method = "rademu")) %>%
   bind_rows(comparison_gllvm %>%
-              mutate(method = "gllvm")) %>%
+    mutate(method = "gllvm")) %>%
   ggplot(
-    aes(x = full_estimate, y = subset_estimate)) +
+    aes(x = full_estimate, y = subset_estimate)
+  ) +
   geom_point(aes(colour = method)) +
   geom_smooth(method = "lm", aes(colour = method, fill = method)) +
   geom_line(aes(group = taxon), alpha = 0.5)
@@ -1116,18 +1276,21 @@ comparison_sccomp %>%
 
 ```{r coherence2, fig.cap = "(ref:coherence2)"}
 comparison_sccomp %>%
-  rename(covariate = parameter,
-         full_estimate = full_c_effect,
-         subset_estimate = subset_c_effect,
-         diff_estimate = diff_c_effect) %>%
+  rename(
+    covariate = parameter,
+    full_estimate = full_c_effect,
+    subset_estimate = subset_c_effect,
+    diff_estimate = diff_c_effect
+  ) %>%
   mutate(method = "sccomp") %>%
   bind_rows(comparison_rademu %>%
-              mutate(method = "rademu")) %>% 
+    mutate(method = "rademu")) %>%
   bind_rows(comparison_gllvm %>%
-              mutate(method = "gllvm")) %>%
+    mutate(method = "gllvm")) %>%
   dplyr::select(-diff_estimate) %>%
   pivot_wider(
-    names_from = method, values_from = c(full_estimate, subset_estimate)) %>%
+    names_from = method, values_from = c(full_estimate, subset_estimate)
+  ) %>%
   ggplot() +
   geom_autopoint() +
   geom_autodensity() +
