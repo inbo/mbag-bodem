@@ -177,7 +177,7 @@ seeds <- c(21315, 54545, 9451, 5852261, 12723)
 In this document we look at two ways to model eDNA data:
 
 -   one model where the read counts are simplified to presence-absence data
--   another model where the read counts are modeled directly
+-   another model where the read counts are modelled directly
 
 Read counts are proportional data and they will not reflect actual abundances.
 Here is an example taken from https://github.com/JenniNiku/gllvm/discussions/120#discussioncomment-6072607 that will illustrate the nature of the data:
@@ -198,7 +198,7 @@ It is not known whether the read counts can be considered a good proxy to the ac
 Some studies have argued therefore that it is advisable to analyse the data as presence-absence data, while others have shown that the read counts do represent a good proxy for abundance or biomass.
 
 The special nature of these data need to be accounted for in a statistical model.
-But even if we can account for it, there are still important open questions regarding the interpretation of the patterns and subsetting (modeling a subset of taxa).
+But even if we can account for it, there are still important open questions regarding the interpretation of the patterns and subsetting (modelling a subset of taxa).
 
 Subsetting requires some more explanation.
 Suppose we are only interested in a specific taxonomic group that is a subset of all taxa that can be detected by the primer.
@@ -206,7 +206,7 @@ Does it matter than, if we model the subset of taxa and infer effects directly o
 
 It is clear that in the first case, the sum of read counts, which determines the proportions in a sample (the denominator), will be different from the second and third case. They probably answer different ecological questions, for instance if the abundances/biomass of one taxonomic group are not independent from the abundances/biomass of another taxonomic group (e.g. mechanisms such as predation, competition, density-dependence, ...).
 
-For compositional data, the principle of subcompositional coherence (ref Aitchison) states that - if we have compositional data, say with components A, B, C and D, the statistical relationship we observe between component A and B should be _similar_ whether we analyze just A and B, or analyze A, B, and C.
+For compositional data, the principle of subcompositional coherence (ref Aitchison) states that - if we have compositional data, say with components A, B, C and D, the statistical relationship we observe between component A and B should be _similar_ whether we analyse just A and B, or analyse A, B, and C.
 This can be seen in the example above, where sample 2 is a subset of sample 1. It can be seen that whether we use sample 1 or sample 2 does not matter for the relative proportions between A and B.
 Subcompositional coherence is different from subcompositional independence, which is a stronger assumption stating that relationships between, e.g., components A and B 
 are completely independent from C and D.
@@ -223,8 +223,8 @@ In the second section, we look at the aspect of subcompositional coherence by me
 
 The following files are used as input for the analyses:
 
--   "MBAG_stratfile_v2_cleaned_17.csv"
--   "physeq_Olig01_Annelida_species.Rdata"
+-   `"MBAG_stratfile_v2_cleaned_17.csv"`
+-   `"physeq_Olig01_Annelida_species.Rdata"`
 
 ```{r inlezen}
 metadata <- readr::read_csv(
@@ -684,7 +684,7 @@ patchwork::wrap_plots(
 Figure \@ref(fig:comp) compares the sign of the difference contrasts estimated via `gllvm` and `sccomp` for the subset of taxa that showed a significant effect according to the method.
 
 For `sccomp`, significance is judged based on false-discovery rate adjusted p-values.
-For `gllvm`, we used the 95% confidence intervals obtained via the `emmeans` package to declare a contrast signficant if the interval did not contain zero. These confidence intervals were only adjusted for multiple testing within a taxon (dunnettx method for 4 estimates), no FDR adjustments were made across taxa.
+For `gllvm`, we used the 95% confidence intervals obtained via the `emmeans` package to declare a contrast significant if the interval did not contain zero. These confidence intervals were only adjusted for multiple testing within a taxon (`dunnettx` method for 4 estimates), no `FDR` adjustments were made across taxa.
 
 We observe that the signs of the significant contrasts are the same for both methods (see Figure \@ref(fig:comp)).
 We can also see that the analysis that uses the counts detects more significant effects compared to the analysis that uses presence-absence data.
@@ -764,7 +764,7 @@ We removed taxa for the `gllvm` method that were estimated with very low precisi
 We can see a very strong correlation between the estimates from `gllvm` and `sccomp` and strong concordance between the signs of the estimates.
 Cases where there is disagreement in sign, tend to have a small absolute value as expected.
 
-(ref:comp-not-filtered) Comparison of effect sizes of the difference contrasts for analysis based on presence absence data (modeled via `gllvm`) or count data (modeled via `sccomp`)
+(ref:comp-not-filtered) Comparison of effect sizes of the difference contrasts for analysis based on presence absence data (modelled via `gllvm`) or count data (modelled via `sccomp`)
 
 ```{r comp-not-filtered, fig.cap="(ref:comp-not-filtered)"}
 sccomp_effects_not_filtered <- m1_contrast |>
@@ -1003,13 +1003,13 @@ We then extract the estimated effects for the treatment group (for the first 10 
 The models differ in the following ways:
 
 -   `sccomp`:
-    -   counts are modeled as sum-constrained beta-binomial distributions with logit link
+    -   counts are modelled as sum-constrained beta-binomial distributions with logit link
     -   correlation among taxa is induced by the sum-constrained; i.e. negative correlation results because increasing one necessarily decreases others
     -   the sum-constrained satisfies compositional nature of the data
     -   the estimand is logit-based fold differences
 -   `gllvm`:
-    -   counts are modeled as negative-binomial distributions with log link
-    -   correlation among species is modeled via two latent factors
+    -   counts are modelled as negative-binomial distributions with log link
+    -   correlation among species is modelled via two latent factors
     -   compositional nature of the data is accounted for via a random effect for samples which induces a compound symmetric correlation structure in which the correlation between any two taxa from the same sample is the same
     -   the estimand (target of inference) is log-based fold differences
 -   `radEmu`:
