@@ -21,3 +21,5 @@ spelling:
       - source/rmarkdown/analyses_diversity/test_breakaway_diversity.Rmd
       - source/rmarkdown/compositional_analysis/test_rademu.Rmd
       - source/rmarkdown/compositional_analysis/insekp_compositional_differences.Rmd
+      - source/rmarkdown/compositional_analysis/presence_absence_joint_model.Rmd
+
