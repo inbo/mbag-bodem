@@ -26,10 +26,12 @@ library(tidyr)
 library(purrr)
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
 library(gllvm)
+library(radEmu)
 library(phyloseq)
 library(tidytacos)
 library(corrplot)
 library(sccomp)
+library(ggforce)
 ```
 
 
@@ -798,4 +800,331 @@ combined_not_filtered %>%
 ```
 
 
+# Subcompositional coherence
+
+In this section, we explore three different methods that claim to be suitable for compositional data analysis.
+
+
+We first simulate count data from a negative binomial distribution where the mean depends on a condition (treatment versus control).
+The fold changes are specified for each taxon and applied to the treatment samples.
+They are generated from a log-normal distribution, so some taxa will increase in abundance in the treatment condition while others will decrease.
+
+
+```{r fun-generate-counts}
+# Function to generate synthetic count data with condition-dependent means
+generate_counts_condition <- function(
+    n_samples = 100, 
+    n_taxa = 5, 
+    base_means = NULL, 
+    fold_changes = NULL,
+    dispersion = 0.3,
+    condition = NULL
+) {
+  # Generate base means if not provided
+  if(is.null(base_means)) {
+    base_means <- rexp(n_taxa, rate = 1/100)
+  }
+  
+  # Generate fold changes if not provided
+  if(is.null(fold_changes)) {
+    # Random fold changes - some up, some down
+    fold_changes <- exp(rnorm(n_taxa, mean = 0, sd = 0.5))
+  }
+  
+  # Generate condition if not provided
+  if(is.null(condition)) {
+    condition <- rep(c("control", "treatment"), each = n_samples/2)
+  }
+  
+  # Create matrix to store counts
+  counts <- matrix(0, nrow = n_samples, ncol = n_taxa)
+  
+  # Generate counts for each sample based on condition
+  for(i in 1:n_samples) {
+    # Apply fold change to means for treatment samples
+    if(condition[i] == "treatment") {
+      sample_means <- base_means * fold_changes
+    } else {
+      sample_means <- base_means
+    }
+    
+    # Generate counts from negative binomial
+    counts[i, ] <- rnbinom(n_taxa, mu = sample_means, size = 1/dispersion)
+  }
+  
+  # Add column names
+  colnames(counts) <- paste0("taxon_", 1:n_taxa)
+  
+  # Return both counts and condition
+  list(
+    counts = counts,
+    condition = condition,
+    base_means = base_means,
+    fold_changes = fold_changes
+  )
+}
+```
+
+```{r fun-run-sccomp}
+# Function to run sccomp analysis
+run_sccomp_analysis <- function(counts, condition) {
+  counts_df <- as.data.frame(counts) %>%
+    mutate(condition = condition,
+           sample = paste0("s", 1:n())
+           ) %>%
+    pivot_longer(
+      -c(sample, condition),
+      names_to = "taxon", values_to = "count") %>%
+    mutate(
+      sample = factor(sample),
+      condition = factor(condition),
+      taxon = factor(taxon),
+      count = as.integer(count)
+    )
+
+
+  # Run sccomp
+  results <- sccomp_estimate(
+    counts_df,
+    formula_composition = ~ condition,
+    .cell_group = taxon,
+    .sample = sample,
+    .abundance = count,
+    verbose = FALSE
+  )
+
+  return(results)
+}
+```
+
+```{r fun-run-rademu}
+# Function to run radEmu analysis
+run_rademu_analysis <- function(counts, condition) {
+  counts_df <- as.data.frame(counts) %>%
+    mutate(condition = condition,
+           sample = paste0("s", 1:n())
+    )
+  
+  y_df <- counts_df %>%
+    tibble::column_to_rownames(var = "sample") %>%
+    dplyr::select(-c(condition))
+  data_df <- counts_df %>%
+    dplyr::select(condition, sample) %>%
+    tibble::column_to_rownames(var = "sample")
+
+  # Run radEmu
+  results <- emuFit(
+    formula = ~ condition,
+    data = data_df,
+    Y = y_df
+  )
+  
+  return(results)
+}
+
+```
+
+```{r fun-run-gllvm}
+# Function to run gllvm analysis
+run_gllvm_analysis <- function(counts, condition) {
+  x_df <- data.frame(condition = condition) %>%
+    mutate(
+      sample = paste0("s", 1:n())
+    )
+  x <- data.frame(condition = condition)
+  design <- data.frame(
+    sample = paste0("s", seq_along(condition))
+    )
+  
+  # Run gllvm
+  results <- gllvm(
+    y = counts,
+    X = x,
+    studyDesign = design,
+    formula = ~ condition,
+    family = "negative.binomial",
+    row.eff = ~ (1 | sample),
+    num.lv = 2,
+    sd.errors = TRUE,
+    seed = seeds,
+    control.start = list(n.inits = ninits))
+
+  return(results)
+}
+```
+
+```{r generate-counts}
+# Example usage
+set.seed(123)
+n_samples <- 100
+n_taxa <- 20
+condition <- rep(c("control", "treatment"), each = n_samples/2)
+
+# Generate data with condition-dependent means
+data <- generate_counts_condition(
+  n_samples = n_samples, 
+  n_taxa = n_taxa,
+  condition = condition,
+  fold_changes = exp(rnorm(n_taxa, mean = 0, sd = 0.3)) # Some taxa up, some down
+)
+
+# counts <- data$counts
+# condition <- data$condition
+
+# look at the count data
+glimpse(as_tibble(data$counts))
+```
+
+Table \@ref(tab:taxon-sim-params)
+
+(ref:taxon-sim-params) Parameters used for the simulation of taxa from a negative binomial distribution where the mean depends on samples belonging to either a control group or a treatment group.
+
+```{r taxon-sim-params}
+# Show the base means and fold changes
+data.frame(
+  taxon = paste0("taxon_", 1:n_taxa),
+  base_mean = data$base_means,
+  fold_change = data$fold_changes,
+  treatment_mean = data$base_means * data$fold_changes
+) %>%
+  kable(digits = 2, caption = "(ref:taxon-sim-params)")
+```
+
+
+With these simulated data, we run `sccomp`, `gllvm` and `radEmu` models on the full dataset and on a subset consisting of only the first 10 out of 20 taxa.
+We then extract the estimated effects for the treatment group (for the first 10 taxa) for each of these models and compare them.
+
+The models differ in the following ways:
+
+-   `sccomp`:
+    -   counts are modeled as sum-constrained beta-binomial distributions with logit link
+    -   correlation among taxa is induced by the sum-constrained; i.e. negative correlation results because increasing one necessarily decreases others
+    -   the sum-constrained satisfies compositional nature of the data
+    -   the estimand is logit-based fold differences
+-   `gllvm`:
+    -   counts are modeled as negative-binomial distributions with log link
+    -   correlation among species is modeled via two latent factors
+    -   compositional nature of the data is accounted for via a random effect for samples which induces a compound symmetric correlation structure in which the correlation between any two taxa from the same sample is the same
+    -   the estimand (target of inference) is log-based fold differences
+-   `radEmu`:
+    -   estimates a log-linear model under the constraint that median across taxa of $\beta_{kj} = 0$ where $j$ indexes taxa
+    -   this is done via a penalized variant of a log-link Poisson likelihood, which is the (marginal) equivalent of a multinomial logistic model
+    -   the estimand (target of inference) is log-based fold differences
+    -   correlation is induced by an identifiability constraint on the estimands
+
+
+```{r run-full-subset}
+counts <- data$counts
+subset_counts <- counts[, 1:10]
+
+# Run sccomp analysis on full and subset dataset
+full_sccomp <- run_sccomp_analysis(counts, condition)
+subset_sccomp <- run_sccomp_analysis(subset_counts, condition)
+
+# Run rademu analysis
+full_rademu <- run_rademu_analysis(counts, condition)
+subset_rademu <- run_rademu_analysis(subset_counts, condition)
+
+# Run gllvm analysis
+full_gllvm <- run_gllvm_analysis(counts, condition)
+subset_gllvm <- run_gllvm_analysis(subset_counts, condition)
+```
+
+
+```{r compare-full-subset}
+# Compare results
+comparison_sccomp <- full_sccomp %>%
+  filter(taxon %in% colnames(subset_counts)) %>%
+  dplyr::select(taxon, parameter, full_c_effect = c_effect) %>%
+  left_join(
+    subset_sccomp %>%
+      dplyr::select(taxon, parameter, subset_c_effect = c_effect),
+    by = join_by(taxon == taxon, parameter == parameter)
+  ) %>%
+  mutate(
+    diff_c_effect = full_c_effect - subset_c_effect
+  ) %>%
+  # focus only on the effect of treatment 
+  # (difference between treatment and control)
+  # not the intercept
+  filter(parameter == "conditiontreatment")
+
+comparison_rademu <- full_rademu$coef %>%
+  filter(category %in% colnames(subset_counts)) %>%
+  dplyr::select(taxon = category, covariate, full_estimate = estimate) %>%
+  left_join(
+    subset_rademu$coef %>%
+      dplyr::select(taxon = category, covariate, subset_estimate = estimate),
+    by = join_by(taxon == taxon, covariate == covariate)
+  ) %>%
+  mutate(
+    diff_estimate = full_estimate - subset_estimate
+  )
+
+comparison_gllvm <- coef(full_gllvm)$Xcoef %>%
+  as_tibble(rownames = "taxon") %>%
+  filter(taxon %in% colnames(subset_counts)) %>%
+  mutate(covariate = "conditiontreatment") %>%
+  dplyr::select(taxon, covariate, full_estimate = conditiontreatment) %>%
+  left_join(
+    coef(subset_gllvm)$Xcoef %>%
+      as_tibble(rownames = "taxon") %>%
+      mutate(covariate = "conditiontreatment") %>%
+      dplyr::select(taxon, covariate, subset_estimate = conditiontreatment),
+    by = join_by(taxon == taxon, covariate == covariate)
+  ) %>%
+  mutate(
+    diff_estimate = full_estimate - subset_estimate
+  )
+```
+
+Figures \@ref(fig:coherence1) and \@ref(fig:coherence2) show that the estimates of the first ten taxa for the treatment effect are very similar under the full model and the subset model for all three methods.
+
+Moreover, all estimates (full vs subset times methods) are strongly correlated.
+Especially, `gllvm` and `radEmu` are very similar, possibly because they target a similar estimand. 
+
+(ref:coherence1)
+
+```{r coherence1, fig.cap = "(ref:coherence1)"}
+# compare all
+################
+comparison_sccomp %>%
+  rename(covariate = parameter,
+         full_estimate = full_c_effect,
+         subset_estimate = subset_c_effect,
+         diff_estimate = diff_c_effect) %>%
+  mutate(method = "sccomp") %>%
+  bind_rows(comparison_rademu %>%
+              mutate(method = "rademu")) %>% 
+  bind_rows(comparison_gllvm %>%
+              mutate(method = "gllvm")) %>%
+  ggplot(
+    aes(x = full_estimate, y = subset_estimate)) +
+  geom_point(aes(colour = method)) +
+  geom_smooth(method = "lm", aes(colour = method, fill = method)) +
+  geom_line(aes(group = taxon), alpha = 0.5)
+```
+
+
+(ref:coherence2)
+
+```{r coherence2, fig.cap = "(ref:coherence2)"}
+comparison_sccomp %>%
+  rename(covariate = parameter,
+         full_estimate = full_c_effect,
+         subset_estimate = subset_c_effect,
+         diff_estimate = diff_c_effect) %>%
+  mutate(method = "sccomp") %>%
+  bind_rows(comparison_rademu %>%
+              mutate(method = "rademu")) %>% 
+  bind_rows(comparison_gllvm %>%
+              mutate(method = "gllvm")) %>%
+  dplyr::select(-diff_estimate) %>%
+  pivot_wider(
+    names_from = method, values_from = c(full_estimate, subset_estimate)) %>%
+  ggplot() +
+  geom_autopoint() +
+  geom_autodensity() +
+  facet_matrix(vars(where(is.double)), layer.diag = 2)
+```
 
