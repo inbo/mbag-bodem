@@ -6,7 +6,7 @@ output:
   bookdown::html_document2:
     toc: true
     toc_float: true
-    code_folding: hide
+    code_folding: show
 editor_options:
   markdown:
     wrap: sentence
@@ -32,6 +32,11 @@ library(tidytacos)
 library(corrplot)
 library(sccomp)
 library(ggforce)
+conflicted::conflicts_prefer(
+  dplyr::select(),
+  dplyr::filter(),
+  tidytacos::everything()
+)
 ```
 
 
@@ -327,8 +332,6 @@ ann <- ann %>%
 
 >  $\alpha_i$ are optional site effects which can be chosen as either fixed or random effects ($\alpha_i \approx \mathcal{N}(\mu,\,\sigma^{2})$). The row effects $\alpha_i$ can be included for site total abundance standardization, that is, all other terms in the model can then be subsequently interpreted as modelling relative abundance or compositional effects
 
-TO DO: include random effect for plot location. How??
-
 For this model, we transformed the count data to presence absence data.
 The reason why we do this, is that we are currently unsure how the count data from eDNA surveys should be handled (but see next section about `sccomp` and the comparison).
 
@@ -364,6 +367,7 @@ design <- x_env %>%
 
 ```{r}
 # unconstrained ordination without row effect
+# not yet included cmon_plot_id as random effect
 unc_ord <- gllvm(
   y = y,
   family = binomial(link = "probit"),
@@ -511,11 +515,10 @@ patchwork::wrap_plots(
   patchwork::plot_annotation(title = "Verschillen met akkers")
 ```
 
-
-
-
 ## Count data - compositional analysis with `SCCOMP`
 
+This time we analyse the same taxa but using the counts as input instead of presence absence data.
+We use `sccomp` package, but it can also be done with `gllvm` (see section about subcompositional coherence).
 
 ```{r sccomp-model}
 sccomp_dir <- here::here(
@@ -577,14 +580,13 @@ hist(m1$c_ess_bulk)
 hist(m1$c_ess_tail)
 ```
 
-If problems:
+If problems (not pursued further):
 
 - try `hmc` algorithm
 - increase number of iterations
 
-Calculate `FDR`:
-
-E.g. which taxa differ significantly from `akker` can be calculated with contrasts:
+Finally, we calculate which taxa differ significantly from `akker` by specifying contrasts.
+The contrasts p-values are adjusted for false discoveries using a false discovery rate procedure.
 
 ```{r}
 threshold <- 0.1
@@ -607,16 +609,14 @@ m1_contrast <- sccomp_test(
 
 These contrasts are in logit (=log-odds) scale and represent log-odds ratios:
 
-$$
-\begin{align*}
+$$\begin{align*}
 \log\left(\frac{P_{R_{0-10}}}{1-P_{R_{0-10}}}\right) = \text{log-odds } R_{0-10}
 \tag*{Intercept parameter: Akker (R for reference) and 0-10 cm}\\
 
 \text{log odds } T_{0-10} - \text{log odds } R_{0-10} & =
 \log\left(\frac{\text{odds } T_{0-10}}{\text{odds } R_{0-10}}\right)
 \tag*{Land-use T parameter = difference contrast}
-\end{align*}
-$$
+\end{align*}$$
 
 We can transform the difference contrasts from the log-odds differences to odds-ratios for visualisation and easier interpretation.
 
@@ -624,9 +624,9 @@ A value of 2 means that the odds one of the grassland types for the taxon is dou
 Conversely, an odds-ratio equal to 0.5 means that the odds for the taxon is half of the odds in agricultural fields.
 Only taxa that are significant after `FDR` correction are shown.
 
+(ref:sccomp-contrasts) Difference contrasts.
 
-
-```{r sccomp-contrasts}
+```{r sccomp-contrasts, fig.cap="(ref:sccomp-contrasts)"}
 m1_plots <- m1_contrast |>
   filter(
     c_FDR <= 0.05
@@ -686,10 +686,14 @@ Figure \@ref(fig:comp) compares the sign of the difference contrasts estimated v
 For `sccomp`, significance is judged based on false-discovery rate adjusted p-values.
 For `gllvm`, we used the 95% confidence intervals obtained via the `emmeans` package to declare a contrast signficant if the interval did not contain zero. These confidence intervals were only adjusted for multiple testing within a taxon (dunnettx method for 4 estimates), no FDR adjustments were made across taxa.
 
-We observe that the signs of the significant contrasts 
+We observe that the signs of the significant contrasts are the same for both methods (see Figure \@ref(fig:comp)).
+We can also see that the analysis that uses the counts detects more significant effects compared to the analysis that uses presence-absence data.
+This is expected because transforming counts to presence-absence data represents a loss of information and statistical power to detect effects.
+
+(ref:comp) Comparison of sign of significant effects for the difference contrasts obtained by a presence-absence analysis and a count data analysis
 
 
-```{r comp, fig.height = 8}
+```{r comp, fig.height = 8, fig.cap="(ref:comp)"}
 sccomp_effects <- m1_contrast |>
   filter(
     c_FDR <= 0.05
@@ -735,8 +739,9 @@ combined %>%
   facet_grid(contrast ~ diepte, scales = "free_y")
 ```
 
+(ref:table1) Overview of significant taxa and their sign for each of the contrasts
 
-```{r}
+```{r table1, tab.cap="(ref:table1)"}
 combined %>%
   mutate(effect_sign = factor(
     effect_sign, levels = c(-1, 1),
@@ -759,8 +764,9 @@ We removed taxa for the `gllvm` method that were estimated with very low precisi
 We can see a very strong correlation between the estimates from `gllvm` and `sccomp` and strong concordance between the signs of the estimates.
 Cases where there is disagreement in sign, tend to have a small absolute value as expected.
 
+(ref:comp-not-filtered) Comparison of effect sizes of the difference contrasts for analysis based on presence absence data (modeled via `gllvm`) or count data (modeled via `sccomp`)
 
-```{r comp-not-filtered}
+```{r comp-not-filtered, fig.cap="(ref:comp-not-filtered)"}
 sccomp_effects_not_filtered <- m1_contrast |>
   mutate(
     diepte = ifelse(grepl("010", parameter), "0-10", "10-30"),
@@ -1083,7 +1089,7 @@ Figures \@ref(fig:coherence1) and \@ref(fig:coherence2) show that the estimates 
 Moreover, all estimates (full vs subset times methods) are strongly correlated.
 Especially, `gllvm` and `radEmu` are very similar, possibly because they target a similar estimand. 
 
-(ref:coherence1)
+(ref:coherence1) Comparison of estimates for the first ten taxa obtained with a model using all 20 taxa and a model containing only the subset of the first ten taxa.
 
 ```{r coherence1, fig.cap = "(ref:coherence1)"}
 # compare all
@@ -1106,7 +1112,7 @@ comparison_sccomp %>%
 ```
 
 
-(ref:coherence2)
+(ref:coherence2) Pairplots showing relationship between methods and datasets (full or subset) for the estimates of the treatment effect for the first ten taxa.
 
 ```{r coherence2, fig.cap = "(ref:coherence2)"}
 comparison_sccomp %>%
