@@ -464,7 +464,7 @@ patchwork::wrap_plots(
 # SCCOMP
 
 
-```{r}
+```{r sccomp-model}
 sccomp_dir <- here::here(
     "data", "compositional_analysis", "sccomp_draws_files"
   )
@@ -526,7 +526,7 @@ hist(m1$c_ess_tail)
 
 If problems:
 
-- try `"hmc"` algorithm
+- try `hmc` algorithm
 - increase number of iterations
 
 Calculate `FDR`:
@@ -646,7 +646,7 @@ sccomp_effects <- m1_contrast |>
     contrast = paste0(landgebruik, " - Akker"),
     effect_sign = sign(c_effect)
     ) %>%
-  select(genus, diepte, contrast, effect_sign) %>%
+  select(genus, diepte, contrast, effect_sign, effect = c_effect) %>%
   mutate(method = "sccomp")
 
 gllvm_effects <- constr_ord_contrasts %>%
@@ -659,7 +659,7 @@ gllvm_effects <- constr_ord_contrasts %>%
     effect_sign = sign(estimate)
   ) %>%
   ungroup() %>%
-  select(genus = species, diepte, contrast, effect_sign) %>%
+  select(genus = species, diepte, contrast, effect_sign, effect = estimate) %>%
   mutate(method = "gllvm")
 
 combined <- bind_rows(gllvm_effects, sccomp_effects)
@@ -668,7 +668,47 @@ combined %>%
   ggplot() +
   geom_point(aes(x = method, y = genus, colour = factor(effect_sign))) +
   facet_grid(contrast ~ diepte, scales = "free_y")
-  
 ```
+
+
+```{r comp-not-filtered}
+sccomp_effects_not_filtered <- m1_contrast |>
+  mutate(
+    diepte = ifelse(grepl("010", parameter), "0-10", "10-30"),
+    landgebruik = gsub("^a_(.*)_\\d+", "\\1", parameter),
+    landgebruik = factor(
+      landgebruik,
+      levels = c("tg", "bg", "rg", "ng"),
+      labels = c("Tijdelijk grasland", "Blijvend grasland",
+                 "Residentieel grasland", "Natuurgrasland")
+    ),
+    contrast = paste0(landgebruik, " - Akker")
+    ) %>%
+  select(genus, diepte, contrast, effect = c_effect) %>%
+  mutate(method = "sccomp")
+
+gllvm_effects_not_filtered <- constr_ord_contrasts %>%
+  as_tibble() %>%
+  group_by(contrast) |>
+  filter(SE < 5) |>
+  ungroup() %>%
+  select(genus = species, diepte, contrast, effect = estimate) %>%
+  mutate(method = "gllvm")
+
+combined_not_filtered <- bind_rows(
+  gllvm_effects_not_filtered,
+  sccomp_effects_not_filtered
+)
+
+combined_not_filtered %>%
+  pivot_wider(names_from = method, values_from = effect) %>%
+  ggplot(aes(x = gllvm, y = sccomp)) +
+  geom_point(aes(colour = contrast, shape = diepte)) +
+  geom_smooth(alpha = 0.2) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  labs(title = "Difference contrast estimates (reference = Akker)")
+```
+
 
 
