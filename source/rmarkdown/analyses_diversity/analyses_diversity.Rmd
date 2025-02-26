@@ -58,7 +58,7 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_v2.csv"
+    "mbag_combined_dataframe_INBO_ILVO_unique_v10.csv"
   )
 )
 
@@ -67,7 +67,7 @@ metadata <- readr::read_csv(
     mbag_bodem_folder,
     "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_13.csv"
+    "MBAG_stratfile_v2_cleaned_17.csv"
   )
 ) %>%
   janitor::clean_names() %>%
@@ -91,13 +91,13 @@ metadata <- readr::read_csv(
   )
 ```
 
-In `mbag_combined_dataframe_v2.csv` zitten de samples zonder taxa niet in (na te vragen)!
+In `mbag_combined_dataframe_INBO_ILVO_unique_v10` zitten de nulwaarnemingen in!
 
 ```{r echo=TRUE}
 sum(diversiteit$observed == 0)
 ```
 
-Deze nulwaarnemingen moeten we terug toevoegen (`observed` wordt dan 0, maar Shannon en Simpson zijn dan niet gedefinieerd).
+We moeten dus geen nulwaarnemingen meer toevoegen
 
 ```{r}
 groups <- diversiteit %>%
@@ -115,11 +115,8 @@ combined <- samples_groups %>%
     diversiteit,
     by = c("sample", "primerset", "group", "unit")
   ) %>%
-  mutate(
-    observed = ifelse(is.na(observed), 0, observed),
-    total_count = ifelse(is.na(total_count), 0, total_count)
-  ) %>%
   inner_join(metadata, by = join_by(sample))
+
 ```
 
 
