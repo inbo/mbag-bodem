@@ -1,0 +1,1299 @@
+---
+title: "Modelling compositional differences: a comparison between models for presence-absence and proportional data (counts)"
+author: "Hans Van Calster"
+date: "`r Sys.Date()`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    code_folding: show
+editor_options:
+  markdown:
+    wrap: sentence
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE)
+library(here)
+opts_chunk$set(echo = TRUE, error = TRUE, out.width = "100%")
+opts_knit$set(root.dir = here::here())
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(purrr)
+mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
+library(gllvm)
+library(radEmu)
+library(phyloseq)
+library(tidytacos)
+library(corrplot)
+library(sccomp)
+library(ggforce)
+conflicted::conflicts_prefer(
+  dplyr::select(),
+  dplyr::filter(),
+  tidytacos::everything()
+)
+```
+
+
+```{r emmeans-stuff}
+# nolint start
+# cf https://github.com/JenniNiku/gllvm/discussions/159
+library(emmeans)
+recover_data.gllvm <- function(object, component = c("main", "LV"), ...) {
+  component <- match.arg(component)
+  if (component == "main") {
+    fcall <- getCall(object)
+    X <- object$X
+    if (is.null(fcall$formula)) {
+      stop("Model without formula not yet implemented.
+           Please refit your model using the formula argument.")
+    }
+  } else {
+    fcall <- getCall(object)
+    X <- object$lv.X
+    object$X <- X
+    if (is.null(fcall$lv.formula)) {
+      stop("Model without lv.formula not yet implemented.
+           Please refit your model using the formula argument.")
+    }
+    fcall$formula <- fcall$lv.formula
+  }
+
+  fcall$formula <- as.formula(
+    paste0(
+      "~0+species+",
+      paste0("species:",
+        labels(terms(as.formula(fcall$formula))),
+        collapse = "+"
+      )
+    )
+  )
+  X <- cbind(
+    do.call(
+      "rbind",
+      replicate(
+        ncol(object$y),
+        data.frame(X, check.rows = FALSE),
+        simplify = FALSE
+      )
+    ),
+    species = as.factor(
+      rep(
+        colnames(object$y),
+        each = nrow(object$X)
+      )
+    )
+  )
+  frm <- model.frame(fcall$formula, X)
+
+  emmeans:::recover_data.call(
+    getCall(object),
+    trms = terms(fcall$formula),
+    na.action = NULL,
+    data = X,
+    params = "pi",
+    frame = frm,
+    pwts = NULL,
+    addl.vars = NULL
+  )
+}
+
+
+emm_basis.gllvm <- function(
+    object, trms, xlev, grid, component = c("main", "LV"), ...) {
+  component <- match.arg(component)
+  xlev$species <- colnames(object$y)
+  # make sure species ordering is correctly retained
+
+  if (component == "main") {
+    m <- model.frame(trms, grid, na.action = na.pass, xlev = xlev)
+    X <- model.matrix(trms, m)
+
+    bhat <- cbind(object$param$beta0, object$params$Xcoef)
+    V <- vcov(object) # per species organized
+    V <- V[row.names(V) == "b", colnames(V) == "b"]
+    # reorder V to per covariate
+    V <- V[
+      order(
+        rep(1:ncol(bhat),
+          times = ncol(object$y)
+        )
+      ),
+      order(
+        rep(1:ncol(bhat),
+          times = ncol(object$y)
+        )
+      )
+    ]
+  } else if ((object$num.lv.c + object$num.RR) > 0 && component == "LV") {
+    m <- model.frame(trms, grid, na.action = na.pass, xlev = xlev)
+    X <- model.matrix(trms, m)
+
+    bhat <- cbind(
+      object$params$beta0,
+      object$params$theta[
+        ,
+        1:(object$num.lv.c + object$num.RR),
+        drop = FALSE
+      ] %*% t(
+        object$params$LvXcoef
+      )
+    )
+    V <- gllvm:::RRse(
+      object,
+      return.covb = TRUE
+    ) # per covariate organised
+    covMat <- object$Hess$cov.mat.mod
+    colnames(covMat) <- row.names(covMat) <-
+      names(object$TMBfn$par[object$Hess$incl])
+    Sb <- covMat[
+      colnames(covMat) == "b",
+      colnames(covMat) == "b"
+    ]
+    if (!object$beta0com) {
+      bidx <- rep(
+        c(
+          TRUE,
+          rep(
+            FALSE,
+            ncol(Sb) / ncol(object$y) - 1
+          )
+        ),
+        ncol(object$y)
+      )
+    } else {
+      bidx <- c(TRUE, rep(FALSE, ncol(Sb) - 1))
+    }
+    Sb <- Sb[bidx, bidx]
+
+    # Add covariances for intercept.
+    K <- ncol(object$lv.X.design)
+    d <- object$num.lv.c + object$num.RR
+    p <- ncol(object$y)
+
+    covMat <- covMat[
+      colnames(covMat) %in% c("b", "b_lv", "lambda"),
+      colnames(covMat) %in% c("b", "b_lv", "lambda")
+    ]
+    covMat <- covMat[
+      c(
+        bidx,
+        rep(
+          TRUE,
+          sum(
+            colnames(covMat) %in% c("b_lv", "lambda")
+          )
+        )
+      ),
+      c(
+        bidx,
+        rep(
+          TRUE,
+          sum(colnames(covMat) %in% c("b_lv", "lambda"))
+        )
+      )
+    ]
+    # add first row and column of zeros before b_lv, for first species
+    covMat <- rbind(
+      covMat[1:(p + d * K), , drop = FALSE],
+      0,
+      covMat[-c(1:(p + d * K)), , drop = FALSE]
+    )
+    covMat <- cbind(
+      covMat[, 1:(p + d * K), drop = FALSE],
+      0,
+      covMat[, -c(1:(p + d * K)), drop = FALSE]
+    )
+
+    if (d > 1) {
+      idx <- which(
+        c(upper.tri(object$params$theta[, 1:d], diag = T))
+      )[-1]
+
+      # add zeros where necessary
+      for (q in 1:length(idx)) {
+        covMat <- rbind(
+          covMat[1:(p + d * K + idx[q] - 1), ],
+          0,
+          covMat[(p + d * K + idx[q]):ncol(covMat), ]
+        )
+        covMat <- cbind(
+          covMat[, 1:(p + d * K + idx[q] - 1)],
+          0,
+          covMat[, (p + d * K + idx[q]):ncol(covMat)]
+        )
+      }
+    }
+    row.names(covMat)[
+      row.names(covMat) == ""
+    ] <-
+      colnames(covMat)[colnames(covMat) == ""] <- "lambda"
+
+    covLb <- covMat[colnames(covMat) == "lambda", colnames(covMat) == "b",
+      drop = FALSE
+    ]
+    if (object$beta0com) {
+      covLb <- do.call(
+        cbind,
+        replicate(
+          ncol(object$y),
+          covLB,
+          simplify = FALSE
+        )
+      )
+    }
+    covLB <- covMat[
+      colnames(covMat) == "lambda",
+      colnames(covMat) == "b_lv",
+      drop = FALSE
+    ]
+    covb_lvb <- covMat[
+      colnames(covMat) == "b_lv",
+      colnames(covMat) == "b",
+      drop = FALSE
+    ]
+    if (object$beta0com) {
+      covb_lvb <- do.call(
+        cbind,
+        replicate(
+          ncol(object$y),
+          covb_lvb,
+          simplify = FALSE
+        )
+      )
+    }
+    covBb <- matrix(0, K * p, ncol(object$y))
+
+    for (k in 1:K) {
+      for (j in 1:p) {
+        for (j2 in 1:p) {
+          for (q in 1:d) {
+            covBb[j + p * (k - 1), j2] <-
+              covBb[j + p * (k - 1), j2] +
+              object$params$LvXcoef[k, d] *
+                covLb[j + p * (q - 1), j2] +
+              object$params$theta[j, q] *
+                covb_lvb[(q - 1) * K + k, j2]
+          }
+        }
+      }
+    }
+    V <- rbind(cbind(Sb, t(covBb)), cbind(covBb, V))
+  } else {
+    stop("Invalid model.")
+  }
+
+  nbasis <- matrix(NA)
+  dfargs <- list(df = Inf)
+  dffun <- function(k, dfargs) Inf
+
+  list(
+    X = X,
+    bhat = c(bhat),
+    nbasis = nbasis,
+    V = V,
+    dffun = dffun,
+    dfargs = dfargs
+  )
+}
+
+emmeans::.emm_register("gllvm", "gllvm")
+# nolint end
+```
+
+
+```{r input-parameters}
+threshold_present <- 1
+min_prevalence <- 30
+
+# for gllvm
+ninits <- 5
+seeds <- c(21315, 54545, 9451, 5852261, 12723)
+```
+
+# Introduction
+
+In this document we look at two ways to model eDNA data:
+
+-   one model where the read counts are simplified to presence-absence data
+-   another model where the read counts are modelled directly
+
+Read counts are proportional data and they will not reflect actual abundances.
+Here is an example taken from https://github.com/JenniNiku/gllvm/discussions/120#discussioncomment-6072607 that will illustrate the nature of the data:
+
+-   Sample 1: 3 species
+    -   absolute abundance: A = 10, B = 30, C = 60
+    -   sequence proportions: A = 0.1, B = 0.3, C = 0.6
+    -   relative proportions: A/B = 1/3, A/C = 1/6, B/C = 1/2
+-   Sample 2: 2 species
+    -   absolute abundance: A = 10, B = 30
+    -   sequence proportions: A = 0.25, B = 0.75
+    -   relative proportions: A/B = 1/3
+
+> The total number of sequences per sample (the library size or sequencing depth) has no ecological meaning (it is determine by how much DNA you put on the sequencer), but it constrains the sequence counts per OTU, i.e. all OTU counts always have to add up to the library size (100%). In the example this leads to an 'increase' in the proportions of the 2 species in sample 2 because they have to fill up this sequence space. However, this apparent increase is caused by the compositional character of the data and not a change in actual abundances. Therefore, the counts in an OTU table cannot be used as they are for statistical models and even taking the percentages is insufficient.
+
+
+It is not known whether the read counts can be considered a good proxy to the actual (unobserved) abundances (or biomass) of the taxa and this relationship will differ depending on, among others, the taxonomic group (e.g. single-cell vs multicellular organisms), sample type (e.g. soil vs water) and taxa themselves.
+Some studies have argued therefore that it is advisable to analyse the data as presence-absence data, while others have shown that the read counts do represent a good proxy for abundance or biomass.
+
+The special nature of these data need to be accounted for in a statistical model.
+But even if we can account for it, there are still important open questions regarding the interpretation of the patterns and subsetting (modelling a subset of taxa).
+
+Subsetting requires some more explanation.
+Suppose we are only interested in a specific taxonomic group that is a subset of all taxa that can be detected by the primer.
+Does it matter than, if we model the subset of taxa and infer effects directly on this subset, versus model all taxa and restrict inference only to the subset? A third possibility is model the subset of taxa and a remaining pseudotaxon that aggregates all read counts from taxa not belonging to the subset.
+
+It is clear that in the first case, the sum of read counts, which determines the proportions in a sample (the denominator), will be different from the second and third case. They probably answer different ecological questions, for instance if the abundances/biomass of one taxonomic group are not independent from the abundances/biomass of another taxonomic group (e.g. mechanisms such as predation, competition, density-dependence, ...).
+
+For compositional data, the principle of subcompositional coherence (ref Aitchison) states that - if we have compositional data, say with components A, B, C and D, the statistical relationship we observe between component A and B should be _similar_ whether we analyse just A and B, or analyse A, B, and C.
+This can be seen in the example above, where sample 2 is a subset of sample 1. It can be seen that whether we use sample 1 or sample 2 does not matter for the relative proportions between A and B.
+Subcompositional coherence is different from subcompositional independence, which is a stronger assumption stating that relationships between, e.g., components A and B 
+are completely independent from C and D.
+
+In the first section we compare an analyses using only presence absence data with an analysis based on the count data.
+
+In the second section, we look at the aspect of subcompositional coherence by means of a simulated dataset.
+
+
+# Presence absence or counts?
+
+## Read data
+
+
+The following files are used as input for the analyses:
+
+-   `"MBAG_stratfile_v2_cleaned_17.csv"`
+-   `"physeq_Olig01_Annelida_species.Rdata"`
+
+```{r inlezen}
+metadata <- readr::read_csv(
+  file.path(
+    mbag_bodem_folder,
+    "data",
+    "Stratificatie_MBAG_plots",
+    "MBAG_stratfile_v2_cleaned_17.csv"
+  )
+) %>%
+  janitor::clean_names() %>%
+  rename(
+    ph_kcl = p_h_k_cl,
+    swc_grav = sw_cgrav,
+    swc_vol = sw_cvol,
+    cn_stockbased = c_n_stockbased,
+    c_density = cdensity,
+    n_density = ndensity
+  ) %>%
+  mutate(
+    landgebruik = factor(
+      landgebruik_mbag,
+      levels = c(
+        "Akker", "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras"
+      )
+    ),
+    diepte = gsub("_|/", "-", diepte) |> factor()
+  )
+load(
+  file.path(
+    mbag_bodem_folder,
+    "data", "statistiek", "Annelida", "phyloseq",
+    "physeq_Olig01_Annelida_species.Rdata"
+  )
+)
+physeq_olig01_annelida_species <- physeq_Olig01_Annelida_species |> # nolint
+  phyloseq::subset_samples(
+    !Landgebruik_MBAG %in% c("Moeras", "Heide")
+  )
+```
+
+Land use types `Moeras` and `Heide` are removed from the dataset.
+
+```{r}
+sample_data(physeq_olig01_annelida_species)$Landgebruik_MBAG <- factor(
+  sample_data(physeq_olig01_annelida_species)$Landgebruik_MBAG,
+  levels = c(
+    "Akker", "Tijdelijk grasland", "Blijvend grasland",
+    "Residentieel grasland", "Natuurgrasland"
+  )
+)
+```
+
+We aggregate the taxonomic resolution to the genus level.
+
+```{r}
+# aggregating to genus
+physeq_olig01_annelida_genus <- physeq_olig01_annelida_species |>
+  phyloseq::tax_glom(taxrank = "genus")
+```
+
+We use a threshold for read counts equal to `r threshold_present` to consider a taxon as present.
+Thus, taxa with fewer than `r threshold_present` read counts are coded as absent from a sample.
+
+```{r}
+tt_ann <- from_phyloseq(physeq_olig01_annelida_genus)
+
+
+design <- metadata %>%
+  filter(!landgebruik %in% c("Moeras", "Heide")) %>%
+  distinct(sample, diepte, landgebruik) %>%
+  droplevels()
+
+ann <- everything(tt_ann) %>%
+  janitor::clean_names() %>%
+  dplyr::select(count, sample, cmon_plot_id, genus) %>%
+  mutate(pa = ifelse(count >= threshold_present, 1, 0)) %>%
+  inner_join(design, by = join_by(sample)) %>%
+  complete(
+    nesting(sample, cmon_plot_id, diepte, landgebruik),
+    genus,
+    fill = list(pa = 0, count = 0)
+  ) %>%
+  rename(id = sample)
+```
+
+We further restrict the data by including only taxa which have a prevalence equal or higher than `r min_prevalence`.
+
+```{r}
+ann <- ann %>%
+  filter(
+    sum(pa) >= min_prevalence,
+    .by = c(genus)
+  )
+```
+
+
+## Presence-absence analysis with `GLLVM`
+
+`GLLVM` = Generalized linear latent variable models.
+
+> The latent variables $u_i$ can be thought of as unmeasured environmental variables, or as ordination scores, capturing the main axes of covariation of abundance (after controlling for observed predictors $x_i$). We assume that these latent variables are independent across sites and standard normally distributed. 
+
+>  $\alpha_i$ are optional site effects which can be chosen as either fixed or random effects ($\alpha_i \approx \mathcal{N}(\mu,\,\sigma^{2})$). The row effects $\alpha_i$ can be included for site total abundance standardization, that is, all other terms in the model can then be subsequently interpreted as modelling relative abundance or compositional effects
+
+For this model, we transformed the count data to presence absence data.
+The reason why we do this, is that we are currently unsure how the count data from eDNA surveys should be handled (but see next section about `sccomp` and the comparison).
+
+`GLLVM` deals with correlation between taxa by inclusion of latent variables.
+Latent variables are similar in spirit to classical ordination axes (such as principal components in a PCA).
+It is therefore also called a model-based ordination approach.
+
+`GLLVM` requires you to specify the number of latent variables and we fix this in this exercise to two latent variables.
+
+In a first attempt, and to get familiar with `GLLVM`, we will fit a model with two latent variables but no covariates.
+This can be considered an "unconstrained" ordination.
+
+As `GLLVM` is just an extension of `GLM` (generalized linear models), we also need to tell the model which distribution for the response variables should be used.
+In our case, we choose a binomial distribution with a probit link.
+The probit link is different from the normally chosen logit link for binomial models and this has to do with the fitting algorithm (default method uses a variational approximation method) which cannot deal with logit link.
+
+
+```{r}
+ann_wide <- ann %>%
+  select(-count) %>%
+  pivot_wider(names_from = genus, values_from = pa)
+
+y <- ann_wide %>%
+  dplyr::select(where(is.numeric)) %>%
+  as.matrix()
+
+x_env <- ann_wide %>%
+  dplyr::select(where(\(x) is.factor(x) | is.character(x)))
+design <- x_env %>%
+  dplyr::select(id, cmon_plot_id)
+```
+
+```{r}
+# unconstrained ordination without row effect
+# not yet included cmon_plot_id as random effect
+unc_ord <- gllvm(
+  y = y,
+  family = binomial(link = "probit"),
+  num.lv = 2,
+  sd.errors = TRUE,
+  seed = seeds,
+  control.start = list(n.inits = ninits)
+)
+```
+
+The taxon correlations can be visualised using a classical biplot or more directly using a correlation matrix plot.
+The sort order of taxa in the correlation plot is determined by a hierarchical clustering of the taxa.
+
+```{r}
+covars <- c("landgebruik", "diepte")
+plotlis <- vector("list", length(covars))
+.pardefault <- par()
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 2))
+for (i in seq_along(covars)) {
+  ordiplot(
+    unc_ord,
+    symbols = TRUE,
+    s.colors = ann_wide[[covars[i]]],
+    ind.spp = NULL,
+    biplot = TRUE,
+    main = covars[i]
+  )
+}
+```
+
+
+```{r warning=FALSE}
+par(.pardefault)
+cormat_unc_ord <- getResidualCor(unc_ord)
+corrplot(
+  cormat_unc_ord,
+  diag = FALSE,
+  type = "lower", method = "square", tl.srt = 25, order = "hclust"
+)
+```
+
+Next, we add covariates `landgebruik`, `diepte` and their interaction to the model and again show the resulting biplot and correlation plot.
+
+```{r}
+# constrained ordination without row effect
+constr_ord <- gllvm(
+  y = y,
+  X = x_env,
+  formula = ~ landgebruik + diepte + landgebruik:diepte,
+  family = binomial(link = "probit"),
+  num.lv = 2,
+  sd.errors = TRUE,
+  seed = seeds,
+  control.start = list(n.init = ninits)
+)
+```
+
+```{r warning=FALSE}
+plotlis <- vector("list", length(covars))
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 2))
+for (i in seq_along(covars)) {
+  ordiplot(
+    constr_ord,
+    symbols = TRUE,
+    s.colors = ann_wide[[covars[i]]],
+    ind.spp = NULL,
+    biplot = TRUE,
+    main = covars[i]
+  )
+}
+par(.pardefault)
+```
+
+
+```{r}
+cormat_constr_ord <- getResidualCor(constr_ord)
+corrplot(
+  cormat_constr_ord,
+  diag = FALSE,
+  type = "lower", method = "square", tl.srt = 25, order = "hclust"
+)
+```
+
+
+Finally, we can calculate difference contrast for land use types where we choose `Akker` as the reference level against which is compared.
+
+```{r gllvm-contrasts}
+constr_ord_emm <- emmeans(
+  constr_ord, ~landgebruik,
+  by = c("species", "diepte")
+)
+
+# contrasts in link = probit scale
+constr_ord_contrasts <-
+  contrast(
+    constr_ord_emm,
+    method = "trt.vs.ctrl",
+    type = "response"
+  ) |>
+  confint()
+
+# probit differences backtransform to percentage point changes
+ppc <- function(d, r) pnorm(d + r) - pnorm(r)
+
+reference_akker <- constr_ord_emm %>%
+  as_tibble() %>%
+  filter(landgebruik == "Akker") %>%
+  select(-landgebruik) %>%
+  rename_with(.cols = where(is.double), \(x) paste0("akker_", x))
+
+plots <- constr_ord_contrasts %>%
+  as_tibble() %>%
+  inner_join(reference_akker) %>%
+  group_by(contrast) |>
+  filter(SE < 5) %>%
+  filter(sign(asymp.LCL) == sign(asymp.UCL)) %>%
+  mutate(
+    estimate = ppc(estimate, akker_emmean),
+    asymp.LCL = ppc(asymp.LCL, akker_asymp.LCL),
+    asymp.UCL = ppc(asymp.UCL, akker_asymp.UCL)
+  ) %>%
+  nest() |>
+  mutate(
+    plot = purrr::map2(
+      data, contrast,
+      function(x, y) {
+        x$species <- reorder(x$species, x$estimate)
+        ggplot(x) +
+          geom_pointrange(
+            aes(
+              x = species,
+              y = estimate,
+              ymin = asymp.LCL,
+              ymax = asymp.UCL,
+              colour = diepte
+            ),
+            position = position_dodge(width = 0.5)
+          ) +
+          geom_hline(yintercept = 0) +
+          scale_y_continuous(labels = scales::percent) +
+          labs(
+            y = "Verschil in kans op voorkomen",
+            title = y
+          ) +
+          coord_flip()
+      }
+    )
+  )
+
+patchwork::wrap_plots(
+  plots$plot,
+  guides = "collect",
+  axis_titles = "collect"
+) &
+  patchwork::plot_annotation(title = "Verschillen met akkers")
+```
+
+## Count data - compositional analysis with `SCCOMP`
+
+This time we analyse the same taxa but using the counts as input instead of presence absence data.
+We use `sccomp` package, but it can also be done with `gllvm` (see section about subcompositional coherence).
+
+```{r sccomp-model}
+sccomp_dir <- here::here(
+  "data", "compositional_analysis", "sccomp_draws_files"
+)
+fs::dir_create(sccomp_dir)
+gi_file <- file.path(sccomp_dir, ".gitignore")
+fs::file_create(
+  gi_file
+)
+writeLines(
+  text = c("*", "!.gitignore"),
+  con = gi_file
+)
+
+# filter same taxa as used for gllvm
+ann_sccomp <- ann %>%
+  filter(genus %in% colnames(y)) %>%
+  mutate(count = as.integer(count))
+
+m1 <- sccomp_estimate(
+  .data = ann_sccomp,
+  formula_composition =
+    ~ landgebruik + diepte + landgebruik:diepte + (1 | cmon_plot_id),
+  formula_variability = ~1,
+  .sample = id,
+  .cell_group = genus,
+  .abundance = count,
+  cores = 4,
+  output_directory = sccomp_dir, # might want to change this
+  bimodal_mean_variability_association = FALSE,
+  percent_false_positive = 5,
+  inference_method = "pathfinder", # 'hmc'
+  # ... passed to cmdstanr method $sampling (igv hmc)
+  verbose = FALSE
+)
+```
+
+
+Check Rhat!
+
+- Rhat < 1.01 is OK
+- Rhat between 1.01 and 1.1 is worrying
+- Rhat > 1.1 bad
+
+
+```{r}
+hist(m1$c_rhat)
+```
+
+Check ESS (effective sample size)!
+
+- ESS > 100 is OK
+- ESS between 20 and 100 might be enough
+- ESS < 20 problematic
+
+```{r}
+hist(m1$c_ess_bulk)
+hist(m1$c_ess_tail)
+```
+
+If problems (not pursued further):
+
+- try `hmc` algorithm
+- increase number of iterations
+
+Finally, we calculate which taxa differ significantly from `akker` by specifying contrasts.
+The contrasts p-values are adjusted for false discoveries using a false discovery rate procedure.
+
+```{r}
+threshold <- 0.1
+m1_contrast <- sccomp_test(
+  m1,
+  contrasts = c(
+    a_ng_010 = "landgebruikNatuurgrasland",
+    a_ng_1030 = "-`diepte10-30` + landgebruikNatuurgrasland + `landgebruikNatuurgrasland:diepte10-30`", # nolint
+    a_tg_010 = "`landgebruikTijdelijk grasland`",
+    a_tg_1030 = "-`diepte10-30` + `landgebruikTijdelijk grasland` + `landgebruikTijdelijk grasland:diepte10-30`", # nolint
+    a_bg_010 = "`landgebruikBlijvend grasland`",
+    a_bg_1030 = "-`diepte10-30` + `landgebruikBlijvend grasland` + `landgebruikBlijvend grasland:diepte10-30`", # nolint
+    a_rg_010 = "`landgebruikResidentieel grasland`",
+    a_rg_1030 = "-`diepte10-30` + `landgebruikResidentieel grasland` + `landgebruikResidentieel grasland:diepte10-30`" # nolint
+  ),
+  test_composition_above_logit_fold_change = threshold
+)
+```
+
+These contrasts are in logit (=log-odds) scale and represent log-odds ratios:
+
+$$\begin{align*}
+\log\left(\frac{P_{R_{0-10}}}{1-P_{R_{0-10}}}\right) = \text{log-odds } R_{0-10}
+\tag*{Intercept parameter: Akker (R for reference) and 0-10 cm}\\
+
+\text{log odds } T_{0-10} - \text{log odds } R_{0-10} & =
+\log\left(\frac{\text{odds } T_{0-10}}{\text{odds } R_{0-10}}\right)
+\tag*{Land-use T parameter = difference contrast}
+\end{align*}$$
+
+We can transform the difference contrasts from the log-odds differences to odds-ratios for visualisation and easier interpretation.
+
+A value of 2 means that the odds one of the grassland types for the taxon is double the odds in agricultural fields.
+Conversely, an odds-ratio equal to 0.5 means that the odds for the taxon is half of the odds in agricultural fields.
+Only taxa that are significant after `FDR` correction are shown.
+
+(ref:sccomp-contrasts) Difference contrasts.
+
+```{r sccomp-contrasts, fig.cap="(ref:sccomp-contrasts)"}
+m1_plots <- m1_contrast |>
+  filter(
+    c_FDR <= 0.05
+  ) |>
+  mutate(
+    Diepte = ifelse(grepl("010", parameter), "0-10", "10-30"),
+    Landgebruik = gsub("^a_(.*)_\\d+", "\\1", parameter),
+    Landgebruik = factor(
+      Landgebruik,
+      levels = c("tg", "bg", "rg", "ng"),
+      labels = c(
+        "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    )
+  ) |>
+  group_by(Landgebruik) |>
+  nest() |>
+  mutate(
+    plot = purrr::map2(
+      data, Landgebruik,
+      function(x, y) {
+        x$genus <- reorder(x$genus, x$c_effect)
+        ggplot(x) +
+          geom_pointrange(
+            aes(
+              x = genus, y = c_effect, ymin = c_lower, ymax = c_upper,
+              colour = Diepte
+            ),
+            position = position_dodge(width = 0.5)
+          ) +
+          geom_hline(yintercept = 0) +
+          geom_hline(yintercept = threshold, alpha = 0.2) +
+          geom_hline(yintercept = -threshold, alpha = 0.2) +
+          scale_y_continuous(
+            breaks = log(
+              c(1 / 50, 1 / 20, 1 / 10, 1 / 5, 1 / 2, 1, 2, 5, 10, 20, 50)
+            ),
+            labels = \(x) format(exp(x), drop0trailing = TRUE)
+          ) +
+          coord_flip() +
+          labs(
+            title = y, y = "Odds-ratio"
+          )
+      }
+    )
+  )
+
+patchwork::wrap_plots(
+  m1_plots$plot,
+  guides = "collect",
+  axis_titles = "collect"
+) &
+  patchwork::plot_annotation(title = "Verschillen met akkers")
+```
+
+
+## Comparison
+
+Figure \@ref(fig:comp) compares the sign of the difference contrasts estimated via `gllvm` and `sccomp` for the subset of taxa that showed a significant effect according to the method.
+
+For `sccomp`, significance is judged based on false-discovery rate adjusted p-values.
+For `gllvm`, we used the 95% confidence intervals obtained via the `emmeans` package to declare a contrast significant if the interval did not contain zero. These confidence intervals were only adjusted for multiple testing within a taxon (`dunnettx` method for 4 estimates), no `FDR` adjustments were made across taxa.
+
+We observe that the signs of the significant contrasts are the same for both methods (see Figure \@ref(fig:comp)).
+We can also see that the analysis that uses the counts detects more significant effects compared to the analysis that uses presence-absence data.
+This is expected because transforming counts to presence-absence data represents a loss of information and statistical power to detect effects.
+
+(ref:comp) Comparison of sign of significant effects for the difference contrasts obtained by a presence-absence analysis and a count data analysis
+
+
+```{r comp, fig.height = 8, fig.cap="(ref:comp)"}
+sccomp_effects <- m1_contrast |>
+  filter(
+    c_FDR <= 0.05
+  ) |>
+  mutate(
+    diepte = ifelse(grepl("010", parameter), "0-10", "10-30"),
+    landgebruik = gsub("^a_(.*)_\\d+", "\\1", parameter),
+    landgebruik = factor(
+      landgebruik,
+      levels = c("tg", "bg", "rg", "ng"),
+      labels = c(
+        "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    ),
+    contrast = paste0(landgebruik, " - Akker"),
+    effect_sign = sign(c_effect)
+  ) %>%
+  select(genus, diepte, contrast, effect_sign, effect = c_effect) %>%
+  mutate(method = "sccomp")
+
+gllvm_effects <- constr_ord_contrasts %>%
+  as_tibble() %>%
+  inner_join(reference_akker) %>%
+  group_by(contrast) |>
+  filter(SE < 5) %>%
+  filter(sign(asymp.LCL) == sign(asymp.UCL)) %>%
+  mutate(
+    effect_sign = sign(estimate)
+  ) %>%
+  ungroup() %>%
+  select(genus = species, diepte, contrast, effect_sign, effect = estimate) %>%
+  mutate(method = "gllvm")
+
+combined <- bind_rows(gllvm_effects, sccomp_effects)
+
+combined %>%
+  mutate(effect_sign = factor(
+    effect_sign,
+    levels = c(-1, 1),
+    labels = c("negative", "positive")
+  )) %>%
+  ggplot() +
+  geom_point(aes(x = method, y = genus, colour = effect_sign)) +
+  facet_grid(contrast ~ diepte, scales = "free_y")
+```
+
+(ref:table1) Overview of significant taxa and their sign for each of the contrasts
+
+```{r table1, tab.cap="(ref:table1)"}
+combined %>%
+  mutate(effect_sign = factor(
+    effect_sign,
+    levels = c(-1, 1),
+    labels = c("negative", "positive")
+  )) %>%
+  summarise(
+    genus = paste(genus, collapse = "\n"),
+    .by = c(diepte, contrast, effect_sign, method)
+  ) %>%
+  pivot_wider(names_from = c(method, effect_sign), values_from = genus) %>%
+  kable()
+```
+
+
+
+In Figure \@ref(fig:comp-not-filtered) we take a closer look at the estimated difference contrasts for land use regardless of significance.
+We removed taxa for the `gllvm` method that were estimated with very low precision (link scale SE > 5).
+
+We can see a very strong correlation between the estimates from `gllvm` and `sccomp` and strong concordance between the signs of the estimates.
+Cases where there is disagreement in sign, tend to have a small absolute value as expected.
+
+(ref:comp-not-filtered) Comparison of effect sizes of the difference contrasts for analysis based on presence absence data (modelled via `gllvm`) or count data (modelled via `sccomp`)
+
+```{r comp-not-filtered, fig.cap="(ref:comp-not-filtered)"}
+sccomp_effects_not_filtered <- m1_contrast |>
+  mutate(
+    diepte = ifelse(grepl("010", parameter), "0-10", "10-30"),
+    landgebruik = gsub("^a_(.*)_\\d+", "\\1", parameter),
+    landgebruik = factor(
+      landgebruik,
+      levels = c("tg", "bg", "rg", "ng"),
+      labels = c(
+        "Tijdelijk grasland", "Blijvend grasland",
+        "Residentieel grasland", "Natuurgrasland"
+      )
+    ),
+    contrast = paste0(landgebruik, " - Akker")
+  ) %>%
+  select(genus, diepte, contrast, effect = c_effect) %>%
+  mutate(method = "sccomp")
+
+gllvm_effects_not_filtered <- constr_ord_contrasts %>%
+  as_tibble() %>%
+  group_by(contrast) |>
+  filter(SE < 5) |>
+  ungroup() %>%
+  select(genus = species, diepte, contrast, effect = estimate) %>%
+  mutate(method = "gllvm")
+
+combined_not_filtered <- bind_rows(
+  gllvm_effects_not_filtered,
+  sccomp_effects_not_filtered
+)
+
+combined_not_filtered %>%
+  pivot_wider(names_from = method, values_from = effect) %>%
+  ggplot(aes(x = gllvm, y = sccomp)) +
+  geom_point(aes(colour = contrast, shape = diepte)) +
+  geom_smooth(alpha = 0.2) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  labs(title = "Difference contrast estimates (reference = Akker)")
+```
+
+
+# Subcompositional coherence
+
+In this section, we explore three different methods that claim to be suitable for compositional data analysis.
+
+
+We first simulate count data from a negative binomial distribution where the mean depends on a condition (treatment versus control).
+The fold changes are specified for each taxon and applied to the treatment samples.
+They are generated from a log-normal distribution, so some taxa will increase in abundance in the treatment condition while others will decrease.
+
+
+```{r fun-generate-counts}
+# Function to generate synthetic count data with condition-dependent means
+generate_counts_condition <- function(
+    n_samples = 100,
+    n_taxa = 5,
+    base_means = NULL,
+    fold_changes = NULL,
+    dispersion = 0.3,
+    condition = NULL) {
+  # Generate base means if not provided
+  if (is.null(base_means)) {
+    base_means <- rexp(n_taxa, rate = 1 / 100)
+  }
+
+  # Generate fold changes if not provided
+  if (is.null(fold_changes)) {
+    # Random fold changes - some up, some down
+    fold_changes <- exp(rnorm(n_taxa, mean = 0, sd = 0.5))
+  }
+
+  # Generate condition if not provided
+  if (is.null(condition)) {
+    condition <- rep(c("control", "treatment"), each = n_samples / 2)
+  }
+
+  # Create matrix to store counts
+  counts <- matrix(0, nrow = n_samples, ncol = n_taxa)
+
+  # Generate counts for each sample based on condition
+  for (i in 1:n_samples) {
+    # Apply fold change to means for treatment samples
+    if (condition[i] == "treatment") {
+      sample_means <- base_means * fold_changes
+    } else {
+      sample_means <- base_means
+    }
+
+    # Generate counts from negative binomial
+    counts[i, ] <- rnbinom(n_taxa, mu = sample_means, size = 1 / dispersion)
+  }
+
+  # Add column names
+  colnames(counts) <- paste0("taxon_", 1:n_taxa)
+
+  # Return both counts and condition
+  list(
+    counts = counts,
+    condition = condition,
+    base_means = base_means,
+    fold_changes = fold_changes
+  )
+}
+```
+
+```{r fun-run-sccomp}
+# Function to run sccomp analysis
+run_sccomp_analysis <- function(counts, condition) {
+  counts_df <- as.data.frame(counts) %>%
+    mutate(
+      condition = condition,
+      sample = paste0("s", seq_len(n()))
+    ) %>%
+    pivot_longer(
+      -c(sample, condition),
+      names_to = "taxon", values_to = "count"
+    ) %>%
+    mutate(
+      sample = factor(sample),
+      condition = factor(condition),
+      taxon = factor(taxon), # nolint: object_usage_linter
+      count = as.integer(count)
+    )
+
+
+  # Run sccomp
+  results <- sccomp_estimate(
+    counts_df,
+    formula_composition = ~condition,
+    .cell_group = taxon, # nolint: object_usage_linter
+    .sample = sample,
+    .abundance = count,
+    verbose = FALSE
+  )
+
+  return(results)
+}
+```
+
+```{r fun-run-rademu}
+# Function to run radEmu analysis
+run_rademu_analysis <- function(counts, condition) {
+  counts_df <- as.data.frame(counts) %>%
+    mutate(
+      condition = condition,
+      sample = paste0("s", seq_len(n()))
+    )
+
+  y_df <- counts_df %>%
+    tibble::column_to_rownames(var = "sample") %>%
+    dplyr::select(-c(condition))
+  data_df <- counts_df %>%
+    dplyr::select(condition, sample) %>%
+    tibble::column_to_rownames(var = "sample")
+
+  # Run radEmu
+  results <- emuFit(
+    formula = ~condition,
+    data = data_df,
+    Y = y_df
+  )
+
+  return(results)
+}
+```
+
+```{r fun-run-gllvm}
+# Function to run gllvm analysis
+run_gllvm_analysis <- function(counts, condition) {
+  x <- data.frame(condition = condition)
+  design <- data.frame(
+    sample = paste0("s", seq_along(condition))
+  )
+
+  # Run gllvm
+  results <- gllvm(
+    y = counts,
+    X = x,
+    studyDesign = design,
+    formula = ~condition,
+    family = "negative.binomial",
+    row.eff = ~ (1 | sample),
+    num.lv = 2,
+    sd.errors = TRUE,
+    seed = seeds,
+    control.start = list(n.inits = ninits)
+  )
+
+  return(results)
+}
+```
+
+```{r generate-counts}
+# Example usage
+set.seed(123)
+n_samples <- 100
+n_taxa <- 20
+condition <- rep(c("control", "treatment"), each = n_samples / 2)
+
+# Generate data with condition-dependent means
+data <- generate_counts_condition(
+  n_samples = n_samples,
+  n_taxa = n_taxa,
+  condition = condition,
+  # Some taxa up, some down
+  fold_changes = exp(rnorm(n_taxa, mean = 0, sd = 0.3))
+)
+
+
+# look at the count data
+glimpse(as_tibble(data$counts))
+```
+
+Table \@ref(tab:taxon-sim-params)
+
+(ref:taxon-sim-params) Parameters used for the simulation of taxa from a negative binomial distribution where the mean depends on samples belonging to either a control group or a treatment group.
+
+```{r taxon-sim-params}
+# Show the base means and fold changes
+data.frame(
+  taxon = paste0("taxon_", 1:n_taxa),
+  base_mean = data$base_means,
+  fold_change = data$fold_changes,
+  treatment_mean = data$base_means * data$fold_changes
+) %>%
+  kable(digits = 2, caption = "(ref:taxon-sim-params)")
+```
+
+
+With these simulated data, we run `sccomp`, `gllvm` and `radEmu` models on the full dataset and on a subset consisting of only the first 10 out of 20 taxa.
+We then extract the estimated effects for the treatment group (for the first 10 taxa) for each of these models and compare them.
+
+The models differ in the following ways:
+
+-   `sccomp`:
+    -   counts are modelled as sum-constrained beta-binomial distributions with logit link
+    -   correlation among taxa is induced by the sum-constrained; i.e. negative correlation results because increasing one necessarily decreases others
+    -   the sum-constrained satisfies compositional nature of the data
+    -   the estimand is logit-based fold differences
+-   `gllvm`:
+    -   counts are modelled as negative-binomial distributions with log link
+    -   correlation among species is modelled via two latent factors
+    -   compositional nature of the data is accounted for via a random effect for samples which induces a compound symmetric correlation structure in which the correlation between any two taxa from the same sample is the same
+    -   the estimand (target of inference) is log-based fold differences
+-   `radEmu`:
+    -   estimates a log-linear model under the constraint that median across taxa of $\beta_{kj} = 0$ where $j$ indexes taxa
+    -   this is done via a penalized variant of a log-link Poisson likelihood, which is the (marginal) equivalent of a multinomial logistic model
+    -   the estimand (target of inference) is log-based fold differences
+    -   correlation is induced by an identifiability constraint on the estimands
+
+
+```{r run-full-subset}
+counts <- data$counts
+subset_counts <- counts[, 1:10]
+
+# Run sccomp analysis on full and subset dataset
+full_sccomp <- run_sccomp_analysis(counts, condition)
+subset_sccomp <- run_sccomp_analysis(subset_counts, condition)
+
+# Run rademu analysis
+full_rademu <- run_rademu_analysis(counts, condition)
+subset_rademu <- run_rademu_analysis(subset_counts, condition)
+
+# Run gllvm analysis
+full_gllvm <- run_gllvm_analysis(counts, condition)
+subset_gllvm <- run_gllvm_analysis(subset_counts, condition)
+```
+
+
+```{r compare-full-subset}
+# Compare results
+comparison_sccomp <- full_sccomp %>%
+  filter(taxon %in% colnames(subset_counts)) %>%
+  dplyr::select(taxon, parameter, full_c_effect = c_effect) %>%
+  left_join(
+    subset_sccomp %>%
+      dplyr::select(taxon, parameter, subset_c_effect = c_effect),
+    by = join_by(taxon == taxon, parameter == parameter)
+  ) %>%
+  mutate(
+    diff_c_effect = full_c_effect - subset_c_effect
+  ) %>%
+  # focus only on the effect of treatment
+  # (difference between treatment and control)
+  # not the intercept
+  filter(parameter == "conditiontreatment")
+
+comparison_rademu <- full_rademu$coef %>%
+  filter(category %in% colnames(subset_counts)) %>%
+  dplyr::select(taxon = category, covariate, full_estimate = estimate) %>%
+  left_join(
+    subset_rademu$coef %>%
+      dplyr::select(taxon = category, covariate, subset_estimate = estimate),
+    by = join_by(taxon == taxon, covariate == covariate)
+  ) %>%
+  mutate(
+    diff_estimate = full_estimate - subset_estimate
+  )
+
+comparison_gllvm <- coef(full_gllvm)$Xcoef %>%
+  as_tibble(rownames = "taxon") %>%
+  filter(taxon %in% colnames(subset_counts)) %>%
+  mutate(covariate = "conditiontreatment") %>%
+  dplyr::select(taxon, covariate, full_estimate = conditiontreatment) %>%
+  left_join(
+    coef(subset_gllvm)$Xcoef %>%
+      as_tibble(rownames = "taxon") %>%
+      mutate(covariate = "conditiontreatment") %>%
+      dplyr::select(taxon, covariate, subset_estimate = conditiontreatment),
+    by = join_by(taxon == taxon, covariate == covariate)
+  ) %>%
+  mutate(
+    diff_estimate = full_estimate - subset_estimate
+  )
+```
+
+Figures \@ref(fig:coherence1) and \@ref(fig:coherence2) show that the estimates of the first ten taxa for the treatment effect are very similar under the full model and the subset model for all three methods.
+
+Moreover, all estimates (full vs subset times methods) are strongly correlated.
+Especially, `gllvm` and `radEmu` are very similar, possibly because they target a similar estimand. 
+
+(ref:coherence1) Comparison of estimates for the first ten taxa obtained with a model using all 20 taxa and a model containing only the subset of the first ten taxa.
+
+```{r coherence1, fig.cap = "(ref:coherence1)"}
+# compare all
+################
+comparison_sccomp %>%
+  rename(
+    covariate = parameter,
+    full_estimate = full_c_effect,
+    subset_estimate = subset_c_effect,
+    diff_estimate = diff_c_effect
+  ) %>%
+  mutate(method = "sccomp") %>%
+  bind_rows(comparison_rademu %>%
+    mutate(method = "rademu")) %>%
+  bind_rows(comparison_gllvm %>%
+    mutate(method = "gllvm")) %>%
+  ggplot(
+    aes(x = full_estimate, y = subset_estimate)
+  ) +
+  geom_point(aes(colour = method)) +
+  geom_smooth(method = "lm", aes(colour = method, fill = method)) +
+  geom_line(aes(group = taxon), alpha = 0.5)
+```
+
+
+(ref:coherence2) Pairplots showing relationship between methods and datasets (full or subset) for the estimates of the treatment effect for the first ten taxa.
+
+```{r coherence2, fig.cap = "(ref:coherence2)"}
+comparison_sccomp %>%
+  rename(
+    covariate = parameter,
+    full_estimate = full_c_effect,
+    subset_estimate = subset_c_effect,
+    diff_estimate = diff_c_effect
+  ) %>%
+  mutate(method = "sccomp") %>%
+  bind_rows(comparison_rademu %>%
+    mutate(method = "rademu")) %>%
+  bind_rows(comparison_gllvm %>%
+    mutate(method = "gllvm")) %>%
+  dplyr::select(-diff_estimate) %>%
+  pivot_wider(
+    names_from = method, values_from = c(full_estimate, subset_estimate)
+  ) %>%
+  ggplot() +
+  geom_autopoint() +
+  geom_autodensity() +
+  facet_matrix(vars(where(is.double)), layer.diag = 2)
+```
+
