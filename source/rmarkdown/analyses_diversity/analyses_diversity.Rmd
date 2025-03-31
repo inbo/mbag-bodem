@@ -60,7 +60,7 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_unique_v12.csv"
+    "mbag_combined_dataframe_INBO_ILVO_unique_v11.csv"
   )
 )
 
