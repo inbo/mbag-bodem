@@ -35,14 +35,14 @@ if (diepte_ok) {
     + diepte
     + landgebruik:diepte
     + (1 | cmon_plot_id)
-  ) 
+  )
 } else {
   form_simpson <- formula(
     simpson ~
       log(total_count)
     + landgebruik
     + (1 | cmon_plot_id)
-  ) 
+  )
 }
 
 cat("Fitting ordinal beta model")
