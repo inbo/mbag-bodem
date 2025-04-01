@@ -10,6 +10,14 @@ data_subset <- combined %>%
   )
 ```
 
+```{r}
+data_subset %>%
+  group_by(landgebruik, diepte) %>%
+  summarize(n_observed_not_missing = sum(!is.na(observed))) %>%
+  knitr::kable()
+```
+
+
 #### Basismodel
 
 ```{r m-richness-{{group}}-{{primerset}}-{{unit}}}
