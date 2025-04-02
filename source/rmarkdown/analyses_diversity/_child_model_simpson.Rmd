@@ -10,15 +10,40 @@ data_subset <- combined %>%
 ```
 
 
+```{r}
+data_subset %>%
+  group_by(landgebruik, diepte) %>%
+  summarize(n_simpson_not_missing = sum(!is.na(simpson))) %>%
+  knitr::kable()
+```
+
+
+```{r}
+# remove NAs
+data_subset <- data_subset %>%
+  filter(!is.na(simpson))
+
+diepte_ok <- length(unique(data_subset$diepte)) > 1
+```
+
 ```{r m-simpson-{{group}}-{{primerset}}-{{unit}}}
-form_simpson <- formula(
-  simpson ~
-    log(total_count)
+if (diepte_ok) {
+  form_simpson <- formula(
+    simpson ~
+      log(total_count)
     + landgebruik
     + diepte
     + landgebruik:diepte
     + (1 | cmon_plot_id)
-)
+  )
+} else {
+  form_simpson <- formula(
+    simpson ~
+      log(total_count)
+    + landgebruik
+    + (1 | cmon_plot_id)
+  )
+}
 
 cat("Fitting ordinal beta model")
 
@@ -58,7 +83,7 @@ marginaleffects::plot_predictions(
 ```{r m-simpson-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
 marginaleffects::plot_predictions(
   m_simpson,
-  condition = c("landgebruik", "diepte"),
+  condition = c("landgebruik", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
   type = "response"

@@ -37,6 +37,8 @@ inflation_dispersion <- function(model) {
   test2 <- performance::check_zeroinflation(model, tolerance = 0.1)
   zero_inflation <- test2$ratio < 1 - test2$tolerance
   zero_deflation <- test2$ratio > 1 + test2$tolerance
+  zero_inflation <- ifelse(rlang::is_empty(zero_inflation), NA, zero_inflation)
+  zero_deflation <- ifelse(rlang::is_empty(zero_deflation), NA, zero_deflation)
   test <- performance::check_overdispersion(model)
   is_overdispersed <- test$p_value < 0.05 & test$dispersion_ratio > 1
   is_underdispersed <- test$p_value < 0.05 & test$dispersion_ratio < 1
@@ -58,7 +60,7 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_unique_v10.csv"
+    "mbag_combined_dataframe_INBO_ILVO_unique_v11.csv"
   )
 )
 

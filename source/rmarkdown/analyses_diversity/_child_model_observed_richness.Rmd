@@ -10,17 +10,42 @@ data_subset <- combined %>%
   )
 ```
 
+```{r}
+data_subset %>%
+  group_by(landgebruik, diepte) %>%
+  summarize(n_observed_not_missing = sum(!is.na(observed))) %>%
+  knitr::kable()
+```
+
+```{r}
+# remove NAs
+data_subset <- data_subset %>%
+  filter(!is.na(observed))
+
+diepte_ok <- length(unique(data_subset$diepte)) > 1
+```
+
+
 #### Basismodel
 
 ```{r m-richness-{{group}}-{{primerset}}-{{unit}}}
-form_richness <- formula(
+if (diepte_ok) {
+  form_richness <- formula(
   observed ~
     log(total_count + 1)
     + landgebruik
     + diepte
     + landgebruik:diepte
     + (1 | cmon_plot_id)
-)
+  )
+} else {
+  form_richness <- formula(
+  observed ~
+    log(total_count + 1)
+    + landgebruik
+    + (1 | cmon_plot_id)
+  )
+}
 
 ziform <- formula(~ 1 + (1 | cmon_plot_id))
 
@@ -134,7 +159,7 @@ marginaleffects::plot_predictions(
 ```{r m-richness-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
-  condition = c("landgebruik", "diepte"),
+  condition = c("landgebruik", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
   type = "response"
@@ -151,7 +176,7 @@ Stapsgewijze modelselectie:
 variables_no_collinearity <- c(
   "total_count",
   "landgebruik",
-  "diepte",
+  "diepte"[diepte_ok],
   "cmon_plot_id",
   "c_density",
   "cn_stockbased",
@@ -247,15 +272,26 @@ Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
 ```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
-model_set <- dredge(
-  m_richness_full,
-  m.lim = c(NA, 7),
-  fixed = ~
-    cond(log(total_count + 1))
+if (diepte_ok) {
+  model_set <- dredge(
+    m_richness_full,
+    m.lim = c(NA, 7),
+    fixed = ~
+      cond(log(total_count + 1))
     + cond(landgebruik)
-      + cond(diepte)
-      + (1 | cmon_plot_id)
-)
+    + cond(diepte)
+    + (1 | cmon_plot_id)
+  )
+} else {
+  model_set <- dredge(
+    m_richness_full,
+    m.lim = c(NA, 7),
+    fixed = ~
+      cond(log(total_count + 1))
+    + cond(landgebruik)
+    + (1 | cmon_plot_id)
+  )
+}
 ```
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
