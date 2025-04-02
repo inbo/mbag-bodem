@@ -26,47 +26,125 @@ library(purrr)
 library(glmmTMB)
 library(marginaleffects)
 library(performance)
+library(MuMIn)
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
 ```
 
+
+```{r helper-zi-disp}
+inflation_dispersion <- function(model) {
+  test2 <- performance::check_zeroinflation(model, tolerance = 0.1)
+  zero_inflation <- test2$ratio < 1 - test2$tolerance
+  zero_deflation <- test2$ratio > 1 + test2$tolerance
+  zero_inflation <- ifelse(rlang::is_empty(zero_inflation), NA, zero_inflation)
+  zero_deflation <- ifelse(rlang::is_empty(zero_deflation), NA, zero_deflation)
+  test <- performance::check_overdispersion(model)
+  is_overdispersed <- test$p_value < 0.05 & test$dispersion_ratio > 1
+  is_underdispersed <- test$p_value < 0.05 & test$dispersion_ratio < 1
+  out <- list(
+    zero_inflated = zero_inflation,
+    zero_deflated = zero_deflation,
+    overdispersed = is_overdispersed,
+    underdispersed = is_underdispersed
+  )
+  return(out)
+}
+```
+
 # Inlezen data
+
 
 ```{r inlezen}
 diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe.csv")
+    "mbag_combined_dataframe_INBO_ILVO_unique_v11.csv"
+  )
 )
 
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
-    "data", 
+    "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_12.csv")
+    "MBAG_stratfile_v2_cleaned_17.csv"
+  )
 ) %>%
   janitor::clean_names() %>%
+  rename(
+    ph_kcl = p_h_k_cl,
+    swc_grav = sw_cgrav,
+    swc_vol = sw_cvol,
+    cn_stockbased = c_n_stockbased,
+    c_density = cdensity,
+    n_density = ndensity
+  ) %>%
   mutate(
     landgebruik = factor(
       landgebruik_mbag,
       levels = c(
         "Akker", "Tijdelijk grasland", "Blijvend grasland",
-        "Residentieel grasland", "Natuurgrasland", "Heide")
+        "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras"
+      )
     ),
     diepte = gsub("_|/", "-", diepte) |> factor()
   )
-
-combined <- diversiteit %>%
-  inner_join(metadata, by = "sample")
 ```
+
+In `mbag_combined_dataframe_INBO_ILVO_unique_v10` zitten de nulwaarnemingen in!
+
+```{r echo=TRUE}
+sum(diversiteit$observed == 0)
+```
+
+We moeten dus geen nulwaarnemingen meer toevoegen
+
+```{r}
+groups <- diversiteit %>%
+  distinct(primerset, group, unit)
+
+samples <- metadata %>%
+  distinct(sample)
+
+samples_groups <- expand_grid(
+  samples, groups
+)
+
+combined <- samples_groups %>%
+  full_join(
+    diversiteit,
+    by = c("sample", "primerset", "group", "unit")
+  ) %>%
+  inner_join(metadata, by = join_by(sample))
+
+```
+
+
 
 ```{r}
 glimpse(combined)
 ```
 
 # Verkenning
+
+```{r}
+metadata %>%
+  count(landgebruik, diepte) %>%
+  kable()
+```
+
+We verwijderen de stalen genomen in heide en moeras en beschouwen verder enkel de landgebruiksgradiënt akker - natuurgrasland.
+
+```{r}
+combined <- combined %>%
+  filter(
+    !landgebruik %in% c("Heide", "Moeras")
+  ) %>%
+  droplevels()
+```
+
 
 Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
 
@@ -102,6 +180,40 @@ combined %>%
   )
 ```
 
+Aantal samples met nul OTUs:
+
+```{r}
+combined %>%
+  group_by(group, primerset, unit) %>%
+  mutate(
+    observed0 =
+      ifelse(observed == 0, "geen OTU", "minstens 1 OTU")
+  ) %>%
+  count(observed0) %>%
+  pivot_wider(names_from = observed0, values_from = n) %>%
+  kable()
+```
+
+Verkenning fysicochemische variabelen:
+
+```{r}
+metadata %>%
+  filter(!landgebruik %in% c("Heide", "Moeras")) %>%
+  select(
+    cmon_plot_id,
+    landgebruik, diepte,
+    swc_vol, c_density, cn_stockbased, swc_vol, ph_kcl, bd
+  ) %>%
+  pivot_longer(
+    cols = c(swc_vol, c_density, cn_stockbased, swc_vol, ph_kcl, bd)
+  ) %>%
+  ggplot(aes(x = landgebruik, y = value)) +
+  geom_violin() +
+  geom_sina(alpha = 0.3) +
+  facet_grid(name ~ diepte, scales = "free")
+```
+
+
 # Analyses
 
 ## Geobserveerde soortenrijkdom
@@ -121,12 +233,14 @@ inputs <- combined %>%
 pmap(
   inputs,
   function(
-    group = group,
-    primerset = primerset,
-    unit = unit) {
+      group = group,
+      primerset = primerset,
+      unit = unit) {
     knit_expand(
-      here("source", "rmarkdown", "analyses_diversity",
-           "_child_model_observed_richness.Rmd"),
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_observed_richness.Rmd"
+      ),
       group = group,
       primerset = primerset,
       unit = unit
@@ -135,10 +249,20 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-#clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
-knit_child(text = rmd, quiet = TRUE) %>%
-  cat()
+execute_code <- function(rmd) {
+  # Extract R code from the rmd content
+  r_code <- knitr::purl(text = rmd, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd = rmd)
+} else {
+  knit_child(text = rmd, quiet = TRUE) %>%
+    cat()
+}
 ```
 
 ## Shannon index
@@ -153,12 +277,14 @@ inputs <- combined %>%
 pmap(
   inputs,
   function(
-    group = group,
-    primerset = primerset,
-    unit = unit) {
+      group = group,
+      primerset = primerset,
+      unit = unit) {
     knit_expand(
-      here("source", "rmarkdown", "analyses_diversity",
-           "_child_model_shannon.Rmd"),
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_shannon.Rmd"
+      ),
       group = group,
       primerset = primerset,
       unit = unit
@@ -167,7 +293,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-#clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 knit_child(text = rmd, quiet = TRUE) %>%
   cat()
@@ -185,12 +311,14 @@ inputs <- combined %>%
 pmap(
   inputs,
   function(
-    group = group,
-    primerset = primerset,
-    unit = unit) {
+      group = group,
+      primerset = primerset,
+      unit = unit) {
     knit_expand(
-      here("source", "rmarkdown", "analyses_diversity",
-           "_child_model_simpson.Rmd"),
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_simpson.Rmd"
+      ),
       group = group,
       primerset = primerset,
       unit = unit
@@ -199,7 +327,7 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-#clipr::write_clip(rmd)
+# clipr::write_clip(rmd) # nolint
 
 knit_child(text = rmd, quiet = TRUE) %>%
   cat()

@@ -1,5 +1,5 @@
 #' Deze functie gaat na of een soort volgens GBIF voorkomt in een gekozen set
-#' van landen
+#' van landen # nolint start
 #'
 #' Default zijn West-Europese landen ingesteld: België, Frankrijk, Duitsland,
 #' Luxemburg, Nederland, Zwitserland, Oostenrijk
@@ -10,7 +10,7 @@
 #'
 #' @example
 #' result_WestEurope <- check_presence_from_file()
-#' print(result_WestEurope)
+#' print(result_WestEurope) # nolint end
 check_presence <- function(
     input = NULL,
     countries = c("BE", "FR", "DE", "LU", "NL", "CH", "AT")) {
@@ -35,20 +35,23 @@ check_presence <- function(
   for (country in countries) {
     # Function to check occurrence data and handle errors
     check_occurrence <- function(name) {
-      data <- tryCatch({
-        rgbif::occ_data(
-          scientificName = name,
-          country = country,  # Specify one country at a time
-          limit = 1
-        )
-      }, error = function(e) {
-        return(list(error = TRUE))
-      })
+      data <- tryCatch(
+        {
+          rgbif::occ_data(
+            scientificName = name,
+            country = country, # Specify one country at a time
+            limit = 1
+          )
+        },
+        error = function(e) {
+          return(list(error = TRUE))
+        }
+      )
 
       if (inherits(data, "error") || is.null(data$data)) {
-        return(FALSE)  # Occurrence data is not present or error occurred
+        return(FALSE) # Occurrence data is not present or error occurred
       } else {
-        return(TRUE)   # Occurrence data is present
+        return(TRUE) # Occurrence data is present
       }
     }
 

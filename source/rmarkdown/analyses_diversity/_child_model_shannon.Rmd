@@ -10,17 +10,43 @@ data_subset <- combined %>%
 ```
 
 
+```{r}
+data_subset %>%
+  group_by(landgebruik, diepte) %>%
+  summarize(n_shannon_not_missing = sum(!is.na(shannon))) %>%
+  knitr::kable()
+```
+
+
+```{r}
+# remove NAs
+data_subset <- data_subset %>%
+  filter(!is.na(shannon))
+
+diepte_ok <- length(unique(data_subset$diepte)) > 1
+```
+
+
 ```{r m-shannon-{{group}}-{{primerset}}-{{unit}}}
-form_shannon <- formula(
+if (diepte_ok) {
+  form_shannon <- formula(
   shannon ~
     log(total_count)
-  + landgebruik
-  + diepte
-  + landgebruik:diepte
+    + landgebruik
+    + diepte
+    + landgebruik:diepte
+    + (1 | cmon_plot_id)
+  )
+} else {
+  form_shannon <- formula(
+  shannon ~
+    log(total_count)
+    + landgebruik
   + (1 | cmon_plot_id)
   )
+}
 
-zeroes <- min(data_subset$shannon) == 0
+zeroes <- min(data_subset$shannon, na.rm = TRUE) == 0
 
 if (!zeroes) {
   cat("Fitting Gamma model")
@@ -28,15 +54,20 @@ if (!zeroes) {
   m_shannon <- glmmTMB(
     formula = form_shannon,
     data = data_subset,
-    family = Gamma(link = "log"))
+    family = Gamma(link = "log")
+  )
 } else {
-  cat("Zeroes detected (only one taxum observed): Fitting zero-inflated Gamma model")
+  cat(
+    "Zeroes detected (only one taxum observed):
+    Fitting zero-inflated Gamma model"
+  )
 
   m_shannon <- glmmTMB(
     formula = form_shannon,
-    ziformula = ~ 1,
+    ziformula = ~1,
     data = data_subset,
-    family = ziGamma(link = "log"))
+    family = ziGamma(link = "log")
+  )
 }
 ```
 
@@ -60,7 +91,8 @@ marginaleffects::plot_predictions(
   condition = c("total_count"),
   re.form = NA,
   vcov = TRUE,
-  type = "response") +
+  type = "response"
+) +
   labs(y = "Shannon index") +
   scale_x_log10()
 ```
@@ -68,10 +100,11 @@ marginaleffects::plot_predictions(
 ```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
-  condition = c("landgebruik", "diepte"),
+  condition = c("landgebruik", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
-  type = "response") +
+  type = "response"
+) +
   labs(y = "Shannon index")
 ```
 
