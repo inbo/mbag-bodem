@@ -182,7 +182,8 @@ variables_no_collinearity <- c(
   "cn_stockbased",
   "swc_vol",
   "ph_kcl",
-  "bd"
+  "bd",
+  "textuur_som_klei_zand"
 )
 
 nr1 <- nrow(data_subset)
@@ -222,6 +223,7 @@ form_richness_full <- update(
     + cn_stockbased
     + poly(ph_kcl, 2)
     + bd
+    + textuur_som_klei_zand
 )
 
 m_richness_full <- update(
