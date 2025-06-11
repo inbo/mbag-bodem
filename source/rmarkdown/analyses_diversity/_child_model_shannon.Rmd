@@ -31,7 +31,7 @@ diepte_ok <- length(unique(data_subset$diepte)) > 1
 if (diepte_ok) {
   form_shannon <- formula(
   shannon ~
-    log(total_count)
+    log(total_count + 1)
     + landgebruik
     + diepte
     + landgebruik:diepte
@@ -40,7 +40,7 @@ if (diepte_ok) {
 } else {
   form_shannon <- formula(
   shannon ~
-    log(total_count)
+    log(total_count + 1)
     + landgebruik
   + (1 | cmon_plot_id)
   )
