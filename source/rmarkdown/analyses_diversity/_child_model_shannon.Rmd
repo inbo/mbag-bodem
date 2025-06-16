@@ -98,7 +98,7 @@ emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
 # Save to CSV with automatic naming
 write_csv(
   emmeans_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
 )
 
 # print
@@ -119,7 +119,7 @@ contrasts_landuse_by_depth <- marginaleffects::comparisons(
 # Save to CSV with automatic naming
 write_csv(
   contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
 )
 
 # print
