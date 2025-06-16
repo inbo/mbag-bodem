@@ -15,7 +15,7 @@ editor_options:
 ```{r setup, include=FALSE}
 library(knitr)
 library(here)
-opts_chunk$set(echo = TRUE, error = TRUE, cache = TRUE, out.width = "100%")
+opts_chunk$set(echo = TRUE, error = TRUE, out.width = "100%")
 opts_knit$set(root.dir = here::here())
 
 library(ggplot2)
