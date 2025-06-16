@@ -145,7 +145,7 @@ summary(m_richness) |> print(digits = 2)
 car::Anova(m_richness) |> print(digits = 2)
 ```
 
-```{r m-richness-marginal-means-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-marginal-means-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_richness,
@@ -166,7 +166,7 @@ emmeans_landuse_by_depth
 ```
 
 
-```{r m-richness-contrasts-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Pairwise contrasts between land use types *within each depth layer*
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   m_richness,
