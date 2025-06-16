@@ -37,6 +37,11 @@ if (!dir.exists(output_dir)) dir.create(output_dir)
 
 ```
 
+```{r cache=TRUE, include=FALSE}
+1+1
+# een trukje om te zorgen dat de folder met figuren, die aangemaakt wordt als je
+# knit, bewaard blijft
+```
 
 ```{r helper-zi-disp}
 inflation_dispersion <- function(model) {
