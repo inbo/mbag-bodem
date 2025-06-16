@@ -146,28 +146,44 @@ car::Anova(m_richness) |> print(digits = 2)
 ```
 
 ```{r m-richness-marginal-means-{{group}}-{{primerset}}-{{unit}}}
-# Estimated marginal means per land use
-emmeans_landuse <- marginaleffects::avg_predictions(
+# Estimated marginal means per land use *within each depth layer*
+emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_richness,
   variables = "landgebruik",
   newdata = data_subset,
-  type = "response"
+  type = "response",
+  by = "diepte"
 )
-emmeans_landuse
 
+# Save to CSV with automatic naming
+write_csv(
+  emmeans_landuse_by_depth,
+  file = file.path(output_dir, glue("emmeans_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+)
+
+# print
+emmeans_landuse_by_depth
 ```
 
 
 ```{r m-richness-contrasts-{{group}}-{{primerset}}-{{unit}}}
-# Pairwise contrasts between land use types
-contrasts_landuse <- marginaleffects::comparisons(
+# Pairwise contrasts between land use types *within each depth layer*
+contrasts_landuse_by_depth <- marginaleffects::comparisons(
   m_richness,
   variables = "landgebruik",
   newdata = data_subset,
-  type = "response"
+  type = "response",
+  by = "diepte"
 )
-contrasts_landuse
 
+# Save to CSV with automatic naming
+write_csv(
+  contrasts_landuse_by_depth,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+)
+
+# print
+contrasts_landuse_by_depth
 ```
 
 
@@ -348,6 +364,48 @@ summary(lowest_aic)
 ```{r m-richness-anova-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
 car::Anova(lowest_aic) |> print(digits = 2)
 ```
+
+```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+# Estimated marginal means per land use *within each depth layer*
+emmeans_landuse_by_depth_incl_fyschem <- marginaleffects::avg_predictions(
+  lowest_aic,
+  variables = "landgebruik",
+  newdata = data_subset,
+  type = "response",
+  by = "diepte"
+)
+
+# Save to CSV with automatic naming
+write_csv(
+  emmeans_landuse_by_depth_incl_fyschem,
+  file = file.path(output_dir, glue("emmeans_landuse_by_depth_incl_fyschem_{group}_{primerset}_{unit}.csv"))
+)
+
+# print
+emmeans_landuse_by_depth_incl_fyschem
+```
+
+
+```{r m-richness-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+# Pairwise contrasts between land use types *within each depth layer*
+contrasts_landuse_by_depth_incl_fyschem <- marginaleffects::comparisons(
+  lowest_aic,
+  variables = "landgebruik",
+  newdata = data_subset,
+  type = "response",
+  by = "diepte"
+)
+
+# Save to CSV with automatic naming
+write_csv(
+  contrasts_landuse_by_depth_incl_fyschem,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_incl_fyschem_{group}_{primerset}_{unit}.csv"))
+)
+
+# print
+contrasts_landuse_by_depth_incl_fyschem
+```
+
 
 ```{r error=TRUE}
 p <- performance::check_predictions(lowest_aic)

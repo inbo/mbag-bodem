@@ -27,8 +27,14 @@ library(glmmTMB)
 library(marginaleffects)
 library(performance)
 library(MuMIn)
+library(glue)
+library(readr)
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
+
+output_dir <- file.path(getwd(), "output")
+if (!dir.exists(output_dir)) dir.create(output_dir)
+
 ```
 
 

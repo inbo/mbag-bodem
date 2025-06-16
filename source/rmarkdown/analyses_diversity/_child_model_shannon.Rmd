@@ -85,6 +85,47 @@ summary(m_shannon) |> print(digits = 2)
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
+```{r m-shannon-marginal-means-{{group}}-{{primerset}}-{{unit}}}
+# Estimated marginal means per land use *within each depth layer*
+emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
+  m_shannon,
+  variables = "landgebruik",
+  newdata = data_subset,
+  type = "response",
+  by = "diepte"
+)
+
+# Save to CSV with automatic naming
+write_csv(
+  emmeans_landuse_by_depth,
+  file = file.path(output_dir, glue("emmeans_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+)
+
+# print
+emmeans_landuse_by_depth
+```
+
+
+```{r m-shannon-contrasts-{{group}}-{{primerset}}-{{unit}}}
+# Pairwise contrasts between land use types *within each depth layer*
+contrasts_landuse_by_depth <- marginaleffects::comparisons(
+  m_shannon,
+  variables = "landgebruik",
+  newdata = data_subset,
+  type = "response",
+  by = "diepte"
+)
+
+# Save to CSV with automatic naming
+write_csv(
+  contrasts_landuse_by_depth,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+)
+
+# print
+contrasts_landuse_by_depth
+```
+
 ```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
