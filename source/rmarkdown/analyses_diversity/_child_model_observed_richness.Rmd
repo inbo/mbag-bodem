@@ -2,6 +2,12 @@
 ### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
+group <- "{{group}}"
+primerset <- "{{primerset}}"
+unit <- "{{unit}}"
+```
+
+```{r}
 data_subset <- combined %>%
   filter(
     group == "{{group}}",
@@ -9,6 +15,7 @@ data_subset <- combined %>%
     unit == "{{unit}}"
   )
 ```
+
 
 ```{r}
 data_subset %>%
