@@ -97,9 +97,10 @@ emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_shannon,
   variables = "landgebruik",
   newdata = data_subset,
-  type = "response",
-  by = "diepte"
+  by = c("diepte", "landgebruik"),
+  type = "response"
 )
+
 
 # Save to CSV with automatic naming
 write_csv(

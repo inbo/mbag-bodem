@@ -158,8 +158,8 @@ emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_richness,
   variables = "landgebruik",
   newdata = data_subset,
-  type = "response",
-  by = "diepte"
+  by = c("diepte", "landgebruik"),
+  type = "response"
 )
 
 # Save to CSV with automatic naming
@@ -375,12 +375,13 @@ car::Anova(lowest_aic) |> print(digits = 2)
 ```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth_incl_fyschem <- marginaleffects::avg_predictions(
-  lowest_aic,
+  m_richness,
   variables = "landgebruik",
   newdata = data_subset,
-  type = "response",
-  by = "diepte"
+  by = c("diepte", "landgebruik"),
+  type = "response"
 )
+
 
 # Save to CSV with automatic naming
 write_csv(
