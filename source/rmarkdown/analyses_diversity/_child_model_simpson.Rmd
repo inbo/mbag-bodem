@@ -84,7 +84,6 @@ emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   type = "response"
 )
 
-
 # Save to CSV with automatic naming
 write_csv(
   emmeans_landuse_by_depth,
@@ -105,25 +104,7 @@ contrasts_landuse_by_depth <- marginaleffects::comparisons(
   type = "response",
   by = "diepte",
   contrast = "pairwise"
-) %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(
-    p_adj = p.adjust(p.value, method = "BH")
-  ) %>%
-  ungroup() %>%
-  select(
-    Group,
-    diepte,
-    contrast,
-    estimate,
-    std.error,
-    conf.low,
-    conf.high,
-    p.value,
-    p_adj
-  ) %>%
-  arrange(diepte, p.value)
+) 
 
 # Save to CSV with automatic naming
 write_csv(
@@ -135,6 +116,36 @@ write_csv(
 print(contrasts_landuse_by_depth, n = Inf)
 
 ```
+
+```{r m-simpson-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
+# Add BH-corrected p-values per depth group
+contrasts_simpson_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
+  group_by(diepte) %>%
+  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
+  ungroup() %>%
+  select(
+    diepte,
+    contrast,
+    estimate,
+    std.error,
+    conf.low,
+    conf.high,
+    p.value,
+    p_bh
+  ) %>%
+  arrange(diepte, p.value)
+
+# Save adjusted results to CSV
+write_csv(
+  contrasts_simpson_landuse_by_depth_adj,
+  file = file.path(output_dir, glue("contrasts_simpson_landuse_by_depth_adj_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print adjusted summary
+print(contrasts_simpson_landuse_by_depth_adj, n = Inf)
+
+```
+
 
 ```{r m-simpson-preds-total-count-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
 marginaleffects::plot_predictions(

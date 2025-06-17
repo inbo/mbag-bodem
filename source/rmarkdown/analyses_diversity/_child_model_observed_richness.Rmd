@@ -181,26 +181,7 @@ contrasts_landuse_by_depth <- marginaleffects::comparisons(
   newdata = data_subset,
   type = "response",
   by = "diepte",
-  contrast = "pairwise"
-) %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(
-    p_adj = p.adjust(p.value, method = "BH")
-  ) %>%
-  ungroup() %>%
-  select(
-    Group,
-    diepte,
-    contrast,
-    estimate,
-    std.error,
-    conf.low,
-    conf.high,
-    p.value,
-    p_adj
-  ) %>%
-  arrange(diepte, p.value)
+  contrast = "pairwise")
 
 # Save to CSV with automatic naming
 write_csv(
@@ -208,9 +189,38 @@ write_csv(
   file = file.path(output_dir, glue("contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
 )
 
-
 # print
 contrasts_landuse_by_depth
+```
+
+```{r m-richness-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
+# Add bh-adjusted p-values per depth
+contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
+  as_tibble() %>%
+  group_by(diepte) %>%
+  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
+  ungroup() %>%
+  select(
+    diepte,
+    contrast,
+    estimate,
+    std.error,
+    conf.low,
+    conf.high,
+    p.value,
+    p_bh
+  ) %>%
+  arrange(diepte, p.value)
+
+# Save corrected results to CSV
+write_csv(
+  contrasts_landuse_by_depth_corrected,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_bh_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+contrasts_landuse_by_depth_corrected
+
 ```
 
 
@@ -423,25 +433,7 @@ contrasts_landuse_by_depth_incl_fyschem <- marginaleffects::comparisons(
   type = "response",
   by = "diepte",
   contrast = "pairwise"
-) %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(
-    p_adj = p.adjust(p.value, method = "BH")
-  ) %>%
-  ungroup() %>%
-  select(
-    Group,
-    diepte,
-    contrast,
-    estimate,
-    std.error,
-    conf.low,
-    conf.high,
-    p.value,
-    p_adj
-  ) %>%
-  arrange(diepte, p.value)
+) 
 
 # Save to CSV with automatic naming
 write_csv(
@@ -451,7 +443,34 @@ write_csv(
 
 # Print result
 print(contrasts_landuse_by_depth_incl_fyschem, n = Inf)
+```
 
+```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
+# Add bh-corrected p-values per depth group
+contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_by_depth_incl_fyschem %>%
+  group_by(diepte) %>%
+  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
+  ungroup() %>%
+  select(
+    diepte,
+    contrast,
+    estimate,
+    std.error,
+    conf.low,
+    conf.high,
+    p.value,
+    p_bh
+  ) %>%
+  arrange(diepte, p.value)
+
+# Save adjusted results to CSV
+write_csv(
+  contrasts_landuse_by_depth_incl_fyschem_adj,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_incl_fyschem_adj_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print adjusted summary
+print(contrasts_landuse_by_depth_incl_fyschem_adj, n = Inf)
 
 ```
 
