@@ -176,18 +176,38 @@ emmeans_landuse_by_depth
 ```{r m-richness-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Pairwise contrasts between land use types *within each depth layer*
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
-  m_richness,
+  model = m_richness,
   variables = "landgebruik",
   newdata = data_subset,
   type = "response",
-  by = "diepte"
-)
+  by = "diepte",
+  contrast = "pairwise"
+) %>%
+  as_tibble() %>%
+  group_by(diepte) %>%
+  mutate(
+    p_adj = p.adjust(p.value, method = "BH")
+  ) %>%
+  ungroup() %>%
+  select(
+    Group,
+    diepte,
+    contrast,
+    estimate,
+    std.error,
+    conf.low,
+    conf.high,
+    p.value,
+    p_adj
+  ) %>%
+  arrange(diepte, p.value)
 
 # Save to CSV with automatic naming
 write_csv(
   contrasts_landuse_by_depth,
   file = file.path(output_dir, glue("contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
 )
+
 
 # print
 contrasts_landuse_by_depth
@@ -395,14 +415,33 @@ emmeans_landuse_by_depth_incl_fyschem
 
 
 ```{r m-richness-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
-# Pairwise contrasts between land use types *within each depth layer*
+# Compute all pairwise contrasts between land use categories, per depth
 contrasts_landuse_by_depth_incl_fyschem <- marginaleffects::comparisons(
-  lowest_aic,
+  model = lowest_aic,
   variables = "landgebruik",
   newdata = data_subset,
   type = "response",
-  by = "diepte"
-)
+  by = "diepte",
+  contrast = "pairwise"
+) %>%
+  as_tibble() %>%
+  group_by(diepte) %>%
+  mutate(
+    p_adj = p.adjust(p.value, method = "BH")
+  ) %>%
+  ungroup() %>%
+  select(
+    Group,
+    diepte,
+    contrast,
+    estimate,
+    std.error,
+    conf.low,
+    conf.high,
+    p.value,
+    p_adj
+  ) %>%
+  arrange(diepte, p.value)
 
 # Save to CSV with automatic naming
 write_csv(
@@ -410,8 +449,10 @@ write_csv(
   file = file.path(output_dir, glue("contrasts_landuse_by_depth_incl_fyschem_{group}_{primerset}_{unit}.csv"))
 )
 
-# print
-contrasts_landuse_by_depth_incl_fyschem
+# Print result
+print(contrasts_landuse_by_depth_incl_fyschem, n = Inf)
+
+
 ```
 
 
