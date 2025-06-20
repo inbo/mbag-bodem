@@ -158,7 +158,7 @@ predicted_values <- marginaleffects::predictions(
 # save to CSV
 write_csv(
   predicted_values,
-  file = file.path(output_dir, glue("predicted_values_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("predicted_values_simpson_{group}_{primerset}_{unit}.csv"))
 )
 
 # View
