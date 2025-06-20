@@ -223,6 +223,25 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
+```{r m-richness-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+predicted_values <- marginaleffects::predictions(
+  m_richness,
+  condition = c("landgebruik", "diepte"[diepte_ok]),
+  re.form = NA,
+  vcov = TRUE,
+  type = "response"
+)
+
+# save to CSV
+write_csv(
+  predicted_values,
+  file = file.path(output_dir, glue("predicted_values_{group}_{primerset}_{unit}.csv"))
+)
+
+# View
+print(predicted_values)
+```
+
 
 ```{r m-richness-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
