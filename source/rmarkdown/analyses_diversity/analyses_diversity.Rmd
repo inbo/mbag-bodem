@@ -102,8 +102,8 @@ metadata <- readr::read_csv(
     ),
     diepte = gsub("_|/", "-", diepte) |> factor(),
     textuur_som_klei_zand = textuur_kleifractie + textuur_zandfractie
-  ) %>%
-  filter(diepte == "0-10")  # <-- filter only 0-10 cm samples
+  ) 
+# %>% filter(diepte == "0-10")  # <-- filter only 0-10 cm samples
 
 ```
 
