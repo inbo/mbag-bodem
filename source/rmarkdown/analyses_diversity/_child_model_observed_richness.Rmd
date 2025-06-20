@@ -223,6 +223,10 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
+```{r m-richness-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+
+```
+
 
 ```{r m-richness-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
