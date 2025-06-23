@@ -174,23 +174,27 @@ emmeans_landuse_by_depth
 
 
 ```{r m-richness-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
-# Pairwise contrasts between land use types *within each depth layer*
-contrasts_landuse_by_depth <- marginaleffects::comparisons(
-  model = m_richness,
-  variables = "landgebruik",
-  newdata = data_subset,
-  type = "response",
+# Estimate marginal means per land use per depth
+emm_landuse_by_depth <- emmeans(
+  m_richness,
+  specs = "landgebruik",
   by = "diepte",
-  contrast = "pairwise")
+  data = data_subset
+)
 
-# Save to CSV with automatic naming
+# Compute pairwise contrasts
+contrasts_landuse_by_depth <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
+  as.data.frame()
+
+# Save to CSV
 write_csv(
   contrasts_landuse_by_depth,
   file = file.path(output_dir, glue("contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
 )
 
-# print
-contrasts_landuse_by_depth
+# Print
+print(contrasts_landuse_by_depth)
+
 ```
 
 ```{r m-richness-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
@@ -424,7 +428,7 @@ car::Anova(lowest_aic) |> print(digits = 2)
 ```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth_incl_fyschem <- marginaleffects::avg_predictions(
-  m_richness,
+  lowest_aic,
   variables = "landgebruik",
   newdata = data_subset,
   by = c("diepte", "landgebruik"),
@@ -444,24 +448,27 @@ emmeans_landuse_by_depth_incl_fyschem
 
 
 ```{r m-richness-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
-# Compute all pairwise contrasts between land use categories, per depth
-contrasts_landuse_by_depth_incl_fyschem <- marginaleffects::comparisons(
-  model = lowest_aic,
-  variables = "landgebruik",
-  newdata = data_subset,
-  type = "response",
+# Estimate marginal means per land use per depth
+emm_landuse_by_depth <- emmeans(
+  lowest_aic,
+  specs = "landgebruik",
   by = "diepte",
-  contrast = "pairwise"
-) 
+  data = data_subset
+)
 
-# Save to CSV with automatic naming
+# Compute pairwise contrasts
+contrasts_landuse_by_depth_incl_fyschem <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
+  as.data.frame()
+
+# Save to CSV
 write_csv(
   contrasts_landuse_by_depth_incl_fyschem,
   file = file.path(output_dir, glue("contrasts_landuse_by_depth_incl_fyschem_{group}_{primerset}_{unit}.csv"))
 )
 
-# Print result
-print(contrasts_landuse_by_depth_incl_fyschem, n = Inf)
+# Print
+print(contrasts_landuse_by_depth_incl_fyschem)
+
 ```
 
 ```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
@@ -489,7 +496,7 @@ write_csv(
 )
 
 # Print adjusted summary
-print(contrasts_landuse_by_depth_incl_fyschem_adj, n = Inf)
+print(contrasts_landuse_by_depth_incl_fyschem_adj)
 
 ```
 

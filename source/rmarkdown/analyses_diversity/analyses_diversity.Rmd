@@ -29,6 +29,8 @@ library(performance)
 library(MuMIn)
 library(glue)
 library(readr)
+library(emmeans)
+
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
 
