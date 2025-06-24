@@ -104,7 +104,26 @@ metadata <- readr::read_csv(
       )
     ),
     diepte = gsub("_|/", "-", diepte) |> factor(),
-    textuur_som_klei_zand = textuur_kleifractie + textuur_zandfractie
+    textuur_som_klei_zand = textuur_kleifractie + textuur_zandfractie,
+    
+    # Clean and parse dates
+    datum_staalname = trimws(datum_staalname),
+    datum_cleaned = sub(" 0:00$", "", datum_staalname),  # remove trailing time
+    sampling_date = case_when(
+      grepl("/", datum_cleaned) ~ mdy(datum_cleaned),
+      grepl("-", datum_cleaned) ~ ymd(datum_cleaned),
+      TRUE ~ NA_Date_
+    ),
+    
+    # Extract sampling month and season
+    sampling_month = month(sampling_date),
+    sampling_season = case_when(
+      sampling_month %in% c(12, 1, 2) ~ "Winter",
+      sampling_month %in% c(3, 4, 5) ~ "Spring",
+      sampling_month %in% c(6, 7, 8) ~ "Summer",
+      sampling_month %in% c(9, 10, 11) ~ "Autumn",
+      TRUE ~ "Unknown"
+    ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
   )
 
 ```
