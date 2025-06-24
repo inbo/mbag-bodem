@@ -198,7 +198,7 @@ print(contrasts_landuse_by_depth)
 ```
 
 ```{r m-richness-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
-# Add bh-adjusted p-values per depth
+# Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
   as_tibble() %>%
   group_by(diepte) %>%
@@ -208,13 +208,13 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
     diepte,
     contrast,
     estimate,
-    std.error,
-    conf.low,
-    conf.high,
+    SE,
+    z.ratio,
     p.value,
     p_bh
   ) %>%
   arrange(diepte, p.value)
+
 
 # Save corrected results to CSV
 write_csv(
@@ -227,12 +227,67 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-richness-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
-predicted_values <- marginaleffects::predictions(
+```{r m-richness-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+# Estimate marginal means per land use per depth
+emm_landuse_by_depth <- emmeans(
   m_richness,
-  condition = c("landgebruik", "diepte"[diepte_ok]),
-  re.form = NA,
-  vcov = TRUE,
+  specs = "landgebruik",
+  by = "diepte",
+  data = data_subset,
+  type = "response"
+)
+
+# Compute pairwise contrasts
+contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
+  as.data.frame()
+
+# Save to CSV
+write_csv(
+  contrasts_landuse_by_depth_response,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_response_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+print(contrasts_landuse_by_depth_response)
+
+```
+
+
+```{r m-richness-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+# Add BH-adjusted p-values per depth
+contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
+  as_tibble() %>%
+  group_by(diepte) %>%
+  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
+  ungroup() %>%
+  select(
+    diepte,
+    contrast,
+    ratio,
+    SE,
+    z.ratio,
+    p.value,
+    p_bh
+  ) %>%
+  arrange(diepte, p.value)
+
+
+# Save corrected results to CSV
+write_csv(
+  contrasts_landuse_by_depth_corrected,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_bh_response_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+contrasts_landuse_by_depth_corrected
+
+```
+
+```{r m-richness-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+predicted_values <- marginaleffects::avg_predictions(
+  m_richness,
+  variables = c("landgebruik", "diepte"),
+  newdata = data_subset,
   type = "response"
 )
 
@@ -474,16 +529,16 @@ print(contrasts_landuse_by_depth_incl_fyschem)
 ```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
 # Add bh-corrected p-values per depth group
 contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_by_depth_incl_fyschem %>%
+  as_tibble() %>%
   group_by(diepte) %>%
   mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
   ungroup() %>%
   select(
     diepte,
     contrast,
-    estimate,
-    std.error,
-    conf.low,
-    conf.high,
+    ratio,
+    SE,
+    z.ratio,
     p.value,
     p_bh
   ) %>%
