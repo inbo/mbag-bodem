@@ -127,7 +127,7 @@ metadata <- readr::read_csv(
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
   ) %>%
-  filter(sampling_season == "Winter")
+  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4))
 
 ```
 
