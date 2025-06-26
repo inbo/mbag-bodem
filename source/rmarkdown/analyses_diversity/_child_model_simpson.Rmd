@@ -234,7 +234,7 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
   select(
     diepte,
     contrast,
-    ratio,
+    odds.ratio,
     SE,
     z.ratio,
     p.value,

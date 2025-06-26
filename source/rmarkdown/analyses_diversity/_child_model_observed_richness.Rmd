@@ -574,7 +574,7 @@ contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_by_depth_incl_f
   select(
     diepte,
     contrast,
-    ratio,
+    estimate,
     SE,
     z.ratio,
     p.value,
