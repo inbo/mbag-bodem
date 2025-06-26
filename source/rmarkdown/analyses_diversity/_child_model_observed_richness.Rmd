@@ -286,8 +286,8 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
     z.ratio,
     p.value,
     p_bh,
-    lower.CL,
-    upper.CL
+    asymp.LCL,
+    asymp.UCL
   ) %>%
   arrange(diepte, p.value)
 
@@ -579,8 +579,8 @@ contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_by_depth_incl_f
     z.ratio,
     p.value,
     p_bh,
-    lower.CL,
-    upper.CL
+    asymp.LCL,
+    asymp.UCL
   ) %>%
   arrange(diepte, p.value)
 

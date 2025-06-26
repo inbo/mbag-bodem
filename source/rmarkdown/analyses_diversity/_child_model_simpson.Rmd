@@ -239,8 +239,8 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
     z.ratio,
     p.value,
     p_bh,
-    lower.CL,
-    upper.CL
+    asymp.LCL,
+    asymp.UCL
   ) %>%
   arrange(diepte, p.value)
 
