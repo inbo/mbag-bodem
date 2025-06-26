@@ -147,9 +147,8 @@ print(contrasts_simpson_landuse_by_depth_adj)
 ```{r m-simpson-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 predicted_values <- marginaleffects::avg_predictions(
   m_simpson,
-  condition = c("landgebruik", "diepte"[diepte_ok]),
-  re.form = NA,
-  vcov = TRUE,
+  variables = c("landgebruik", "diepte"),
+  newdata = data_subset,
   type = "response"
 )
 
