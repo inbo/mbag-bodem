@@ -238,7 +238,7 @@ emm_landuse_by_depth <- emmeans(
 )
 
 # Compute pairwise contrasts
-contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
+contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none", infer = c(TRUE, TRUE)) %>%
   as.data.frame()
 
 # Save to CSV
@@ -267,7 +267,9 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
     SE,
     z.ratio,
     p.value,
-    p_bh
+    p_bh,
+    lower.CL,
+    upper.CL
   ) %>%
   arrange(diepte, p.value)
 
@@ -512,7 +514,7 @@ emm_landuse_by_depth <- emmeans(
 )
 
 # Compute pairwise contrasts
-contrasts_landuse_by_depth_incl_fyschem <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
+contrasts_landuse_by_depth_incl_fyschem <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none", infer = c(TRUE, TRUE)) %>%
   as.data.frame()
 
 # Save to CSV
@@ -540,7 +542,9 @@ contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_by_depth_incl_f
     SE,
     z.ratio,
     p.value,
-    p_bh
+    p_bh,
+    lower.CL
+    upper.CL
   ) %>%
   arrange(diepte, p.value)
 
