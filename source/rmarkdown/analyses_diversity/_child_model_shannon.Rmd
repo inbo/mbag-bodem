@@ -129,7 +129,7 @@ write_csv(
 )
 
 # Print the results
-print(contrasts_landuse_by_depth, n = Inf)
+print(contrasts_landuse_by_depth)
 
 ```
 
@@ -158,7 +158,7 @@ write_csv(
 )
 
 # Print adjusted summary
-print(contrasts_shannon_landuse_by_depth_adj, n = Inf)
+print(contrasts_shannon_landuse_by_depth_adj)
 
 ```
 
