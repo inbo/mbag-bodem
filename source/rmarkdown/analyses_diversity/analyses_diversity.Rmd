@@ -78,7 +78,7 @@ diversiteit <- readr::read_csv(
     "mbag_combined_dataframe_INBO_ILVO_v19.csv"
   )
 ) %>%
-  filter(primerset == "InseKP")
+  filter(group == "annelida", primerset == "InseKP")
 
 metadata <- readr::read_csv(
   file.path(
