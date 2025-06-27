@@ -69,6 +69,8 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
+DIT IS DE WINTERHALFJAAR, VERSIE MET ALLE STALEN VAN NOVEMBER TOT APRIL
+
 
 ```{r inlezen}
 diversiteit <- readr::read_csv(
@@ -130,7 +132,7 @@ metadata <- readr::read_csv(
 
 ```
 
-In `mbag_combined_dataframe_INBO_known_species_v18` zitten de nulwaarnemingen in en deze nulwaarnemingen hebben een shannon en simpson index score van 0 gekregen, wat betekent dat deze nulwaarnemingen dezelfde Shannon en Simpson indexscore krijgen als plots waarin slechts één soort werd waargenomen, wat op het eerste gezicht verdedigbaar lijkt, aangezien de onzekerheid (Shannon) en dominantie (Simpson) in beide gevallen minimaal zijn?
+In `mbag_combined_dataframe_INBO_known_species_v19` zitten de nulwaarnemingen in en deze nulwaarnemingen hebben een shannon en simpson index score van 0 gekregen, wat betekent dat deze nulwaarnemingen dezelfde Shannon en Simpson indexscore krijgen als plots waarin slechts één soort werd waargenomen, wat op het eerste gezicht verdedigbaar lijkt, aangezien de onzekerheid (Shannon) en dominantie (Simpson) in beide gevallen minimaal zijn?
 
 ```{r echo=TRUE}
 sum(diversiteit$observed == 0)
