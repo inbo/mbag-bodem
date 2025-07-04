@@ -69,7 +69,7 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
-DIT IS DE WINTERHALFJAAR, VERSIE MET ALLE STALEN VAN NOVEMBER TOT APRIL
+DIT IS een test versie met enkel winterstalen en inseKP data
 
 
 ```{r inlezen}
@@ -79,7 +79,8 @@ diversiteit <- readr::read_csv(
     "data", "statistiek", "dataframe_overkoepelend",
     "mbag_combined_dataframe_INBO_ILVO_v19.csv"
   )
-)
+) %>%
+  filter(group == "annelida", primerset == "InseKP")
 
 metadata <- readr::read_csv(
   file.path(
@@ -128,7 +129,7 @@ metadata <- readr::read_csv(
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
   ) %>%
-  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4))
+  filter(sampling_season == "Winter")
 
 ```
 
