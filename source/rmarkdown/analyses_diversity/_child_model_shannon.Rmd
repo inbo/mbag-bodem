@@ -38,16 +38,16 @@ if (diepte_ok) {
   form_shannon <- formula(
   shannon ~
     log(total_count + 1)
-    + landgebruik
+    + c_density
     + diepte
-    + landgebruik:diepte
+    + c_density:diepte
     + (1 | cmon_plot_id)
   )
 } else {
   form_shannon <- formula(
   shannon ~
     log(total_count + 1)
-    + landgebruik
+    + c_density
   + (1 | cmon_plot_id)
   )
 }
@@ -95,9 +95,9 @@ car::Anova(m_shannon) |> print(digits = 2)
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_shannon,
-  variables = "landgebruik",
+  variables = "c_density",
   newdata = data_subset,
-  by = c("diepte", "landgebruik"),
+  by = c("diepte", "c_density"),
   type = "response"
 )
 
@@ -117,7 +117,7 @@ emmeans_landuse_by_depth
 # Compute all pairwise contrasts between land use types within each depth layer
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_shannon,
-  variables = "landgebruik",
+  variables = "c_density",
   newdata = data_subset,
   type = "response",
   by = "diepte")
@@ -166,7 +166,7 @@ print(contrasts_shannon_landuse_by_depth_adj)
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_shannon,
-  specs = "landgebruik",
+  specs = "c_density",
   by = "diepte",
   data = data_subset
 )
@@ -220,7 +220,7 @@ contrasts_landuse_by_depth_corrected
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_shannon,
-  specs = "landgebruik",
+  specs = "c_density",
   by = "diepte",
   data = data_subset,
   type = "response"
@@ -274,10 +274,10 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
+```{r m-shannon-preds-values-c_densityxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 predicted_values <- marginaleffects::avg_predictions(
   m_shannon,
-  variables = c("landgebruik", "diepte"),
+  variables = c("c_density", "diepte"),
   newdata = data_subset,
   type = "response"
 )
@@ -304,10 +304,10 @@ marginaleffects::plot_predictions(
   scale_x_log10()
 ```
 
-```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-c_densityxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
-  condition = c("landgebruik", "diepte"[diepte_ok]),
+  condition = c("c_density", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
   type = "response"
