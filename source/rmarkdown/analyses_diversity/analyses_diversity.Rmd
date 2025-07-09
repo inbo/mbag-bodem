@@ -79,8 +79,7 @@ diversiteit <- readr::read_csv(
     "data", "statistiek", "dataframe_overkoepelend",
     "mbag_combined_dataframe_INBO_ILVO_v19.csv"
   )
-) %>%
-  filter(group == "annelida", primerset == "InseKP")
+)
 
 metadata <- readr::read_csv(
   file.path(
@@ -128,8 +127,7 @@ metadata <- readr::read_csv(
       sampling_month %in% c(9, 10, 11) ~ "Autumn",
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
-  ) %>%
-  filter(sampling_season == "Winter")
+  )
 
 ```
 
