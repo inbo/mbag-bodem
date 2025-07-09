@@ -74,7 +74,7 @@ summary(m_simpson) |> print(digits = 2)
 car::Anova(m_simpson) |> print(digits = 2)
 ```
 
-```{r m-simpson-marginal-means-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-marginal-means-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_simpson,
@@ -95,7 +95,7 @@ emmeans_landuse_by_depth
 ```
 
 
-```{r m-simpson-contrasts-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Compute all pairwise contrasts between land use types within each depth layer
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_simpson,
@@ -115,7 +115,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-simpson-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-adj-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-corrected p-values per depth group
 contrasts_simpson_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
   group_by(diepte) %>%
@@ -144,7 +144,7 @@ print(contrasts_simpson_landuse_by_depth_adj)
 
 ```
 
-```{r m-simpson-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_simpson,
@@ -168,7 +168,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-simpson-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
   as_tibble() %>%
@@ -198,7 +198,7 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-simpson-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_simpson,
@@ -224,7 +224,7 @@ print(contrasts_landuse_by_depth_response)
 ```
 
 
-```{r m-simpson-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
   as_tibble() %>%
@@ -256,7 +256,7 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-simpson-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 predicted_values <- marginaleffects::avg_predictions(
   m_simpson,
   variables = c("landgebruik", "diepte"),

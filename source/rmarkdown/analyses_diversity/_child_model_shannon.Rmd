@@ -91,7 +91,7 @@ summary(m_shannon) |> print(digits = 2)
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
-```{r m-shannon-marginal-means-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-marginal-means-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_shannon,
@@ -113,7 +113,7 @@ emmeans_landuse_by_depth
 ```
 
 
-```{r m-shannon-contrasts-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-contrasts-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Compute all pairwise contrasts between land use types within each depth layer
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_shannon,
@@ -133,7 +133,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-shannon-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-contrasts-adj-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add bh-corrected p-values per depth group
 contrasts_shannon_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
   group_by(diepte) %>%
@@ -162,7 +162,7 @@ print(contrasts_shannon_landuse_by_depth_adj)
 
 ```
 
-```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_shannon,
@@ -186,7 +186,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-shannon-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
   as_tibble() %>%
@@ -216,7 +216,7 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-shannon-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_shannon,
@@ -242,7 +242,7 @@ print(contrasts_landuse_by_depth_response)
 ```
 
 
-```{r m-shannon-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
   as_tibble() %>%
@@ -274,7 +274,7 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 predicted_values <- marginaleffects::avg_predictions(
   m_shannon,
   variables = c("landgebruik", "diepte"),
