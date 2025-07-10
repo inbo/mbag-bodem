@@ -40,16 +40,16 @@ if (diepte_ok) {
   form_richness <- formula(
   observed ~
     log(total_count + 1)
-    + c_density
+    + cn_stockbased
     + diepte
-    + c_density:diepte
+    + cn_stockbased:diepte
     + (1 | cmon_plot_id)
   )
 } else {
   form_richness <- formula(
   observed ~
     log(total_count + 1)
-    + c_density
+    + cn_stockbased
     + (1 | cmon_plot_id)
   )
 }
@@ -156,9 +156,9 @@ car::Anova(m_richness) |> print(digits = 2)
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_richness,
-  variables = "c_density",
+  variables = "cn_stockbased",
   newdata = data_subset,
-  by = c("diepte", "c_density"),
+  by = c("diepte", "cn_stockbased"),
   type = "response"
 )
 
@@ -176,7 +176,7 @@ emmeans_landuse_by_depth
 # Pairwise contrasts between land use types *within each depth layer*
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_richness,
-  variables = "c_density",
+  variables = "cn_stockbased",
   newdata = data_subset,
   type = "response",
   by = "diepte")
@@ -195,7 +195,7 @@ contrasts_landuse_by_depth
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_richness,
-  specs = "c_density",
+  specs = "cn_stockbased",
   by = "diepte",
   data = data_subset
 )
@@ -249,7 +249,7 @@ contrasts_landuse_by_depth_corrected
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_richness,
-  specs = "c_density",
+  specs = "cn_stockbased",
   by = "diepte",
   data = data_subset,
   type = "response"
@@ -303,10 +303,10 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-richness-preds-values-c_densityxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
+```{r m-richness-preds-values-cn_stockbasedxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 predicted_values <- marginaleffects::avg_predictions(
   m_richness,
-  variables = c("c_density", "diepte"),
+  variables = c("cn_stockbased", "diepte"),
   newdata = data_subset,
   type = "response"
 )
@@ -333,10 +333,10 @@ marginaleffects::plot_predictions(
   labs(y = "Voorspeld aantal taxa")
 ```
 
-```{r m-richness-preds-c_densityxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-preds-cn_stockbasedxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
-  condition = c("c_density", "diepte"[diepte_ok]),
+  condition = c("cn_stockbased", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
   type = "response"
@@ -355,7 +355,7 @@ variables_no_collinearity <- c(
   "landgebruik",
   "diepte"[diepte_ok],
   "cmon_plot_id",
-  "c_density",
+  "cn_stockbased",
   "cn_stockbased",
   "swc_vol",
   "ph_kcl",
@@ -396,7 +396,7 @@ form_richness_full <- update(
   form_richness,
   . ~ .
     + swc_vol
-    + c_density
+    + cn_stockbased
     + cn_stockbased
     + poly(ph_kcl, 2)
     + bd
