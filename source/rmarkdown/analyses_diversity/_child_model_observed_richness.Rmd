@@ -356,7 +356,7 @@ variables_no_collinearity <- c(
   "diepte"[diepte_ok],
   "cmon_plot_id",
   "c_density",
-  "c_density",
+  "cn_stockbased",
   "swc_vol",
   "ph_kcl",
   "bd",
@@ -397,7 +397,7 @@ form_richness_full <- update(
   . ~ .
     + swc_vol
     + c_density
-    + c_density
+    + cn_stockbased
     + poly(ph_kcl, 2)
     + bd
     + textuur_som_klei_zand
