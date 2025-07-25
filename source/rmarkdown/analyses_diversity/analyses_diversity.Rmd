@@ -1,5 +1,5 @@
 ---
-title: "Analyses diversiteit_Tijdelijk grasland_c_density"
+title: "Analyses diversiteit_Blijvend grasland_c_density"
 author: "Sam Lambrechts, Silke De Backer, Hans Van Calster"
 date: "`r Sys.Date()`"
 output:
@@ -69,7 +69,7 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
-Versie 24072025, Tijdelijk grasland, c_density
+Versie 25072025, Blijvend grasland, c_density
 
 
 ```{r inlezen}
@@ -128,7 +128,7 @@ metadata <- readr::read_csv(
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
   ) %>%
-  filter(landgebruik == "Tijdelijk grasland")  # <-- filter added here
+  filter(landgebruik == "Blijvend grasland")  # <-- filter added here
 
 ```
 
