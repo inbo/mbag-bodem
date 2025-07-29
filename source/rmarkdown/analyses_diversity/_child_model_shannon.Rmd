@@ -38,16 +38,16 @@ if (diepte_ok) {
   form_shannon <- formula(
   shannon ~
     log(total_count + 1)
-    + ph_kcl
+    + swc_vol
     + diepte
-    + ph_kcl:diepte
+    + swc_vol:diepte
     + (1 | cmon_plot_id)
   )
 } else {
   form_shannon <- formula(
   shannon ~
     log(total_count + 1)
-    + ph_kcl
+    + swc_vol
   + (1 | cmon_plot_id)
   )
 }
@@ -95,9 +95,9 @@ car::Anova(m_shannon) |> print(digits = 2)
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_shannon,
-  variables = "ph_kcl",
+  variables = "swc_vol",
   newdata = data_subset,
-  by = c("diepte", "ph_kcl"),
+  by = c("diepte", "swc_vol"),
   type = "response"
 )
 
@@ -117,7 +117,7 @@ emmeans_landuse_by_depth
 # Compute all pairwise contrasts between land use types within each depth layer
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_shannon,
-  variables = "ph_kcl",
+  variables = "swc_vol",
   newdata = data_subset,
   type = "response",
   by = "diepte")
@@ -166,7 +166,7 @@ print(contrasts_shannon_landuse_by_depth_adj)
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_shannon,
-  specs = "ph_kcl",
+  specs = "swc_vol",
   by = "diepte",
   data = data_subset
 )
@@ -220,7 +220,7 @@ contrasts_landuse_by_depth_corrected
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_shannon,
-  specs = "ph_kcl",
+  specs = "swc_vol",
   by = "diepte",
   data = data_subset,
   type = "response"
@@ -274,10 +274,10 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-shannon-preds-values-ph_kclxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
+```{r m-shannon-preds-values-swc_volxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 predicted_values <- marginaleffects::avg_predictions(
   m_shannon,
-  variables = c("ph_kcl", "diepte"),
+  variables = c("swc_vol", "diepte"),
   newdata = data_subset,
   type = "response"
 )
@@ -304,10 +304,10 @@ marginaleffects::plot_predictions(
   scale_x_log10()
 ```
 
-```{r m-shannon-preds-ph_kclxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-swc_volxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
-  condition = c("ph_kcl", "diepte"[diepte_ok]),
+  condition = c("swc_vol", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
   type = "response"
