@@ -40,16 +40,16 @@ if (diepte_ok) {
   form_richness <- formula(
   observed ~
     log(total_count + 1)
-    + ph_kcl
+    + swc_vol
     + diepte
-    + ph_kcl:diepte
+    + swc_vol:diepte
     + (1 | cmon_plot_id)
   )
 } else {
   form_richness <- formula(
   observed ~
     log(total_count + 1)
-    + ph_kcl
+    + swc_vol
     + (1 | cmon_plot_id)
   )
 }
@@ -156,9 +156,9 @@ car::Anova(m_richness) |> print(digits = 2)
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_richness,
-  variables = "ph_kcl",
+  variables = "swc_vol",
   newdata = data_subset,
-  by = c("diepte", "ph_kcl"),
+  by = c("diepte", "swc_vol"),
   type = "response"
 )
 
@@ -176,7 +176,7 @@ emmeans_landuse_by_depth
 # Pairwise contrasts between land use types *within each depth layer*
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_richness,
-  variables = "ph_kcl",
+  variables = "swc_vol",
   newdata = data_subset,
   type = "response",
   by = "diepte")
@@ -195,7 +195,7 @@ contrasts_landuse_by_depth
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_richness,
-  specs = "ph_kcl",
+  specs = "swc_vol",
   by = "diepte",
   data = data_subset
 )
@@ -249,7 +249,7 @@ contrasts_landuse_by_depth_corrected
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_richness,
-  specs = "ph_kcl",
+  specs = "swc_vol",
   by = "diepte",
   data = data_subset,
   type = "response"
@@ -303,10 +303,10 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-richness-preds-values-ph_kclxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
+```{r m-richness-preds-values-swc_volxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 predicted_values <- marginaleffects::avg_predictions(
   m_richness,
-  variables = c("ph_kcl", "diepte"),
+  variables = c("swc_vol", "diepte"),
   newdata = data_subset,
   type = "response"
 )
@@ -333,10 +333,10 @@ marginaleffects::plot_predictions(
   labs(y = "Voorspeld aantal taxa")
 ```
 
-```{r m-richness-preds-ph_kclxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-preds-swc_volxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
-  condition = c("ph_kcl", "diepte"[diepte_ok]),
+  condition = c("swc_vol", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
   type = "response"
@@ -357,8 +357,8 @@ variables_no_collinearity <- c(
   "cmon_plot_id",
   "c_density",
   "cn_stockbased",
-  "swc_vol",
   "ph_kcl",
+  "swc_vol",
   "bd",
   "textuur_som_klei_zand"
 )
@@ -398,7 +398,7 @@ form_richness_full <- update(
     + swc_vol
     + c_density
     + cn_stockbased
-    + poly(ph_kcl, 2)
+    + poly(swc_vol, 2)
     + bd
     + textuur_som_klei_zand
 )
@@ -628,7 +628,7 @@ efvars <- ifelse(
   efvars == "total_count + 1", "total_count", efvars
 )
 efvars <- ifelse(
-  efvars == "ph_kcl, 2", "ph_kcl", efvars
+  efvars == "swc_vol, 2", "swc_vol", efvars
 )
 
 p <- vector(mode = "list", length = length(efvars))
