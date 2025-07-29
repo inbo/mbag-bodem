@@ -1,5 +1,5 @@
 ---
-title: "Analyses diversiteit_all land uses_ph_kcl"
+title: "Analyses diversiteit_Residentieel grasland_swc_vol"
 author: "Sam Lambrechts, Silke De Backer, Hans Van Calster"
 date: "`r Sys.Date()`"
 output:
@@ -69,7 +69,7 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
-Versie 28072025, alle landgebruiken, ph_kcl
+Versie 28072025, Residentieel grasland, swc_vol
 
 
 ```{r inlezen}
@@ -128,6 +128,7 @@ metadata <- readr::read_csv(
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
   ) %>%
+  filter(landgebruik == "Residentieel grasland")  # <-- filter added here
   
 
 ```
