@@ -37,16 +37,16 @@ if (diepte_ok) {
   form_simpson <- formula(
     simpson ~
       log(total_count + 1)
-    + landgebruik
+    + c_density
     + diepte
-    + landgebruik:diepte
+    + c_density:diepte
     + (1 | cmon_plot_id)
   )
 } else {
   form_simpson <- formula(
     simpson ~
       log(total_count + 1)
-    + landgebruik
+    + c_density
     + (1 | cmon_plot_id)
   )
 }
@@ -74,13 +74,13 @@ summary(m_simpson) |> print(digits = 2)
 car::Anova(m_simpson) |> print(digits = 2)
 ```
 
-```{r m-simpson-marginal-means-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-marginal-means-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_simpson,
-  variables = "landgebruik",
+  variables = "c_density",
   newdata = data_subset,
-  by = c("diepte", "landgebruik"),
+  by = c("diepte", "c_density"),
   type = "response"
 )
 
@@ -95,11 +95,11 @@ emmeans_landuse_by_depth
 ```
 
 
-```{r m-simpson-contrasts-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Compute all pairwise contrasts between land use types within each depth layer
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_simpson,
-  variables = "landgebruik",
+  variables = "c_density",
   newdata = data_subset,
   type = "response",
   by = "diepte") 
@@ -115,7 +115,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-simpson-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-adj-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-corrected p-values per depth group
 contrasts_simpson_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
   group_by(diepte) %>%
@@ -144,11 +144,11 @@ print(contrasts_simpson_landuse_by_depth_adj)
 
 ```
 
-```{r m-simpson-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_simpson,
-  specs = "landgebruik",
+  specs = "c_density",
   by = "diepte",
   data = data_subset
 )
@@ -168,7 +168,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-simpson-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
   as_tibble() %>%
@@ -198,11 +198,11 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-simpson-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_simpson,
-  specs = "landgebruik",
+  specs = "c_density",
   by = "diepte",
   data = data_subset,
   type = "response"
@@ -224,7 +224,7 @@ print(contrasts_landuse_by_depth_response)
 ```
 
 
-```{r m-simpson-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
   as_tibble() %>%
@@ -256,10 +256,10 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-simpson-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-preds-values-c_densityxdiepte-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 predicted_values <- marginaleffects::avg_predictions(
   m_simpson,
-  variables = c("landgebruik", "diepte"),
+  variables = c("c_density", "diepte"),
   newdata = data_subset,
   type = "response"
 )
@@ -286,10 +286,10 @@ marginaleffects::plot_predictions(
   scale_x_log10()
 ```
 
-```{r m-simpson-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+```{r m-simpson-preds-c_densityxdiepte-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
 marginaleffects::plot_predictions(
   m_simpson,
-  condition = c("landgebruik", "diepte"[diepte_ok]),
+  condition = c("c_density", "diepte"[diepte_ok]),
   re.form = NA,
   vcov = TRUE,
   type = "response"
