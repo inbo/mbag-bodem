@@ -414,35 +414,35 @@ m_richness_full <- update(
 We vergelijken de parameterschattingen van het basis en volledig model.
 
 ```{r coefficients-se-{{group}}-{{primerset}}-{{unit}}}
+# Compare parameter estimates (fixed effects in the conditional model only)
+# coefficients-se-{{group}}-{{primerset}}-{{unit}}
 base_model_coefs <- broom.mixed::tidy(m_richness)
 full_model_coefs <- broom.mixed::tidy(m_richness_full)
 
-coefs_df <- rbind(
-  data.frame(Model = "Base", base_model_coefs),
-  data.frame(Model = "Full", full_model_coefs)
-)
+coefs_df <- dplyr::bind_rows(
+  dplyr::mutate(base_model_coefs, Model = "Base"),
+  dplyr::mutate(full_model_coefs, Model = "Full")
+) |>
+  # Keep only fixed effects from the conditional (count) part
+  dplyr::filter(effect == "fixed", component == "cond") |>
+  # Drop the intercept
+  dplyr::filter(term != "(Intercept)") |>
+  # Remove rows without SE (just in case) and order by |estimate|
+  dplyr::filter(!is.na(std.error)) |>
+  dplyr::mutate(term = forcats::fct_reorder(term, abs(estimate), .fun = max))
 ```
 
 ```{r plot-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
-ggplot(
-  coefs_df,
-  aes(x = term, y = estimate, fill = Model)
-) +
-  geom_bar(stat = "identity", position = "dodge") +
-  geom_errorbar(
-    aes(
-      ymin = estimate - std.error,
-      ymax = estimate + std.error
-    ),
-    width = 0.2, position = position_dodge(0.9)
-  ) +
+# plot-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}
+ggplot(coefs_df, aes(x = term, y = estimate, color = Model)) +
+  geom_pointrange(aes(ymin = estimate - std.error, ymax = estimate + std.error),
+                  position = position_dodge(width = 0.5)) +
   coord_flip() +
   theme_minimal() +
   labs(
-    title = "Coefficient Estimates and Standard Errors",
+    title = "Conditional model (fixed effects only): estimates ± SE",
     x = "Predictor",
-    y = "Estimate",
-    fill = "Model"
+    y = "Estimate"
   )
 ```
 
