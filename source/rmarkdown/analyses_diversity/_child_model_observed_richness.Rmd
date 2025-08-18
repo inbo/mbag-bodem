@@ -491,6 +491,37 @@ par(mar = c(3, 5, 6, 4))
 plot(dd, labAsExpr = TRUE)
 ```
 
+check the cumulative weight that dd captures
+
+```{r}
+
+# 1) How much cumulative weight does dd cover?
+cov_dd <- sum(as.data.frame(dd)$weight, na.rm = TRUE)
+# e.g. 0.93 means your ΔAICc ≤ 4 set covers 93% of the total weight.
+cov_dd
+
+```
+
+```{r}
+# 2) Sanity checks
+nrow(as.data.frame(dd))          # number of models in the top set
+nrow(as.data.frame(model_set))   # total number of dredged models
+sum(as.data.frame(model_set)$weight, na.rm = TRUE)  # should be ~1
+```
+
+```{r}
+# 3) (Optional) Find the smallest set reaching 95% cumulative weight
+ms_all <- as.data.frame(model_set)[order(model_set$delta), ]
+ms_all$cum_w <- cumsum(ms_all$weight)
+cut95 <- which(ms_all$cum_w >= 0.95)[1]
+list(
+  n_models_95 = cut95,
+  cum_weight_95 = ms_all$cum_w[cut95],
+  delta_at_cut = ms_all$delta[cut95]
+)
+```
+
+
 Get summed Akaike weights per term (workaround for handling glmmTMB/hurdle quirks)
 
 ```{r}
@@ -508,7 +539,7 @@ importance_tbl
 
 ```
 
-idem maar group polynomial pH terms so you get one importance value for pH
+same but group polynomial pH terms so you get one importance value for pH
 
 ```{r}
 
@@ -564,68 +595,101 @@ importance_tbl
 
 ```{r}
 library(MuMIn)
-top_models <- get.models(dd, 1:nrow(dd))     # models in your ΔAICc set
-ma <- model.avg(top_models)                  # conditional averaging
+top_models <- get.models(dd, 1:nrow(dd))
+ma <- model.avg(top_models)  # conditional averaging
 
-# Coefficient table with unconditional SE
-tab <- as.data.frame(summary(ma)$coefmat.full)
+sum_ma <- summary(ma)
+tab <- as.data.frame(sum_ma$coefmat.subset)  # CONDITIONAL averages
 tab$term <- rownames(tab)
 
-# Keep FIXED effects from the conditional/count part only
-library(dplyr); library(stringr)
-cond_tab <- tab |>
-  filter(str_starts(term, "cond("),
-         term != "cond((Int))") |>
+# keep fixed effects from conditional part; drop intercept
+cond_tab <- tab %>%
+  filter(str_starts(term, "cond("), term != "cond((Int))") %>%
   transmute(
-    term      = str_remove_all(term, "^cond\\(|\\)$"),
-    estimate  = Estimate,
-    se        = `Std. Error`,
-    lwr       = estimate - 1.96*se,
-    upr       = estimate + 1.96*se
+    term_raw = term,
+    term     = str_remove_all(term, "^cond\\(|\\)$"),
+    estimate = Estimate,
+    se       = `Std. Error`,
+    lwr      = estimate - 1.96*se,
+    upr      = estimate + 1.96*se
   )
 
-# Transform to RESPONSE scale for a 1-unit change (log link => exponentiate)
-cond_tab <- cond_tab |>
-  mutate(
-    RR_unit   = exp(estimate),          # richness ratio per 1 unit
-    RR_lwr    = exp(lwr),
-    RR_upr    = exp(upr)
-  )
+```
 
-# OPTIONAL: express continuous predictors per IQR change
-iqr_vals <- list(
-  c_density = IQR(data_subset$c_density, na.rm = TRUE),
-  pH_KCl    = IQR(data_subset$ph_kcl,    na.rm = TRUE),
-  bd        = IQR(data_subset$bd,        na.rm = TRUE)
-)
-cond_tab <- cond_tab |>
-  rowwise() |>
+Continuous main effects → % change per IQR
+
+```{r}
+# helper to extract base variable name
+base_var <- function(s) {
+  if (grepl("^poly\\(", s)) sub("^poly\\(([^,]+),.*$", "\\1", s)
+  else if (grepl(":", s)) NA_character_               # interactions handled elsewhere
+  else if (grepl("landgebruik", s)) NA_character_     # factor levels
+  else s
+}
+
+cond_tab$base <- vapply(cond_tab$term, base_var, character(1))
+
+# compute IQRs from the modelling data (use the same frame used in m_richness_full)
+df_mod <- insight::get_data(top_models[[1]])  # or the data you passed to glmmTMB
+
+iqr_map <- df_mod %>%
+  summarize(
+    across(any_of(unique(na.omit(cond_tab$base))),
+           ~ IQR(.x, na.rm = TRUE), .names = "iqr_{col}")
+  ) %>% tidyr::pivot_longer(everything(),
+       names_to = "base", values_to = "IQR") %>%
+  mutate(base = sub("^iqr_", "", base))
+
+cond_cont <- cond_tab %>%
+  left_join(iqr_map, by = "base") %>%
+  filter(!is.na(base), !grepl("^poly\\(", term), !grepl(":", term)) %>%
   mutate(
-    IQR = iqr_vals[[term]] %||% 1,                 # 1 for factors
-    RR_IQR  = exp(estimate * IQR),
+    RR_IQR     = exp(estimate * IQR),
     RR_IQR_lwr = exp(lwr * IQR),
     RR_IQR_upr = exp(upr * IQR),
     pct_change_IQR = (RR_IQR - 1) * 100
-  ) |>
-  ungroup()
+  )
 
 ```
+
+Categorical (land use) → ratios vs reference
+
+```{r}
+cond_cat <- cond_tab %>%
+  filter(grepl("^landgebruik", term)) %>%
+  mutate(
+    RR_unit  = exp(estimate),
+    RR_lwr   = exp(lwr),
+    RR_upr   = exp(upr),
+    pct_vs_ref = (RR_unit - 1) * 100
+  )
+
+```
+
 
 Plot (response scale, model-averaged):
 
+Continuous (IQR % change)
+
 ```{r}
-library(ggplot2)
-ggplot(cond_tab, aes(x = reorder(term, pct_change_IQR), y = pct_change_IQR)) +
+ggplot(cond_cont, aes(x = reorder(term, pct_change_IQR), y = pct_change_IQR)) +
   geom_hline(yintercept = 0, linetype = 2) +
   geom_pointrange(aes(ymin = (RR_IQR_lwr - 1)*100, ymax = (RR_IQR_upr - 1)*100)) +
-  coord_flip() +
-  labs(x = "Predictor",
-       y = "Model-averaged % change in richness per IQR",
-       title = "Model-averaged effects (ΔAICc set), response scale") +
-  theme_minimal()
-
+  coord_flip() + theme_minimal() +
+  labs(x = "Predictor", y = "% change in richness per IQR (model-averaged)",
+       title = "Model-averaged effects (ΔAICc set)")
 ```
 
+Categorical (vs reference)
+
+```{r}
+ggplot(cond_cat, aes(x = term, y = pct_vs_ref)) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  geom_pointrange(aes(ymin = (RR_lwr - 1)*100, ymax = (RR_upr - 1)*100)) +
+  coord_flip() + theme_minimal() +
+  labs(x = "Land use level (vs ref)", y = "% difference in richness",
+       title = "Model-averaged contrasts (ΔAICc set)")
+```
 
 
 ##### Model met de laagste AICc:
