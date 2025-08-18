@@ -489,6 +489,75 @@ par(mar = c(3, 5, 6, 4))
 plot(dd, labAsExpr = TRUE)
 ```
 
+Get summed Akaike weights per term (workaround for handling glmmTMB/hurdle quirks)
+
+```{r}
+ms <- as.data.frame(dd)
+
+term_cols <- setdiff(names(ms), c("df","logLik","AICc","delta","weight"))
+sum_wt <- sapply(term_cols, \(cl) sum(ms$weight[ms[[cl]] == 1], na.rm = TRUE))
+nmods  <- sapply(term_cols, \(cl) sum(ms[[cl]] == 1, na.rm = TRUE))
+
+importance_tbl <- data.frame(term = term_cols,
+                             sum_weight = sum_wt,
+                             n_models   = nmods) |>
+  dplyr::arrange(dplyr::desc(sum_weight))
+importance_tbl
+
+```
+
+idem maar group polynomial pH terms so you get one importance value for pH
+
+```{r}
+
+# 3) Columns to ignore (meta + fixed-by-design + structural intercepts)
+fixed_terms <- if (diepte_ok) {
+  c("cond(log(total_count + 1))", "cond(landgebruik)", "cond(diepte)")
+} else {
+  c("cond(log(total_count + 1))", "cond(landgebruik)")
+}
+drop_cols <- c("df","logLik","AICc","delta","weight",
+               fixed_terms,
+               "cond((Int))","zi((Int))","disp((Int))")
+
+# 4) Candidate term columns (0/1 indicators)
+term_cols <- setdiff(names(ms), drop_cols)
+
+# 5) Group polynomial pH terms so they are treated as ONE predictor
+#    dredge typically names them like "cond(poly(ph_kcl, 2))1" and "...2"
+group_name <- function(x) gsub("\\)\\d+$", ")", x)  # collapse ")1"/")2" to ")"
+groups <- unique(group_name(term_cols))
+
+# 6) Summed weights and model counts per (grouped) term
+importance_tbl <- lapply(groups, function(g) {
+  cols <- term_cols[group_name(term_cols) == g]
+  # A model "has" the grouped term if ANY of its columns are 1
+  has_term <- rowSums(ms[ , cols, drop = FALSE], na.rm = TRUE) > 0
+  data.frame(
+    term        = g,
+    sum_weight  = sum(ms$weight[has_term], na.rm = TRUE),
+    n_models    = sum(has_term, na.rm = TRUE)
+  )
+}) %>% bind_rows() %>%
+  arrange(desc(sum_weight))
+
+# 7) (Optional) Add the fixed terms with weight 1.0 for clarity
+if (length(fixed_terms)) {
+  fixed_tbl <- data.frame(
+    term = fixed_terms,
+    sum_weight = 1.0,
+    n_models = nrow(ms)
+  )
+  importance_tbl <- bind_rows(fixed_tbl, importance_tbl) %>%
+    arrange(desc(sum_weight))
+}
+
+importance_tbl
+
+```
+
+
+
 Dit is de samenvatting voor het model met de laagste AICc:
 
 ```{r}
