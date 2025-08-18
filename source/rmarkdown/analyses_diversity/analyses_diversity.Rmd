@@ -34,7 +34,7 @@ library(readr)
 library(emmeans)
 library(lubridate)
 library(insight)
-
+library(rlang)
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
 
