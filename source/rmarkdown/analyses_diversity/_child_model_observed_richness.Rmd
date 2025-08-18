@@ -347,7 +347,7 @@ marginaleffects::plot_predictions(
 
 #### Met fysicochemische data
 
-Stapsgewijze modelselectie:
+##### Stapsgewijze modelselectie:
 
 ```{r}
 variables_no_collinearity <- c(
@@ -473,6 +473,8 @@ if (diepte_ok) {
 }
 ```
 
+##### term importance across the supported model set
+
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
 
 ```{r importance-per-predictor-{{group}}-{{primerset}}-{{unit}}}
@@ -556,9 +558,77 @@ importance_tbl
 
 ```
 
+##### effect size: model-averaged effects 
+
+(MuMIn::model.avg) and plotted on the response scale.
+
+```{r}
+library(MuMIn)
+top_models <- get.models(dd, 1:nrow(dd))     # models in your ΔAICc set
+ma <- model.avg(top_models)                  # conditional averaging
+
+# Coefficient table with unconditional SE
+tab <- as.data.frame(summary(ma)$coefmat.full)
+tab$term <- rownames(tab)
+
+# Keep FIXED effects from the conditional/count part only
+library(dplyr); library(stringr)
+cond_tab <- tab |>
+  filter(str_starts(term, "cond("),
+         term != "cond((Int))") |>
+  transmute(
+    term      = str_remove_all(term, "^cond\\(|\\)$"),
+    estimate  = Estimate,
+    se        = `Std. Error`,
+    lwr       = estimate - 1.96*se,
+    upr       = estimate + 1.96*se
+  )
+
+# Transform to RESPONSE scale for a 1-unit change (log link => exponentiate)
+cond_tab <- cond_tab |>
+  mutate(
+    RR_unit   = exp(estimate),          # richness ratio per 1 unit
+    RR_lwr    = exp(lwr),
+    RR_upr    = exp(upr)
+  )
+
+# OPTIONAL: express continuous predictors per IQR change
+iqr_vals <- list(
+  c_density = IQR(data_subset$c_density, na.rm = TRUE),
+  pH_KCl    = IQR(data_subset$ph_kcl,    na.rm = TRUE),
+  bd        = IQR(data_subset$bd,        na.rm = TRUE)
+)
+cond_tab <- cond_tab |>
+  rowwise() |>
+  mutate(
+    IQR = iqr_vals[[term]] %||% 1,                 # 1 for factors
+    RR_IQR  = exp(estimate * IQR),
+    RR_IQR_lwr = exp(lwr * IQR),
+    RR_IQR_upr = exp(upr * IQR),
+    pct_change_IQR = (RR_IQR - 1) * 100
+  ) |>
+  ungroup()
+
+```
+
+Plot (response scale, model-averaged):
+
+```{r}
+library(ggplot2)
+ggplot(cond_tab, aes(x = reorder(term, pct_change_IQR), y = pct_change_IQR)) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  geom_pointrange(aes(ymin = (RR_IQR_lwr - 1)*100, ymax = (RR_IQR_upr - 1)*100)) +
+  coord_flip() +
+  labs(x = "Predictor",
+       y = "Model-averaged % change in richness per IQR",
+       title = "Model-averaged effects (ΔAICc set), response scale") +
+  theme_minimal()
+
+```
 
 
-Dit is de samenvatting voor het model met de laagste AICc:
+
+##### Model met de laagste AICc:
 
 ```{r}
 lowest_aic <- get.models(dd, 1)[[1]]
