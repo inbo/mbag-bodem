@@ -495,10 +495,14 @@ check the cumulative weight that dd captures
 
 ```{r}
 
-# 1) How much cumulative weight does dd cover?
-cov_dd <- sum(as.data.frame(dd)$weight, na.rm = TRUE)
-# e.g. 0.93 means your ΔAICc ≤ 4 set covers 93% of the total weight.
-cov_dd
+ms_all  <- as.data.frame(model_set)
+ms_top  <- as.data.frame(dd)
+
+# match by row names (model indices)
+covered <- sum(ms_all$weight[ rownames(ms_all) %in% rownames(ms_top) ], na.rm=TRUE)
+covered
+# e.g. 0.83 means your ΔAICc ≤ 4 set covers 83% of the total weight
+
 
 ```
 
