@@ -45,16 +45,15 @@ if (diepte_ok) {
     + landgebruik:diepte
     + (1 | cmon_plot_id)
   )
+  ziform <- formula(~ 1 + (1 | cmon_plot_id))
 } else {
   form_richness <- formula(
   observed ~
     log(total_count + 1)
     + landgebruik
-    + (1 | cmon_plot_id)
   )
+  ziform <- formula(~ 1)
 }
-
-ziform <- formula(~ 1 + (1 | cmon_plot_id))
 
 cat("Fitting Poisson model\n")
 m_pois <- glmmTMB(
