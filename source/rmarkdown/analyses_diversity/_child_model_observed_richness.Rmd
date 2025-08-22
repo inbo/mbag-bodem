@@ -489,7 +489,7 @@ summary(lowest_aic)
 car::Anova(lowest_aic) |> print(digits = 2)
 ```
 
-```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth_incl_fyschem <- marginaleffects::avg_predictions(
   lowest_aic,
@@ -510,7 +510,7 @@ write_csv(
 emmeans_landuse_by_depth_incl_fyschem
 ```
 
-```{r m-richness-marginaleffects-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-marginaleffects-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Pairwise contrasts between land use types *within each depth layer*
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = lowest_aic,
@@ -529,7 +529,7 @@ write_csv(
 contrasts_landuse_by_depth
 ```
 
-```{r m-richness-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   lowest_aic,
@@ -553,7 +553,7 @@ print(contrasts_landuse_by_depth_incl_fyschem)
 
 ```
 
-```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}, eval=FALSE}
 # Add bh-corrected p-values per depth group
 contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_by_depth_incl_fyschem %>%
   as_tibble() %>%
