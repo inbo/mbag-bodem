@@ -80,6 +80,7 @@ diversiteit <- readr::read_csv(
     "mbag_combined_dataframe_INBO_ILVO_v19.csv"
   )
 ) %>%
+  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
   filter(group == "nematoda")
 
 metadata <- readr::read_csv(
