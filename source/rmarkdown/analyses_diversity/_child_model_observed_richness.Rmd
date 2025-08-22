@@ -155,9 +155,8 @@ car::Anova(m_richness) |> print(digits = 2)
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_richness,
-  variables = "landgebruik",
   newdata = data_subset,
-  by = c("diepte", "landgebruik"),
+  by = "landgebruik",
   type = "response"
 )
 
@@ -175,10 +174,9 @@ emmeans_landuse_by_depth
 # Pairwise contrasts between land use types *within each depth layer*
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_richness,
-  variables = "landgebruik",
+  by = "landgebruik",
   newdata = data_subset,
-  type = "response",
-  by = "diepte")
+  type = "response")
 
 # Save to CSV with automatic naming
 write_csv(
@@ -195,7 +193,6 @@ contrasts_landuse_by_depth
 emm_landuse_by_depth <- emmeans(
   m_richness,
   specs = "landgebruik",
-  by = "diepte",
   data = data_subset
 )
 
@@ -218,11 +215,8 @@ print(contrasts_landuse_by_depth)
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
   as_tibble() %>%
-  group_by(diepte) %>%
   mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
   select(
-    diepte,
     contrast,
     estimate,
     SE,
@@ -230,7 +224,7 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
     p.value,
     p_bh
   ) %>%
-  arrange(diepte, p.value)
+  arrange(p.value)
 
 
 # Save corrected results to CSV
@@ -249,7 +243,6 @@ contrasts_landuse_by_depth_corrected
 emm_landuse_by_depth <- emmeans(
   m_richness,
   specs = "landgebruik",
-  by = "diepte",
   data = data_subset,
   type = "response"
 )
@@ -274,11 +267,8 @@ print(contrasts_landuse_by_depth_response)
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
   as_tibble() %>%
-  group_by(diepte) %>%
   mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
   select(
-    diepte,
     contrast,
     ratio,
     SE,
@@ -305,8 +295,8 @@ contrasts_landuse_by_depth_corrected
 ```{r m-richness-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 predicted_values <- marginaleffects::avg_predictions(
   m_richness,
-  variables = c("landgebruik", "diepte"),
   newdata = data_subset,
+  by = "landgebruik",
   type = "response"
 )
 
