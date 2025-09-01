@@ -171,24 +171,6 @@ write_csv(
 emmeans_landuse_by_depth
 ```
 
-```{r m-richness-marginaleffects-contrasts-{{group}}-{{primerset}}-{{unit}}}
-# Pairwise contrasts between land use types *within each depth layer*
-contrasts_landuse_by_depth <- marginaleffects::comparisons(
-  model = m_richness,
-  variables = "landgebruik",
-  newdata = data_subset,
-  type = "response",
-  by = "diepte")
-
-# Save to CSV with automatic naming
-write_csv(
-  contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("marginaleffects_contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
-
-# print
-contrasts_landuse_by_depth
-```
 
 ```{r m-richness-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
