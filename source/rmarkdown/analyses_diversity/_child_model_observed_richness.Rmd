@@ -176,58 +176,69 @@ emm_landuse
 
 
 ```{r m-richness-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
-# Estimate marginal means per land use per depth
-emm_landuse_by_depth <- emmeans(
+# Estimated marginal means per land use (and per depth if applicable), on response scale
+emm_landuse <- emmeans(
   m_richness,
   specs = "landgebruik",
-  by = "diepte",
+  by = if (diepte_ok) "diepte" else NULL,
   data = data_subset,
   type = "response"
 )
 
-# Compute pairwise contrasts
-contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", infer = c(TRUE, TRUE)) %>%
+# Pairwise contrasts (auto adjustment by emmeans; keep CIs & p-values)
+contrasts_landuse_response <- contrast(
+  emm_landuse,
+  method = "pairwise",
+  infer = c(TRUE, TRUE)
+) %>%
   as.data.frame()
 
 # Save to CSV
 write_csv(
-  contrasts_landuse_by_depth_response,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_response_{group}_{primerset}_{unit}.csv"))
+  contrasts_landuse_response,
+  file = file.path(output_dir, glue("contrasts_landuse_response_{group}_{primerset}_{unit}.csv"))
 )
 
 # Print
-print(contrasts_landuse_by_depth_response)
+print(contrasts_landuse_response)
+
 
 ```
 
 
 ```{r m-richness-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
-# Add BH-adjusted p-values per depth
-contrasts_landuse_by_depth_table <- contrasts_landuse_by_depth_response %>%
+# Summary table
+contrasts_landuse_table <- contrasts_landuse_response %>%
   as_tibble() %>%
-  group_by(diepte) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    ratio,
-    SE,
-    z.ratio,
-    p.value,
-    asymp.LCL,
-    asymp.UCL
-  ) %>%
-  arrange(diepte, p.value)
+  dplyr::select(
+    dplyr::any_of(c(
+      "diepte",        # only present if diepte_ok == TRUE
+      "contrast",
+      "estimate",      # default column name
+      "ratio",         # appears instead of 'estimate' when type = "response"
+      "SE",
+      "z.ratio",       # or t.ratio, one of them will always exist with infer=TRUE
+      "p.value",
+      "asymp.LCL",
+      "asymp.UCL"
+    ))
+  )
 
+# Sort
+if (diepte_ok) {
+  contrasts_landuse_table <- contrasts_landuse_table %>% arrange(diepte, p.value)
+} else {
+  contrasts_landuse_table <- contrasts_landuse_table %>% arrange(p.value)
+}
 
-# Save corrected results to CSV
+# Save
 write_csv(
-  contrasts_landuse_by_depth_table,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_table_response_{group}_{primerset}_{unit}.csv"))
+  contrasts_landuse_table,
+  file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{unit}.csv"))
 )
 
 # Print
-contrasts_landuse_by_depth_corrected
+contrasts_landuse_table
 
 ```
 
