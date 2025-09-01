@@ -152,23 +152,25 @@ car::Anova(m_richness) |> print(digits = 2)
 ```
 
 ```{r m-richness-marginal-means-per-depth-{{group}}-{{primerset}}-{{unit}}}
-# Estimated marginal means per land use *within each depth layer*
-emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
+# Estimated marginal means per land use (and per depth if applicable)
+
+emm_landuse <- emmeans(
   m_richness,
-  variables = "landgebruik",
-  newdata = data_subset,
-  by = c("diepte", "landgebruik"),
-  type = "response"
+  specs = "landgebruik",
+  by = if (diepte_ok) "diepte" else NULL,
+  data = data_subset
 )
 
 # Save to CSV with automatic naming
 write_csv(
-  emmeans_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+  as.data.frame(emm_landuse),
+  file = file.path(output_dir, glue("emmeans_landuse_{group}_{primerset}_{unit}.csv"))
 )
 
 # print
-emmeans_landuse_by_depth
+emm_landuse
+
+
 ```
 
 
