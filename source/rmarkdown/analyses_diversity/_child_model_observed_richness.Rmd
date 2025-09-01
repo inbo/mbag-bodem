@@ -158,7 +158,8 @@ emm_landuse <- emmeans(
   m_richness,
   specs = "landgebruik",
   by = if (diepte_ok) "diepte" else NULL,
-  data = data_subset
+  data = data_subset,
+  type = "response"
 )
 
 # Save to CSV with automatic naming
