@@ -172,60 +172,6 @@ emmeans_landuse_by_depth
 ```
 
 
-```{r m-richness-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
-# Estimate marginal means per land use per depth
-emm_landuse_by_depth <- emmeans(
-  m_richness,
-  specs = "landgebruik",
-  by = "diepte",
-  data = data_subset
-)
-
-# Compute pairwise contrasts
-contrasts_landuse_by_depth <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
-  as.data.frame()
-
-# Save to CSV
-write_csv(
-  contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print
-print(contrasts_landuse_by_depth)
-
-```
-
-```{r m-richness-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
-# Add BH-adjusted p-values per depth
-contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    estimate,
-    SE,
-    z.ratio,
-    p.value,
-    p_bh
-  ) %>%
-  arrange(diepte, p.value)
-
-
-# Save corrected results to CSV
-write_csv(
-  contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_bh_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print
-contrasts_landuse_by_depth_corrected
-
-```
-
 ```{r m-richness-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
