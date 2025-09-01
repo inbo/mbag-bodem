@@ -69,7 +69,7 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
-DIT IS een test versie met enkel winterstalen en inseKP data
+DIT IS de output obv de winterhalfjaar data
 
 
 ```{r inlezen}
@@ -127,7 +127,8 @@ metadata <- readr::read_csv(
       sampling_month %in% c(9, 10, 11) ~ "Autumn",
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
-  )
+  ) %>%
+  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4))
 
 ```
 
