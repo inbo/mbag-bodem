@@ -183,7 +183,7 @@ emm_landuse_by_depth <- emmeans(
 )
 
 # Compute pairwise contrasts
-contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none", infer = c(TRUE, TRUE)) %>%
+contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", infer = c(TRUE, TRUE)) %>%
   as.data.frame()
 
 # Save to CSV
@@ -200,10 +200,9 @@ print(contrasts_landuse_by_depth_response)
 
 ```{r m-richness-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
 # Add BH-adjusted p-values per depth
-contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
+contrasts_landuse_by_depth_table <- contrasts_landuse_by_depth_response %>%
   as_tibble() %>%
   group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
   ungroup() %>%
   select(
     diepte,
@@ -212,7 +211,6 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
     SE,
     z.ratio,
     p.value,
-    p_bh,
     asymp.LCL,
     asymp.UCL
   ) %>%
@@ -221,8 +219,8 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
 
 # Save corrected results to CSV
 write_csv(
-  contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_bh_response_{group}_{primerset}_{unit}.csv"))
+  contrasts_landuse_by_depth_table,
+  file = file.path(output_dir, glue("contrasts_landuse_by_depth_table_response_{group}_{primerset}_{unit}.csv"))
 )
 
 # Print
