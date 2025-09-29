@@ -419,97 +419,74 @@ car::Anova(lowest_aic) |> print(digits = 2)
 ```
 
 ```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
-# Estimated marginal means per land use *within each depth layer*
-emmeans_landuse_by_depth_incl_fyschem <- marginaleffects::avg_predictions(
-  lowest_aic,
-  variables = "landgebruik",
-  newdata = data_subset,
-  by = c("diepte", "landgebruik"),
-  type = "response"
-)
-
-
-# Save to CSV with automatic naming
-write_csv(
-  emmeans_landuse_by_depth_incl_fyschem,
-  file = file.path(output_dir, glue("emmeans_landuse_by_depth_incl_fyschem_{group}_{primerset}_{unit}.csv"))
-)
-
-# print
-emmeans_landuse_by_depth_incl_fyschem
-```
-
-```{r m-richness-marginaleffects-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
-# Pairwise contrasts between land use types *within each depth layer*
-contrasts_landuse_by_depth <- marginaleffects::comparisons(
-  model = lowest_aic,
-  variables = "landgebruik",
-  newdata = data_subset,
-  type = "response",
-  by = "diepte")
-
-# Save to CSV with automatic naming
-write_csv(
-  contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("margeffects_contrasts_landuse_by_depth_incl_fyschem_{group}_{primerset}_{unit}.csv"))
-)
-
-# print
-contrasts_landuse_by_depth
-```
-
-```{r m-richness-contrasts-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
-# Estimate marginal means per land use per depth
-emm_landuse_by_depth <- emmeans(
+# Estimated marginal means per land use (and per depth if applicable), on response scale
+emm_landuse_incl_fyschem <- emmeans(
   lowest_aic,
   specs = "landgebruik",
-  by = "diepte",
-  data = data_subset
+  by    = if (diepte_ok) "diepte" else NULL,
+  data  = data_subset,
+  type  = "response"
 )
 
-# Compute pairwise contrasts
-contrasts_landuse_by_depth_incl_fyschem <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none", infer = c(TRUE, TRUE)) %>%
-  as.data.frame()
-
-# Save to CSV
+# Keep original filename
 write_csv(
-  contrasts_landuse_by_depth_incl_fyschem,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_incl_fyschem_{group}_{primerset}_{unit}.csv"))
+  as.data.frame(emm_landuse_incl_fyschem),
+  file = file.path(output_dir, glue("emmeans_landuse_incl_fyschem_{group}_{primerset}_{unit}.csv"))
 )
 
 # Print
-print(contrasts_landuse_by_depth_incl_fyschem)
+emm_landuse_incl_fyschem
 
 ```
 
-```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
-# Add bh-corrected p-values per depth group
-contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_by_depth_incl_fyschem %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    estimate,
-    SE,
-    z.ratio,
-    p.value,
-    p_bh,
-    asymp.LCL,
-    asymp.UCL
-  ) %>%
-  arrange(diepte, p.value)
+```{r m-richness-contrasts-per-depth-response-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+# Pairwise contrasts on response scale (keep CIs & p-values), via emmeans
+contrasts_landuse_response_incl_fyschem <- contrast(
+  emm_landuse_incl_fyschem,
+  method = "pairwise",
+  infer  = c(TRUE, TRUE)
+) %>%
+  as.data.frame()
 
-# Save adjusted results to CSV
+# Write
 write_csv(
-  contrasts_landuse_by_depth_incl_fyschem_adj,
-  file = file.path(output_dir, glue("contrasts_landuse_by_depth_incl_fyschem_adj_{group}_{primerset}_{unit}.csv"))
+  contrasts_landuse_response_incl_fyschem,
+  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_{group}_{primerset}_{unit}.csv"))
 )
 
-# Print adjusted summary
-print(contrasts_landuse_by_depth_incl_fyschem_adj)
+# Print
+print(contrasts_landuse_response_incl_fyschem)
+
+```
+
+
+```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
+# Summary table, aligned with base-model structure
+contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_response_incl_fyschem %>%
+  as_tibble() %>%
+  dplyr::select(
+    dplyr::any_of(c(
+      "diepte",        # only present if diepte_ok == TRUE
+      "contrast",
+      "estimate",      # link-scale (absent when type = "response")
+      "ratio",         # present when type = "response" (IRR)
+      "SE",
+      "z.ratio",       # or t.ratio
+      "p.value",
+      "asymp.LCL",
+      "asymp.UCL"
+    ))
+  ) %>%
+  { if (diepte_ok) arrange(., diepte, p.value) else arrange(., p.value) }
+
+# Keep original adjusted filename (content is now the summary table without BH)
+write_csv(
+  contrasts_landuse_by_depth_incl_fyschem_adj,
+  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_adj_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+contrasts_landuse_by_depth_incl_fyschem_adj
 
 ```
 
