@@ -77,11 +77,10 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
+    "mbag_combined_dataframe_shared_across_primers.csv"
   )
 ) %>%
-  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(primerset == "InseKP")
+  mutate(group = if_else(group == "Nematoda", "nematoda", group))
 
 metadata <- readr::read_csv(
   file.path(
