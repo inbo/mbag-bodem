@@ -375,7 +375,6 @@ readr::write_csv(
 ```
 
 
-
 Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
@@ -417,6 +416,59 @@ dd <- subset(model_set, delta < 4)
 par(mar = c(3, 5, 6, 4))
 plot(dd, labAsExpr = TRUE)
 ```
+
+```{r save-model-selection-{{group}}-{{primerset}}-{{unit}}}
+
+# -- Full selection table
+model_set_tbl <- model_set %>%
+  as.data.frame() %>%
+  rownames_to_column("model_id") %>%
+  arrange(AICc)
+
+write_csv(
+  model_set_tbl,
+  file.path(output_dir, glue("full_model_set_{group}_{primerset}_{unit}.csv"))
+)
+
+# -- ΔAICc < 4 subset
+dd_obj <- subset(model_set, delta < 4)
+dd_tbl <- dd_obj %>%
+  as.data.frame() %>%
+  rownames_to_column("model_id") %>%
+  arrange(AICc)
+
+write_csv(
+  dd_tbl,
+  file.path(output_dir, glue("model_set_delta_lt4_{group}_{primerset}_{unit}.csv"))
+)
+
+# -- 95% cumulative weight subset
+cumw_tbl <- model_set_tbl %>%
+  mutate(cum_weight = cumsum(weight)) %>%
+  filter(cum_weight <= 0.95)
+
+write_csv(
+  cumw_tbl,
+  file.path(output_dir, glue("model_set_cumw95_{group}_{primerset}_{unit}.csv"))
+)
+
+# Variable importance (sum of weights by term)
+imp <- MuMIn::importance(model_set)
+imp_tbl <- tibble(term = names(imp), importance = as.numeric(imp)) %>%
+  arrange(desc(importance))
+
+write_csv(
+  imp_tbl,
+  file.path(output_dir, glue("model_importance_{group}_{primerset}_{unit}.csv"))
+)
+
+# -- (Reproducibility) Save the objects too
+saveRDS(model_set, file.path(output_dir, glue("model_set_{group}_{primerset}_{unit}.rds")))
+saveRDS(dd_obj,    file.path(output_dir, glue("model_set_delta_lt4_{group}_{primerset}_{unit}.rds")))
+
+
+```
+
 
 Dit is de samenvatting voor het model met de laagste AICc:
 
