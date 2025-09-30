@@ -364,6 +364,17 @@ ggplot(
   )
 ```
 
+```{r save-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
+readr::write_csv(
+  coefs_df,
+  file = file.path(
+    output_dir,
+    glue::glue("coefs_base_vs_full_{group}_{primerset}_{unit}.csv")
+  )
+)
+```
+
+
 
 Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
