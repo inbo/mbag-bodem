@@ -275,10 +275,9 @@ variables_no_collinearity <- c(
   "landgebruik",
   "diepte"[diepte_ok],
   "cmon_plot_id",
-  "toc",
+  "cdensity",
   "swc_vol",
   "ph_kcl",
-  "bd",
   "textuur_som_klei_zand"
 )
 
