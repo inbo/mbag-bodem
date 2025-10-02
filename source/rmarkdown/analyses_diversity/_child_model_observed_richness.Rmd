@@ -275,7 +275,7 @@ variables_no_collinearity <- c(
   "landgebruik",
   "diepte"[diepte_ok],
   "cmon_plot_id",
-  "cdensity",
+  "c_density",
   "swc_vol",
   "ph_kcl",
   "textuur_som_klei_zand"
@@ -314,7 +314,7 @@ form_richness_full <- update(
   form_richness,
   . ~ .
     + swc_vol
-    + cdensity
+    + c_density
     + poly(ph_kcl, 2)
     + textuur_som_klei_zand
 )
