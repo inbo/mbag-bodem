@@ -689,7 +689,7 @@ We voegen carbon density en de interactie met landgebruik toe aan het basismodel
 form_richness_full_int <- update(
   form_richness,
   . ~ .
-    + landgebruik * c_density)
+    + (landgebruik + diepte) * c_density)
 
 m_richness_full_int <- update(
   m_richness,
@@ -716,10 +716,96 @@ Report per–land-use slopes of c_density (IRR per IQR) without subsetting
 
 ```{r}
 iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
-emtrends(m_richness_full_int, ~ landgebruik, var = "c_density",
+emtrends(m_richness_full_int, ~ landgebruik | diepte, var = "c_density",
          delta = iqr_cd, type = "response", infer = TRUE)
 
 ```
+
+
+plot
+
+Diagnostics for the interaction model
+
+```{r}
+
+mod <- m_richness_full_int
+
+# Predictions vs observed (zoom to data-driven x-range if ggforce available)
+p1 <- performance::check_predictions(mod)
+xr <- quantile(data_subset$c_density, c(.01, .99), na.rm = TRUE)
+
+if (requireNamespace("ggforce", quietly = TRUE)) {
+  library(ggforce)
+  print(plot(p1) + ggforce::facet_zoom(xlim = xr))
+} else {
+  print(plot(p1))
+}
+
+# Overdispersion, residuals, collinearity, zero-inflation
+od <- performance::check_overdispersion(mod); print(od); plot(od)
+res <- performance::check_residuals(mod);    print(res); plot(res)
+performance::check_collinearity(mod)
+performance::check_zeroinflation(mod)
+
+```
+
+Model-based predictions: richness vs c_density by landgebruik
+
+```{r}
+library(marginaleffects)
+library(insight)
+
+# Build a grid: sequence over c_density within each landuse, hold others typical
+by_vars <- c("landgebruik", "c_density")
+nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
+
+# Optional: fix total_count at median and depth at a reference level
+if ("total_count" %in% names(data_subset)) {
+  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
+}
+ref_depth <- if ("diepte" %in% names(data_subset) &&
+                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
+nd$diepte <- ref_depth
+
+
+# Prediction plot (response scale) with 95% CIs; random effects off for marginal means
+pl_int <- marginaleffects::plot_predictions(
+  model  = mod,
+  newdata = nd,
+  by      = "landgebruik",
+  type    = "response",
+  vcov    = TRUE,
+  re.form = NA,
+  points  = 0.1
+)
+pl_int
+
+```
+
+Per–land-use effect sizes (IRR) for c_density
+
+```{r}
+library(emmeans)
+
+# Report IRR per IQR of c_density (more interpretable than per 1 unit)
+iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
+
+irr_lu <- summary(
+  emtrends(mod, ~ landgebruik, var = "c_density",
+           delta = iqr_cd, type = "response", infer = TRUE)
+)
+
+# Nice tibble for saving/printing
+irr_tbl <- as.data.frame(irr_lu) |>
+  dplyr::transmute(
+    landgebruik,
+    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
+    IRR = ratio, LCL = lower.CL, UCL = upper.CL, p.value
+  )
+irr_tbl
+
+```
+
 
 Center/scale c_density (optional) to stabilize estimation and make the intercept interpretable? Not done yet
 
