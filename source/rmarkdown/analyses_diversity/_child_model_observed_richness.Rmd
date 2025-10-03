@@ -752,14 +752,10 @@ performance::check_zeroinflation(mod)
 Model-based predictions: richness vs c_density by landgebruik
 
 ```{r}
-library(marginaleffects)
-library(insight)
-
-# Build a grid: sequence over c_density within each landuse, hold others typical
+# Build grid over c_density within each land-use (keep your “pinning” lines)
 by_vars <- c("landgebruik", "c_density")
 nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
 
-# Optional: fix total_count at median and depth at a reference level
 if ("total_count" %in% names(data_subset)) {
   nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
 }
@@ -767,42 +763,112 @@ ref_depth <- if ("diepte" %in% names(data_subset) &&
                  any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
 nd$diepte <- ref_depth
 
-
-# Prediction plot (response scale) with 95% CIs; random effects off for marginal means
-pl_int <- marginaleffects::plot_predictions(
-  model  = mod,
+# Get predictions (response scale), marginal over REs
+pr <- marginaleffects::predictions(
+  model   = mod,
   newdata = nd,
-  by      = "landgebruik",
   type    = "response",
   vcov    = TRUE,
-  re.form = NA,
-  points  = 0.1
+  re.form = NA
 )
-pl_int
+
+# Plot: x = c_density, facet by land-use
+library(ggplot2)
+ggplot(pr, aes(x = c_density, y = estimate)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  labs(x = "Carbon density", y = "Predicted richness",
+       title = "Predicted richness vs carbon density by land-use",
+       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
+                         ", depth = ", ref_depth)) +
+  theme_bw()
+
 
 ```
 
+```{r}
+resp_var <- all.vars(formula(mod))[1]
+last_plot() +
+  geom_point(data = data_subset,
+             aes(x = c_density, y = .data[[resp_var]]),
+             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
+
+```
+
+alternative plot option
+
+```{r}
+library(ggeffects)
+pred <- ggpredict(
+  mod,
+  terms = c("c_density [all]", "landgebruik"),
+  condition = list(total_count = stats::median(data_subset$total_count, na.rm = TRUE),
+                   diepte = ref_depth),
+  type = "response"
+)
+
+ggplot(pred, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  facet_wrap(~ group, scales = "free_y") +
+  labs(x = "Carbon density", y = "Predicted richness",
+       color = "Land-use", fill = "Land-use") +
+  theme_bw()
+
+```
+
+
 Per–land-use effect sizes (IRR) for c_density
+
+IRR per IQR, work on the link (latent) scale and exponentiate
 
 ```{r}
 library(emmeans)
-
-# Report IRR per IQR of c_density (more interpretable than per 1 unit)
 iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
 
-irr_lu <- summary(
-  emtrends(mod, ~ landgebruik, var = "c_density",
-           delta = iqr_cd, type = "response", infer = TRUE)
-)
+# Get slopes on the link (log) scale
+tr <- summary(
+  emtrends(mod, ~ landgebruik, var = "c_density", mode = "latent", infer = TRUE)
+) # columns include: landgebruik, c_density.trend, SE, df (Inf), p.value
 
-# Nice tibble for saving/printing
-irr_tbl <- as.data.frame(irr_lu) |>
+zcrit <- qnorm(0.975)
+
+irr_tbl <- as.data.frame(tr) |>
   dplyr::transmute(
     landgebruik,
     increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    IRR = ratio, LCL = lower.CL, UCL = upper.CL, p.value
+    beta  = c_density.trend,
+    SE    = SE,
+    IRR   = exp(beta * iqr_cd),
+    LCL   = exp((beta - zcrit * SE) * iqr_cd),
+    UCL   = exp((beta + zcrit * SE) * iqr_cd),
+    p.value
   )
+
 irr_tbl
+
+
+```
+
+keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
+
+```{r}
+tr_delta <- summary(
+  emtrends(mod, ~ landgebruik, var = "c_density",
+           mode = "latent", delta = iqr_cd, infer = TRUE)
+)
+irr_tbl <- as.data.frame(tr_delta) |>
+  dplyr::transmute(
+    landgebruik,
+    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
+    beta  = c_density.trend,  # already scaled by delta
+    SE    = SE,               # SE is scaled too
+    IRR   = exp(beta),
+    LCL   = exp(beta - qnorm(0.975) * SE),
+    UCL   = exp(beta + qnorm(0.975) * SE),
+    p.value
+  )
 
 ```
 
