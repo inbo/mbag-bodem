@@ -628,7 +628,7 @@ efvars <- ifelse(
   efvars == "total_count + 1", "total_count", efvars
 )
 efvars <- ifelse(
-  efvars == "ph_kcl, 2", "ph_kcm", efvars
+  efvars == "ph_kcl, 2", "ph_kcl", efvars
 )
 
 p <- vector(mode = "list", length = length(efvars))
