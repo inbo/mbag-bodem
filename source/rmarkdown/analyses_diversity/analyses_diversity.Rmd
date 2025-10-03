@@ -10,6 +10,7 @@ output:
 editor_options:
   markdown:
     wrap: sentence
+    
 ---
 
 ```{r setup, include=FALSE}
@@ -321,7 +322,7 @@ if (interactive()) {
 
 ## Shannon index
 
-```{r child-model-shannon, echo=FALSE, results="asis"}
+```{r child-model-shannon, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
@@ -355,7 +356,7 @@ knit_child(text = rmd, quiet = TRUE) %>%
 
 ## Simpson index
 
-```{r child-model-simpson, echo=FALSE, results="asis"}
+```{r child-model-simpson, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
