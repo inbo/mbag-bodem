@@ -627,3 +627,96 @@ for (i in efvars) {
 
 p
 ```
+
+#### Resource effect carbon density per land-use type
+
+We voegen carbon density toe aan het basismodel.
+
+```{r}
+variables_no_collinearity <- c(
+  "total_count",
+  "landgebruik",
+  "diepte"[diepte_ok],
+  "cmon_plot_id",
+  "c_density",
+)
+
+nr1 <- nrow(data_subset)
+cat(
+  paste(
+    "De originele dataset heeft",
+    nr1,
+    "rijen.\n"
+  )
+)
+data_subset <- data_subset[
+  complete.cases(data_subset[, variables_no_collinearity]),
+]
+nr2 <- nrow(data_subset)
+
+cat(
+  paste(
+    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
+    één van de covariaten, heeft de dataset",
+    nr2,
+    "rijen.\n"
+  )
+)
+```
+
+
+```{r extend-model-carbon-density-{{group}}-{{primerset}}-{{unit}}}
+form_richness_full <- update(
+  form_richness,
+  . ~ .
+    + c_density)
+
+m_richness_full <- update(
+  m_richness,
+  formula = form_richness_full,
+  data = data_subset,
+  na.action = na.fail
+)
+```
+
+```{r}
+summary(m_richness_full)
+```
+
+We voegen carbon density en de interactie met landgebruik toe aan het basismodel (do we suspect land-use–specific slopes?).
+
+```{r}
+form_richness_full_int <- update(
+  form_richness,
+  . ~ .
+    + landgebruik * c_density)
+
+m_richness_full_int <- update(
+  m_richness,
+  formula = form_richness_full_int,
+  data = data_subset,
+  na.action = na.fail
+)
+```
+
+```{r}
+m_richness_full_int
+
+summary(m_richness_full_int)
+
+```
+
+```{r}
+anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+
+```
+
+
+Report per–land-use slopes without subsetting
+
+```{r}
+
+emtrends(m_richness_full_int, ~ landgebruik, var = "c_density")  # slopes of c_density within each land-use
+
+```
+
