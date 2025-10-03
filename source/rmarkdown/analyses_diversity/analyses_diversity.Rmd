@@ -81,7 +81,20 @@ diversiteit <- readr::read_csv(
   )
 ) %>%
   mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(group == "nematoda")
+  filter(group %in% c(
+  "nematoda",
+  "annelida",
+  "collembola",
+  "arthropoda",
+  "fungi",
+  "protisten",
+  "annelida_bold",
+  "arthropoda_bold",
+  "collembola_bold",
+  "enchytraeidae_bold",
+  "lumbricidae_bold"
+))
+
 
 metadata <- readr::read_csv(
   file.path(
