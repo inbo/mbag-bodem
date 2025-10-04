@@ -799,21 +799,88 @@ last_plot() +
 alternative plot option
 
 ```{r}
+# Universal predictions + facet by land-use
+library(insight)
+library(marginaleffects)
+library(ggplot2)
+
+# Build grid over c_density within each land-use
+by_vars <- c("landgebruik", "c_density")
+nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
+
+# Pin nuisance covariates for standardized curves (optional)
+if ("total_count" %in% names(nd)) {
+  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
+}
+if ("diepte" %in% names(nd)) {
+  ref_depth <- if (any(grepl("0-10", levels(droplevels(data_subset$diepte)))))
+    "0-10" else levels(droplevels(data_subset$diepte))[1]
+  nd$diepte <- ref_depth
+}
+
+# Predict on the response scale; exclude random effects for marginal curves
+pr <- predictions(
+  model   = mod,
+  newdata = nd,
+  type    = "response",
+  re.form = NA   # for GLMMs; harmless for GLMs
+)
+
+# Plot: x = c_density, facet by land-use
+ggplot(pr, aes(x = c_density, y = estimate)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  labs(x = "Carbon density", y = "Predicted richness") +
+  theme_bw()
+
+
+```
+
+```{r}
 library(ggeffects)
+library(insight)
+
+gg_type <- function(mod) {
+  mi <- insight::model_info(mod)
+  # Zero-inflated models (glmmTMB, etc.)
+  if (isTRUE(mi$is_zero_inflated)) {
+    return("zero_inflated")  # conditional mean (mu). Use "zi_prob" to plot pi.
+  }
+  # Count models
+  if (isTRUE(mi$is_count)) {
+    return("count")
+  }
+  # Survival models
+  if (isTRUE(mi$is_survival)) {
+    return("survival")  # or "cumulative_hazard" depending on what you want
+  }
+  # Default fallback (works for Gaussian, binomial, etc.)
+  "fixed"
+}
+
+tp <- gg_type(mod)
+
 pred <- ggpredict(
   mod,
   terms = c("c_density [all]", "landgebruik"),
-  condition = list(total_count = stats::median(data_subset$total_count, na.rm = TRUE),
-                   diepte = ref_depth),
-  type = "response"
+  condition = list(
+    total_count = if ("total_count" %in% names(data_subset))
+      stats::median(data_subset$total_count, na.rm = TRUE) else NULL,
+    diepte = if ("diepte" %in% names(data_subset)) {
+      lv <- levels(droplevels(data_subset$diepte))
+      if (any(grepl("0-10", lv))) "0-10" else lv[1]
+    } else NULL
+  ),
+  type = tp
 )
 
+library(ggplot2)
 ggplot(pred, aes(x, predicted)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
   geom_line() +
   facet_wrap(~ group, scales = "free_y") +
-  labs(x = "Carbon density", y = "Predicted richness",
-       color = "Land-use", fill = "Land-use") +
+  labs(x = "Carbon density", y = "Predicted value") +
   theme_bw()
 
 ```
