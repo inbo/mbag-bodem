@@ -628,7 +628,7 @@ for (i in efvars) {
 p
 ```
 
-global c_density effect (IRR per IQR), with 95% CI
+global c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
 
 ```{r}
 # Global IRR per IQR for c_density from the additive model
