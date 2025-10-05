@@ -643,7 +643,7 @@ irr_add[, c("increment","IRR","LCL","UCL","p.value")]
 ```
 
 
-#### Resource effect carbon density per land-use type
+#### Correlation carbon density per land-use type
 
 We voegen carbon density toe aan het basismodel.
 
