@@ -698,6 +698,20 @@ m_richness_full <- update(
 summary(m_richness_full)
 ```
 
+global c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
+
+```{r}
+# Global IRR per IQR for c_density from the additive model
+iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
+tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "c_density", mode = "latent", infer = TRUE))
+irr_add <- transform(as.data.frame(tr_add),
+                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
+                     IRR = exp(c_density.trend * iqr_cd),
+                     LCL = exp((c_density.trend - 1.96*SE) * iqr_cd),
+                     UCL = exp((c_density.trend + 1.96*SE) * iqr_cd))
+irr_add[, c("increment","IRR","LCL","UCL","p.value")]
+```
+
 We voegen carbon density en de interactie met landgebruik toe aan het basismodel (to see land-use–specific slopes).
 
 ```{r}
@@ -715,8 +729,6 @@ m_richness_full_int <- update(
 ```
 
 ```{r}
-m_richness_full_int
-
 summary(m_richness_full_int)
 
 ```
@@ -951,6 +963,8 @@ irr_tbl <- as.data.frame(tr_delta) |>
     UCL   = exp(beta + qnorm(0.975) * SE),
     p.value
   )
+
+irr_tbl
 
 ```
 
