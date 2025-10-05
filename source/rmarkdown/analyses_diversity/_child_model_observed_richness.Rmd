@@ -643,7 +643,7 @@ irr_add[, c("increment","IRR","LCL","UCL","p.value")]
 ```
 
 
-#### Correlation carbon density per land-use type
+#### Correlation carbon density
 
 We voegen carbon density toe aan het basismodel.
 
@@ -976,4 +976,6 @@ data_subset$c_density_c <- scale(data_subset$c_density, center = TRUE, scale = T
 # then use c_density_c instead of c_density in both above formulas
 
 ```
+
+#### Correlation bulk density
 
