@@ -979,3 +979,336 @@ data_subset$c_density_c <- scale(data_subset$c_density, center = TRUE, scale = T
 
 #### Correlation bulk density
 
+We voegen bulk density toe aan het basismodel.
+
+```{r}
+variables_no_collinearity <- c(
+  "total_count",
+  "landgebruik",
+  "diepte"[diepte_ok],
+  "cmon_plot_id",
+  "bd"
+)
+
+nr1 <- nrow(data_subset)
+cat(
+  paste(
+    "De originele dataset heeft",
+    nr1,
+    "rijen.\n"
+  )
+)
+data_subset <- data_subset[
+  complete.cases(data_subset[, variables_no_collinearity]),
+]
+nr2 <- nrow(data_subset)
+
+cat(
+  paste(
+    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
+    één van de covariaten, heeft de dataset",
+    nr2,
+    "rijen.\n"
+  )
+)
+```
+
+
+```{r extend-model-bulk-density-{{group}}-{{primerset}}-{{unit}}}
+form_richness_full <- update(
+  form_richness,
+  . ~ .
+    + bd)
+
+m_richness_full <- update(
+  m_richness,
+  formula = form_richness_full,
+  data = data_subset,
+  na.action = na.fail
+)
+```
+
+```{r}
+summary(m_richness_full)
+```
+
+global bd effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
+
+```{r}
+# Global IRR per IQR for bd from the additive model
+iqr_cd <- IQR(data_subset$bd, na.rm = TRUE)
+tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "bd", mode = "latent", infer = TRUE))
+irr_add <- transform(as.data.frame(tr_add),
+                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
+                     IRR = exp(bd.trend * iqr_cd),
+                     LCL = exp((bd.trend - 1.96*SE) * iqr_cd),
+                     UCL = exp((bd.trend + 1.96*SE) * iqr_cd))
+irr_add[, c("increment","IRR","LCL","UCL","p.value")]
+```
+
+We voegen bulk density en de interactie met landgebruik toe aan het basismodel (to see land-use–specific slopes).
+
+```{r}
+form_richness_full_int <- update(
+  form_richness,
+  . ~ .
+    + landgebruik * bd)
+
+m_richness_full_int <- update(
+  m_richness,
+  formula = form_richness_full_int,
+  data = data_subset,
+  na.action = na.fail
+)
+```
+
+```{r}
+summary(m_richness_full_int)
+
+```
+
+```{r}
+anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+
+```
+
+
+Report per–land-use slopes of bd (IRR per IQR) without subsetting
+
+```{r}
+iqr_cd <- IQR(data_subset$bd, na.rm = TRUE)
+emtrends(m_richness_full_int, ~ landgebruik, var = "bd",
+         delta = iqr_cd, type = "response", infer = TRUE)
+
+```
+
+
+plot
+
+Diagnostics for the interaction model
+
+```{r}
+
+mod <- m_richness_full_int
+
+# Predictions vs observed (zoom to data-driven x-range if ggforce available)
+p1 <- performance::check_predictions(mod)
+xr <- quantile(data_subset$bd, c(.01, .99), na.rm = TRUE)
+
+if (requireNamespace("ggforce", quietly = TRUE)) {
+  library(ggforce)
+  print(plot(p1) + ggforce::facet_zoom(xlim = xr))
+} else {
+  print(plot(p1))
+}
+
+# Overdispersion, residuals, collinearity, zero-inflation
+od <- performance::check_overdispersion(mod); print(od); plot(od)
+res <- performance::check_residuals(mod);    print(res); plot(res)
+performance::check_collinearity(mod)
+performance::check_zeroinflation(mod)
+
+```
+
+Model-based predictions: richness vs bd by landgebruik
+
+```{r}
+# Build grid over bd within each land-use (keep your “pinning” lines)
+by_vars <- c("landgebruik", "bd")
+nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
+
+if ("total_count" %in% names(data_subset)) {
+  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
+}
+ref_depth <- if ("diepte" %in% names(data_subset) &&
+                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
+nd$diepte <- ref_depth
+
+# Get predictions (response scale), marginal over REs
+pr <- marginaleffects::predictions(
+  model   = mod,
+  newdata = nd,
+  type    = "response",
+  vcov    = TRUE,
+  re.form = NA
+)
+
+# Plot: x = bd, facet by land-use
+library(ggplot2)
+ggplot(pr, aes(x = bd, y = estimate)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  labs(x = "bulk density", y = "Predicted richness",
+       title = "Predicted richness vs bulk density by land-use",
+       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
+                         ", depth = ", ref_depth)) +
+  theme_bw()
+
+
+```
+
+```{r}
+resp_var <- all.vars(formula(mod))[1]
+last_plot() +
+  geom_point(data = data_subset,
+             aes(x = bd, y = .data[[resp_var]]),
+             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
+
+```
+
+alternative plot option
+
+```{r}
+# Universal predictions + facet by land-use
+library(insight)
+library(marginaleffects)
+library(ggplot2)
+
+# Build grid over bd within each land-use
+by_vars <- c("landgebruik", "bd")
+nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
+
+# Pin nuisance covariates for standardized curves (optional)
+if ("total_count" %in% names(nd)) {
+  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
+}
+if ("diepte" %in% names(nd)) {
+  ref_depth <- if (any(grepl("0-10", levels(droplevels(data_subset$diepte)))))
+    "0-10" else levels(droplevels(data_subset$diepte))[1]
+  nd$diepte <- ref_depth
+}
+
+# Predict on the response scale; exclude random effects for marginal curves
+pr <- predictions(
+  model   = mod,
+  newdata = nd,
+  type    = "response",
+  re.form = NA   # for GLMMs; harmless for GLMs
+)
+
+# Plot: x = bd, facet by land-use
+ggplot(pr, aes(x = bd, y = estimate)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  labs(x = "bulk density", y = "Predicted richness") +
+  theme_bw()
+
+
+```
+
+```{r}
+library(ggeffects)
+library(insight)
+
+gg_type <- function(mod) {
+  mi <- insight::model_info(mod)
+  # Zero-inflated models (glmmTMB, etc.)
+  if (isTRUE(mi$is_zero_inflated)) {
+    return("zero_inflated")  # conditional mean (mu). Use "zi_prob" to plot pi.
+  }
+  # Count models
+  if (isTRUE(mi$is_count)) {
+    return("count")
+  }
+  # Survival models
+  if (isTRUE(mi$is_survival)) {
+    return("survival")  # or "cumulative_hazard" depending on what you want
+  }
+  # Default fallback (works for Gaussian, binomial, etc.)
+  "fixed"
+}
+
+tp <- gg_type(mod)
+
+pred <- ggpredict(
+  mod,
+  terms = c("bd [all]", "landgebruik"),
+  condition = list(
+    total_count = if ("total_count" %in% names(data_subset))
+      stats::median(data_subset$total_count, na.rm = TRUE) else NULL,
+    diepte = if ("diepte" %in% names(data_subset)) {
+      lv <- levels(droplevels(data_subset$diepte))
+      if (any(grepl("0-10", lv))) "0-10" else lv[1]
+    } else NULL
+  ),
+  type = tp
+)
+
+library(ggplot2)
+ggplot(pred, aes(x, predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  facet_wrap(~ group, scales = "free_y") +
+  labs(x = "bulk density", y = "Predicted value") +
+  theme_bw()
+
+```
+
+
+Per–land-use effect sizes (IRR) for bd
+
+IRR per IQR, work on the link (latent) scale and exponentiate
+
+```{r}
+library(emmeans)
+iqr_cd <- IQR(data_subset$bd, na.rm = TRUE)
+
+# Get slopes on the link (log) scale
+tr <- summary(
+  emtrends(mod, ~ landgebruik, var = "bd", mode = "latent", infer = TRUE)
+) # columns include: landgebruik, bd.trend, SE, df (Inf), p.value
+
+zcrit <- qnorm(0.975)
+
+irr_tbl <- as.data.frame(tr) |>
+  dplyr::transmute(
+    landgebruik,
+    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
+    beta  = bd.trend,
+    SE    = SE,
+    IRR   = exp(beta * iqr_cd),
+    LCL   = exp((beta - zcrit * SE) * iqr_cd),
+    UCL   = exp((beta + zcrit * SE) * iqr_cd),
+    p.value
+  )
+
+irr_tbl
+
+
+```
+
+keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
+
+```{r}
+tr_delta <- summary(
+  emtrends(mod, ~ landgebruik, var = "bd",
+           mode = "latent", delta = iqr_cd, infer = TRUE)
+)
+irr_tbl <- as.data.frame(tr_delta) |>
+  dplyr::transmute(
+    landgebruik,
+    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
+    beta  = bd.trend,  # already scaled by delta
+    SE    = SE,               # SE is scaled too
+    IRR   = exp(beta),
+    LCL   = exp(beta - qnorm(0.975) * SE),
+    UCL   = exp(beta + qnorm(0.975) * SE),
+    p.value
+  )
+
+irr_tbl
+
+```
+
+
+Center/scale bd (optional) to stabilize estimation and make the intercept interpretable? Not done yet
+
+```{r eval=FALSE}
+data_subset$bd_c <- scale(data_subset$bd, center = TRUE, scale = TRUE)
+# then use bd_c instead of bd in both above formulas
+
+```
+
+
