@@ -628,6 +628,21 @@ for (i in efvars) {
 p
 ```
 
+global c_density effect (IRR per IQR), with 95% CI
+
+```{r}
+# Global IRR per IQR for c_density from the additive model
+iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
+tr_add <- summary(emtrends(lowest_aic, ~ 1, var = "c_density", mode = "latent", infer = TRUE))
+irr_add <- transform(as.data.frame(tr_add),
+                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
+                     IRR = exp(c_density.trend * iqr_cd),
+                     LCL = exp((c_density.trend - 1.96*SE) * iqr_cd),
+                     UCL = exp((c_density.trend + 1.96*SE) * iqr_cd))
+irr_add[, c("increment","IRR","LCL","UCL","p.value")]
+```
+
+
 #### Resource effect carbon density per land-use type
 
 We voegen carbon density toe aan het basismodel.
