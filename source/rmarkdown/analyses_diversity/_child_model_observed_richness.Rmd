@@ -715,33 +715,27 @@ irr_add[, c("increment","IRR","LCL","UCL","p.value")]
 Plot global c_density effect
 
 ```{r}
-# ---- Plot ONLY c_density from m_richness_full ----
 mod <- m_richness_full
 
-# Grid varies c_density within each land-use (and we'll average over land-use)
-nd <- insight::get_datagrid(mod, by = c("landgebruik", "c_density"), length = 50)
+# Build a grid that varies c_density (and includes LU & depth so they can be averaged)
+nd <- insight::get_datagrid(mod, by = c("landgebruik","diepte","c_density"), length = 50)
 
-# Pin nuisance covariates for standardized curves
+# Pin sequencing depth (standardize curves)
 if ("total_count" %in% names(nd)) {
   nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
 }
-if ("diepte" %in% names(nd)) {
-  # Average over depths instead of fixing: include both levels in the grid
-  lv <- levels(droplevels(data_subset$diepte))
-  nd <- merge(nd, data.frame(diepte = lv), by = NULL)
-}
 
-# One line: partial effect of c_density (marginal over land-use & depth)
 p_cdens <- marginaleffects::plot_predictions(
-  model   = mod,
-  newdata = nd,
-  by      = "c_density",  # <- only c_density on the x-axis
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA,
-  points  = 0.1
+  model    = mod,
+  newdata  = nd,
+  condition = "c_density",   # <-- x-axis variable
+  type     = "response",
+  vcov     = TRUE,
+  re.form  = NA,
+  points   = 0.1             # faint raw points; set to 0 to hide
 )
 p_cdens
+
 
 ```
 
