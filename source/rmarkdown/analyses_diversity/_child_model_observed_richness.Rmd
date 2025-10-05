@@ -1349,7 +1349,7 @@ cat(
 ```
 
 
-```{r extend-model-bulk-density-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-ph-{{group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
@@ -1684,7 +1684,7 @@ cat(
 ```
 
 
-```{r extend-model-bulk-density-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-soil-texture-{{group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
@@ -2019,7 +2019,7 @@ cat(
 ```
 
 
-```{r extend-model-bulk-density-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-swc-vol-{{group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
