@@ -409,52 +409,71 @@ if (all(is.na(model_set$AICc))) {
   )
 }
 
-# --- 3) Drop models with non-finite ICs (AICc or AIC), then renormalize weights
-ic_col <- intersect(c("AICc","AIC","BIC","QAICc","QAIC"), names(model_set))[1]
-if (is.null(ic_col)) stop("No information criterion column found in dredge result.")
+# --- 3) Drop models with non-finite ICs (avoid NSE/closure by using [ , ])
+ic_col <- intersect(c("AICc","AIC","BIC","QAICc","QAIC"), colnames(model_set))[1]
+if (is.null(ic_col)) stop("No information-criterion column found in dredge result.")
 
-# Use the model.selection subset method with NSE-friendly expression:
-model_set <- subset(model_set, eval(parse(text = paste0("is.finite(", ic_col, ")"))))
+keep <- is.finite(model_set[[ic_col]])
+if (!all(keep)) {
+  message("Dropping ", sum(!keep), " models with non-finite ", ic_col, ".")
+  model_set <- model_set[keep, ]   # << no NSE, no closure error
+}
 
 if (nrow(model_set) == 0) {
   stop("All candidate models had non-finite ", ic_col,
        ". Reduce model complexity or change 'rank'.")
 }
 
-# Force-recompute delta & weights to be safe
-IC     <- model_set[[ic_col]]
-delta  <- IC - min(IC)
-w      <- exp(-0.5 * delta)
-w      <- w / sum(w)
-
+# --- 4) Recompute delta & weights (now guaranteed finite)
+IC    <- model_set[[ic_col]]
+delta <- IC - min(IC)
+w     <- exp(-0.5 * delta)
+w     <- w / sum(w)
 model_set$delta  <- delta
 model_set$weight <- w
 
-# --- 4) Continue as usual
-importance_df <- sw(model_set)
-print(importance_df)
+# --- 5) Variable importance safely, including the 1-model edge case
+stat_cols <- c("df","logLik","AICc","AIC","BIC","QAICc","QAIC","delta","weight","deviance")
+term_cols <- setdiff(colnames(model_set), stat_cols)
 
-dd <- subset(model_set, delta < 4)
-par(mar = c(3, 5, 6, 4))
-plot(dd, labAsExpr = TRUE)
-
+if (nrow(model_set) >= 2) {
+  importance_df <- sw(model_set)              # OK now
+} else {
+  # Only one model remains: treat included terms as weight = 1
+  present <- !is.na(as.data.frame(model_set[1, term_cols, drop = FALSE]))
+  # If MuMIn encodes absence with NA, this works; otherwise coerce to logical:
+  present <- as.logical(present)
+  imp_vec <- ifelse(present, 1, 0)
+  importance_df <- rbind(
+    "Sum of weights:"       = setNames(as.numeric(imp_vec), term_cols),
+    "N containing models:"  = setNames(as.numeric(imp_vec), term_cols)
+  )
+}
 
 ```
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
 
 ```{r importance-per-predictor-{{group}}-{{primerset}}-{{guild}}}
-importance_df <- sw(model_set)
+
 print(importance_df)
+
 ```
 
 Visualisatie van modellen die minder dan 4 AICc verschillen van het model met laagste AICc (rij 1):
 
 ```{r}
-dd <- subset(model_set, delta < 4)
+# --- 6) Plot only when we actually have ≥ 2 models with finite weights
+dd <- model_set[model_set$delta < 4, , drop = FALSE]
 
-par(mar = c(3, 5, 6, 4))
-plot(dd, labAsExpr = TRUE)
+if (nrow(dd) >= 2 && !anyNA(dd$weight)) {
+  par(mar = c(3, 5, 6, 4))
+  plot(dd, labAsExpr = TRUE)
+} else {
+  message("Skipping model plot: fewer than 2 models within ΔIC < 4 ",
+          "or NA weights after filtering.")
+}
+
 ```
 
 ```{r save-model-selection-{{group}}-{{primerset}}-{{guild}}}
