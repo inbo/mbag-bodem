@@ -377,26 +377,39 @@ Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
 ```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{guild}}, warning=FALSE}
-if (diepte_ok) {
+# Ensure all submodels use identical complete cases
+op <- options(na.action = "na.fail")
+on.exit(options(op), add = TRUE)
+
+# Build the fixed terms once
+fixed_terms <- ~
+  cond(log(total_count + 1)) +
+  cond(landgebruik) +
+  (1 | cmon_plot_id)
+
+if (isTRUE(diepte_ok)) {
+  fixed_terms <- update(fixed_terms, . ~ . + cond(diepte))
+}
+
+# First pass: default AICc
+model_set <- dredge(
+  m_richness_full,
+  m.lim  = c(NA, 7),
+  fixed  = fixed_terms          # always-included terms
+  # rank defaults to "AICc"
+)
+
+# Guardrail: if AICc is undefined for all models, refit using AIC
+if (all(is.na(model_set$AICc))) {
+  message("AICc undefined for all models; refitting with rank = 'AIC'.")
   model_set <- dredge(
     m_richness_full,
     m.lim = c(NA, 7),
-    fixed = ~
-      cond(log(total_count + 1))
-    + cond(landgebruik)
-    + cond(diepte)
-    + (1 | cmon_plot_id)
-  )
-} else {
-  model_set <- dredge(
-    m_richness_full,
-    m.lim = c(NA, 7),
-    fixed = ~
-      cond(log(total_count + 1))
-    + cond(landgebruik)
-    + (1 | cmon_plot_id)
+    fixed = fixed_terms,
+    rank  = "AIC"
   )
 }
+
 ```
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
