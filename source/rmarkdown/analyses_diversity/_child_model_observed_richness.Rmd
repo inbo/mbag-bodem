@@ -391,15 +391,14 @@ if (isTRUE(diepte_ok)) {
   fixed_terms <- update(fixed_terms, . ~ . + cond(diepte))
 }
 
-# First pass: default AICc
+# --- 1) First pass: default AICc
 model_set <- dredge(
   m_richness_full,
   m.lim  = c(NA, 7),
-  fixed  = fixed_terms          # always-included terms
-  # rank defaults to "AICc"
+  fixed  = fixed_terms
 )
 
-# Guardrail: if AICc is undefined for all models, refit using AIC
+# --- 2) Guardrail: if *all* AICc are NA, refit with AIC
 if (all(is.na(model_set$AICc))) {
   message("AICc undefined for all models; refitting with rank = 'AIC'.")
   model_set <- dredge(
@@ -409,6 +408,36 @@ if (all(is.na(model_set$AICc))) {
     rank  = "AIC"
   )
 }
+
+# --- 3) Drop models with non-finite ICs (AICc or AIC), then renormalize weights
+ic_col <- intersect(c("AICc","AIC","BIC","QAICc","QAIC"), names(model_set))[1]
+if (is.null(ic_col)) stop("No information criterion column found in dredge result.")
+
+# Use the model.selection subset method with NSE-friendly expression:
+model_set <- subset(model_set, eval(parse(text = paste0("is.finite(", ic_col, ")"))))
+
+if (nrow(model_set) == 0) {
+  stop("All candidate models had non-finite ", ic_col,
+       ". Reduce model complexity or change 'rank'.")
+}
+
+# Force-recompute delta & weights to be safe
+IC     <- model_set[[ic_col]]
+delta  <- IC - min(IC)
+w      <- exp(-0.5 * delta)
+w      <- w / sum(w)
+
+model_set$delta  <- delta
+model_set$weight <- w
+
+# --- 4) Continue as usual
+importance_df <- sw(model_set)
+print(importance_df)
+
+dd <- subset(model_set, delta < 4)
+par(mar = c(3, 5, 6, 4))
+plot(dd, labAsExpr = TRUE)
+
 
 ```
 
