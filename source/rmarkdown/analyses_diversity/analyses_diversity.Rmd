@@ -83,9 +83,18 @@ diversiteit <- readr::read_csv(
 ) %>%
   mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
   filter(group %in% c(
-  "annelida",
-  "arthropoda"
-))
+    "nematoda",
+    "annelida",
+    "collembola",
+    "arthropoda",
+    "fungi",
+    "protisten",
+    "annelida_bold",
+    "arthropoda_bold",
+    "collembola_bold",
+    "enchytraeidae_bold",
+    "lumbricidae_bold"
+  ))
 
 
 metadata <- readr::read_csv(
@@ -134,7 +143,8 @@ metadata <- readr::read_csv(
       sampling_month %in% c(9, 10, 11) ~ "Autumn",
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
-  )
+  ) %>%
+  filter(sampling_month %in% c(12, 1, 2, 3, 4))
 
 ```
 
