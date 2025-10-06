@@ -1,6 +1,12 @@
 ### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
+group <- "{{group}}"
+primerset <- "{{primerset}}"
+unit <- "{{unit}}"
+```
+
+```{r}
 data_subset <- combined %>%
   filter(
     group == "{{group}}",
@@ -31,7 +37,7 @@ diepte_ok <- length(unique(data_subset$diepte)) > 1
 if (diepte_ok) {
   form_shannon <- formula(
   shannon ~
-    log(total_count)
+    log(total_count + 1)
     + landgebruik
     + diepte
     + landgebruik:diepte
@@ -40,7 +46,7 @@ if (diepte_ok) {
 } else {
   form_shannon <- formula(
   shannon ~
-    log(total_count)
+    log(total_count + 1)
     + landgebruik
   + (1 | cmon_plot_id)
   )
@@ -83,6 +89,207 @@ summary(m_shannon) |> print(digits = 2)
 
 ```{r m-shannon-anova-{{group}}-{{primerset}}-{{unit}}}
 car::Anova(m_shannon) |> print(digits = 2)
+```
+
+```{r m-shannon-marginal-means-{{group}}-{{primerset}}-{{unit}}}
+# Estimated marginal means per land use *within each depth layer*
+emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
+  m_shannon,
+  variables = "landgebruik",
+  newdata = data_subset,
+  by = c("diepte", "landgebruik"),
+  type = "response"
+)
+
+
+# Save to CSV with automatic naming
+write_csv(
+  emmeans_landuse_by_depth,
+  file = file.path(output_dir, glue("emmeans_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+)
+
+# print
+emmeans_landuse_by_depth
+```
+
+
+```{r m-shannon-contrasts-{{group}}-{{primerset}}-{{unit}}}
+# Compute all pairwise contrasts between land use types within each depth layer
+contrasts_landuse_by_depth <- marginaleffects::comparisons(
+  model = m_shannon,
+  variables = "landgebruik",
+  newdata = data_subset,
+  type = "response",
+  by = "diepte")
+
+# Save to CSV with automatic naming
+write_csv(
+  contrasts_landuse_by_depth,
+  file = file.path(output_dir, glue("contrasts_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print the results
+print(contrasts_landuse_by_depth)
+
+```
+
+```{r m-shannon-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
+# Add bh-corrected p-values per depth group
+contrasts_shannon_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
+  group_by(diepte) %>%
+  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
+  ungroup() %>%
+  select(
+    diepte,
+    contrast,
+    estimate,
+    std.error,
+    conf.low,
+    conf.high,
+    p.value,
+    p_bh
+  ) %>%
+  arrange(diepte, p.value)
+
+# Save adjusted results to CSV
+write_csv(
+  contrasts_shannon_landuse_by_depth_adj,
+  file = file.path(output_dir, glue("contrasts_shannon_landuse_by_depth_adj_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print adjusted summary
+print(contrasts_shannon_landuse_by_depth_adj)
+
+```
+
+```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
+# Estimate marginal means per land use per depth
+emm_landuse_by_depth <- emmeans(
+  m_shannon,
+  specs = "landgebruik",
+  by = "diepte",
+  data = data_subset
+)
+
+# Compute pairwise contrasts
+contrasts_landuse_by_depth <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
+  as.data.frame()
+
+# Save to CSV
+write_csv(
+  contrasts_landuse_by_depth,
+  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+print(contrasts_landuse_by_depth)
+
+```
+
+```{r m-shannon-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
+# Add BH-adjusted p-values per depth
+contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
+  as_tibble() %>%
+  group_by(diepte) %>%
+  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
+  ungroup() %>%
+  select(
+    diepte,
+    contrast,
+    estimate,
+    SE,
+    z.ratio,
+    p.value,
+    p_bh
+  ) %>%
+  arrange(diepte, p.value)
+
+
+# Save corrected results to CSV
+write_csv(
+  contrasts_landuse_by_depth_corrected,
+  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_bh_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+contrasts_landuse_by_depth_corrected
+
+```
+
+```{r m-shannon-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+# Estimate marginal means per land use per depth
+emm_landuse_by_depth <- emmeans(
+  m_shannon,
+  specs = "landgebruik",
+  by = "diepte",
+  data = data_subset,
+  type = "response"
+)
+
+# Compute pairwise contrasts
+contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none", infer = c(TRUE, TRUE)) %>%
+  as.data.frame()
+
+# Save to CSV
+write_csv(
+  contrasts_landuse_by_depth_response,
+  file = file.path(output_dir, glue("emmans_contrasts_shannon_landuse_by_depth_response_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+print(contrasts_landuse_by_depth_response)
+
+```
+
+
+```{r m-shannon-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+# Add BH-adjusted p-values per depth
+contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
+  as_tibble() %>%
+  group_by(diepte) %>%
+  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
+  ungroup() %>%
+  select(
+    diepte,
+    contrast,
+    ratio,
+    SE,
+    z.ratio,
+    p.value,
+    p_bh,
+    asymp.LCL,
+    asymp.UCL
+  ) %>%
+  arrange(diepte, p.value)
+
+
+# Save corrected results to CSV
+write_csv(
+  contrasts_landuse_by_depth_corrected,
+  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_bh_response_{group}_{primerset}_{unit}.csv"))
+)
+
+# Print
+contrasts_landuse_by_depth_corrected
+
+```
+
+```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+predicted_values <- marginaleffects::avg_predictions(
+  m_shannon,
+  variables = c("landgebruik", "diepte"),
+  newdata = data_subset,
+  type = "response"
+)
+
+# save to CSV
+write_csv(
+  predicted_values,
+  file = file.path(output_dir, glue("predicted_values_shannon_{group}_{primerset}_{unit}.csv"))
+)
+
+# View
+print(predicted_values)
 ```
 
 ```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{unit}}}

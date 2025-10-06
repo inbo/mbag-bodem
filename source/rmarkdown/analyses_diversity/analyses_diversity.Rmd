@@ -1,6 +1,6 @@
 ---
 title: "Analyses diversiteit"
-author: "Sam Lambrechts, Sylke De Backer, Io Deflem, Emma Cartuyvels, Hans Van Calster"
+author: "Sam Lambrechts, Silke De Backer, Hans Van Calster"
 date: "`r Sys.Date()`"
 output:
   bookdown::html_document2:
@@ -10,6 +10,7 @@ output:
 editor_options:
   markdown:
     wrap: sentence
+    
 ---
 
 ```{r setup, include=FALSE}
@@ -18,6 +19,7 @@ library(here)
 opts_chunk$set(echo = TRUE, error = TRUE, out.width = "100%")
 opts_knit$set(root.dir = here::here())
 
+library(janitor)
 library(ggplot2)
 library(ggforce)
 library(dplyr)
@@ -27,10 +29,24 @@ library(glmmTMB)
 library(marginaleffects)
 library(performance)
 library(MuMIn)
+library(glue)
+library(readr)
+library(emmeans)
+library(lubridate)
+
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
+
+output_dir <- file.path(getwd(), "output")
+if (!dir.exists(output_dir)) dir.create(output_dir)
+
 ```
 
+```{r cache=TRUE, include=FALSE}
+1+1
+# een trukje om te zorgen dat de folder met figuren, die aangemaakt wordt als je
+# knit, bewaard blijft
+```
 
 ```{r helper-zi-disp}
 inflation_dispersion <- function(model) {
@@ -54,22 +70,39 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
+DIT IS de output obv de winterhalfjaar data
+
 
 ```{r inlezen}
 diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_unique_v11.csv"
+    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
   )
-)
+) %>%
+  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
+  filter(group %in% c(
+    "nematoda",
+    "annelida",
+    "collembola",
+    "arthropoda",
+    "fungi",
+    "protisten",
+    "annelida_bold",
+    "arthropoda_bold",
+    "collembola_bold",
+    "enchytraeidae_bold",
+    "lumbricidae_bold"
+  ))
+
 
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_17.csv"
+    "MBAG_stratfile_v2_cleaned_20.csv"
   )
 ) %>%
   janitor::clean_names() %>%
@@ -89,11 +122,33 @@ metadata <- readr::read_csv(
         "Residentieel grasland", "Natuurgrasland", "Heide", "Moeras"
       )
     ),
-    diepte = gsub("_|/", "-", diepte) |> factor()
-  )
+    diepte = gsub("_|/", "-", diepte) |> factor(),
+    textuur_som_klei_zand = textuur_kleifractie + textuur_zandfractie,
+    
+    # Clean and parse dates
+    datum_staalname = trimws(datum_staalname),
+    datum_cleaned = sub(" 0:00$", "", datum_staalname),  # remove trailing time
+    sampling_date = case_when(
+      grepl("/", datum_cleaned) ~ mdy(datum_cleaned),
+      grepl("-", datum_cleaned) ~ ymd(datum_cleaned),
+      TRUE ~ NA_Date_
+    ),
+    
+    # Extract sampling month and season
+    sampling_month = month(sampling_date),
+    sampling_season = case_when(
+      sampling_month %in% c(12, 1, 2) ~ "Winter",
+      sampling_month %in% c(3, 4, 5) ~ "Spring",
+      sampling_month %in% c(6, 7, 8) ~ "Summer",
+      sampling_month %in% c(9, 10, 11) ~ "Autumn",
+      TRUE ~ "Unknown"
+    ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
+  ) %>%
+  filter(sampling_month %in% c(12, 1, 2, 3, 4))
+
 ```
 
-In `mbag_combined_dataframe_INBO_ILVO_unique_v10` zitten de nulwaarnemingen in!
+In `mbag_combined_dataframe_INBO_known_species_v19` zitten de nulwaarnemingen in en deze nulwaarnemingen hebben een shannon en simpson index score van 0 gekregen, wat betekent dat deze nulwaarnemingen dezelfde Shannon en Simpson indexscore krijgen als plots waarin slechts één soort werd waargenomen, wat op het eerste gezicht verdedigbaar lijkt, aangezien de onzekerheid (Shannon) en dominantie (Simpson) in beide gevallen minimaal zijn?
 
 ```{r echo=TRUE}
 sum(diversiteit$observed == 0)
@@ -267,7 +322,7 @@ if (interactive()) {
 
 ## Shannon index
 
-```{r child-model-shannon, echo=FALSE, results="asis"}
+```{r child-model-shannon, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
@@ -301,7 +356,7 @@ knit_child(text = rmd, quiet = TRUE) %>%
 
 ## Simpson index
 
-```{r child-model-simpson, echo=FALSE, results="asis"}
+```{r child-model-simpson, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
