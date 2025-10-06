@@ -150,7 +150,7 @@ We moeten dus geen nulwaarnemingen meer toevoegen
 
 ```{r}
 groups <- diversiteit %>%
-  distinct(primerset, group, unit)
+  distinct(primerset, group, guild)
 
 samples <- metadata %>%
   distinct(sample)
@@ -162,7 +162,7 @@ samples_groups <- expand_grid(
 combined <- samples_groups %>%
   full_join(
     diversiteit,
-    by = c("sample", "primerset", "group", "unit")
+    by = c("sample", "primerset", "group", "guild")
   ) %>%
   inner_join(metadata, by = join_by(sample))
 
@@ -202,7 +202,7 @@ combined %>%
   geom_point(aes(x = total_count, y = observed)) +
   scale_x_log10() +
   labs(y = "Observed number of taxa") +
-  facet_wrap(group ~ primerset ~ unit, scales = "free")
+  facet_wrap(group ~ primerset ~ guild, scales = "free")
 ```
 
 Relaties tussen de drie diversiteitsmaten:
@@ -231,7 +231,7 @@ Aantal samples met nul OTUs:
 
 ```{r}
 combined %>%
-  group_by(group, primerset, unit) %>%
+  group_by(group, primerset, guild) %>%
   mutate(
     observed0 =
       ifelse(observed == 0, "geen OTU", "minstens 1 OTU")
@@ -272,9 +272,9 @@ Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, 
 
 ```{r child-model-observed-richness, echo=FALSE, results="asis"}
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(group, primerset, guild) %>%
   arrange(
-    group, primerset, unit
+    group, primerset, guild
   )
 
 pmap(
@@ -282,7 +282,7 @@ pmap(
   function(
       group = group,
       primerset = primerset,
-      unit = unit) {
+      guild = guild) {
     knit_expand(
       here(
         "source", "rmarkdown", "analyses_diversity",
@@ -290,7 +290,7 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit
+      guild = guild
     )
   }
 ) %>%
@@ -316,9 +316,9 @@ if (interactive()) {
 
 ```{r child-model-shannon, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(group, primerset, guild) %>%
   arrange(
-    group, primerset, unit
+    group, primerset, guild
   )
 
 pmap(
@@ -326,7 +326,7 @@ pmap(
   function(
       group = group,
       primerset = primerset,
-      unit = unit) {
+      guild = guild) {
     knit_expand(
       here(
         "source", "rmarkdown", "analyses_diversity",
@@ -334,7 +334,7 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit
+      guild = guild
     )
   }
 ) %>%
@@ -350,9 +350,9 @@ knit_child(text = rmd, quiet = TRUE) %>%
 
 ```{r child-model-simpson, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(group, primerset, guild) %>%
   arrange(
-    group, primerset, unit
+    group, primerset, guild
   )
 
 pmap(
@@ -360,7 +360,7 @@ pmap(
   function(
       group = group,
       primerset = primerset,
-      unit = unit) {
+      guild = guild) {
     knit_expand(
       here(
         "source", "rmarkdown", "analyses_diversity",
@@ -368,7 +368,7 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit
+      guild = guild
     )
   }
 ) %>%
