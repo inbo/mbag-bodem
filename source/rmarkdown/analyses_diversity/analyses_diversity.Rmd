@@ -78,22 +78,15 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
+    "mbag_functional_diversity.csv"
   )
 ) %>%
-  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(group %in% c(
-    "nematoda",
-    "annelida",
-    "collembola",
-    "arthropoda",
-    "fungi",
-    "protisten",
-    "annelida_bold",
-    "arthropoda_bold",
-    "collembola_bold",
-    "enchytraeidae_bold",
-    "lumbricidae_bold"
+  filter(guild %in% c(
+    "mycorrhiza",
+    "plant pathogen",
+    "saprotroph",
+    "chemoheterotrophy",
+    "nitrogen fixing bacteria"
   ))
 
 
