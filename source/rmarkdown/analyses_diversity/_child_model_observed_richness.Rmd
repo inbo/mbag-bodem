@@ -757,34 +757,62 @@ result
 
 Plot: predicted richness vs c_density (averaged over LU & depth)
 
-We model with log_c_density, but we plot against c_density. We build a grid over c_density, add log_c_density = log(c_density), and predict.
+We vary log_c_density (the model term), then back-transform for the x-axis.
 
 ```{r}
-# Build grid over c_density (natural scale), average over landgebruik & diepte
-cd_range <- range(data_subset$c_density, na.rm = TRUE)
-cd_seq   <- seq(cd_range[1], cd_range[2], length.out = 80)
+library(dplyr)
+library(tidyr)
+library(marginaleffects)
+library(ggplot2)
 
-nd <- tidyr::crossing(
-  c_density = cd_seq,
-  landgebruik = levels(data_subset$landgebruik),
-  diepte = if ("diepte" %in% names(data_subset)) levels(data_subset$diepte) else factor(NA)
-) %>%
+# Range & grid on the natural scale, then log-transform for the model
+min_cd <- min(data_subset$c_density[data_subset$c_density > 0], na.rm = TRUE)
+max_cd <- max(data_subset$c_density, na.rm = TRUE)
+cd_seq  <- seq(min_cd, max_cd, length.out = 80)
+
+grid_list <- list(
+  log_c_density = log(cd_seq),
+  landgebruik   = levels(data_subset$landgebruik)
+)
+if ("diepte" %in% names(data_subset)) {
+  grid_list$diepte <- levels(droplevels(data_subset$diepte))
+}
+
+nd <- tidyr::crossing(!!!grid_list) %>%
   mutate(
-    log_c_density = log(c_density),
-    total_count   = if ("total_count" %in% names(data_subset))
-                      median(data_subset$total_count, na.rm = TRUE) else NA_real_
+    total_count = if ("total_count" %in% names(data_subset))
+      median(data_subset$total_count, na.rm = TRUE) else NA_real_
   )
 
-p_cdens <- marginaleffects::plot_predictions(
-  model     = m_richness_full,
-  newdata   = nd,
-  condition = "c_density",   # x-as
-  type      = "response",
-  vcov      = TRUE,
-  re.form   = NA,
-  points    = 0.1
-)
-p_cdens
+# Proper averaging with SEs over LU & depth at each log_c_density
+ap <- marginaleffects::avg_predictions(
+  m_richness_full,
+  newdata = nd,
+  by      = "log_c_density",
+  type    = "response",
+  re.form = NA,
+  vcov    = TRUE
+) %>%
+  mutate(c_density = exp(log_c_density))
+
+# Plot: x = c_density (natural units), single averaged curve
+ggplot(ap, aes(c_density, estimate)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  labs(
+    x = "Carbon density",
+    y = "Predicted richness",
+    title = "Predicted richness vs carbon density (averaged over land-use & depth)"
+  ) +
+  theme_bw() +
+  # Optional: overlay faint raw points
+  { 
+    resp_var <- all.vars(formula(m_richness_full))[1]
+    list(geom_point(data = data_subset,
+                    aes(x = c_density, y = .data[[resp_var]]),
+                    inherit.aes = FALSE, alpha = 0.12, size = 0.9))
+  }
+
 
 ```
 
