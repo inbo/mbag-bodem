@@ -869,13 +869,13 @@ ggplot(pr, aes(c_density, estimate)) +
 
 ```
 
-
+the below is not applicable anymore when using log(c_density)
 
 Per–land-use effect sizes (IRR) for c_density
 
 IRR per IQR, work on the link (latent) scale and exponentiate
 
-```{r}
+```{r eval=FALSE}
 library(emmeans)
 iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
 
@@ -905,7 +905,7 @@ irr_tbl
 
 keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
 
-```{r}
+```{r eval=FALSE}
 tr_delta <- summary(
   emtrends(mod, ~ landgebruik, var = "c_density",
            mode = "latent", delta = iqr_cd, infer = TRUE)
@@ -926,14 +926,6 @@ irr_tbl
 
 ```
 
-
-Center/scale c_density (optional) to stabilize estimation and make the intercept interpretable? Not done yet
-
-```{r eval=FALSE}
-data_subset$c_density_c <- scale(data_subset$c_density, center = TRUE, scale = TRUE)
-# then use c_density_c instead of c_density in both above formulas
-
-```
 
 #### Correlation bulk density
 
