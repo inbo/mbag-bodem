@@ -715,30 +715,36 @@ as_tibble(tr_add_sum) %>%
 
 ```
 
-Plot global c_density effect
+Plot: predicted richness vs c_density (averaged over LU & depth)
+
+We model with log_c_density, but we plot against c_density. We build a grid over c_density, add log_c_density = log(c_density), and predict.
 
 ```{r}
-mod <- m_richness_full
+# Build grid over c_density (natural scale), average over landgebruik & diepte
+cd_range <- range(data_subset$c_density, na.rm = TRUE)
+cd_seq   <- seq(cd_range[1], cd_range[2], length.out = 80)
 
-# Build a grid that varies c_density (and includes LU & depth so they can be averaged)
-nd <- insight::get_datagrid(mod, by = c("landgebruik","diepte","c_density"), length = 50)
-
-# Pin sequencing depth (standardize curves)
-if ("total_count" %in% names(nd)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
-}
+nd <- tidyr::crossing(
+  c_density = cd_seq,
+  landgebruik = levels(data_subset$landgebruik),
+  diepte = if ("diepte" %in% names(data_subset)) levels(data_subset$diepte) else factor(NA)
+) %>%
+  mutate(
+    log_c_density = log(c_density),
+    total_count   = if ("total_count" %in% names(data_subset))
+                      median(data_subset$total_count, na.rm = TRUE) else NA_real_
+  )
 
 p_cdens <- marginaleffects::plot_predictions(
-  model    = mod,
-  newdata  = nd,
-  condition = "c_density",   # <-- x-axis variable
-  type     = "response",
-  vcov     = TRUE,
-  re.form  = NA,
-  points   = 0.1             # faint raw points; set to 0 to hide
+  model     = m_richness_full,
+  newdata   = nd,
+  condition = "c_density",   # x-as
+  type      = "response",
+  vcov      = TRUE,
+  re.form   = NA,
+  points    = 0.1
 )
 p_cdens
-
 
 ```
 
