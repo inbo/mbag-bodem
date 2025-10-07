@@ -663,6 +663,56 @@ result <- crossing(coef_tbl, inc_tbl) %>%
 result
 ```
 
+Include the interaction between log(c_density) and landuse (to get landuse specific slopes)
+
+```{r}
+form_richness_full_int <- update(form_richness, . ~ . + landgebruik * log_c_density)
+
+lowest_aic_int <- update(
+  lowest_aic,
+  formula   = form_richness_full_int,
+  data      = data_subset,
+  na.action = na.fail
+)
+
+```
+
+```{r}
+summary(lowest_aic_int)
+
+```
+
+```{r}
+anova(lowest_aic, lowest_aic_int)  # LRT for interaction
+
+```
+
+Per–land-use IRRs for fold changes (no subsetting)
+
+```{r}
+# Slopes per landgebruik w.r.t. log(c_density) on latent scale
+tr_lu <- summary(
+  emtrends(lowest_aic_int, ~ landgebruik,
+           var = "log_c_density", mode = "latent", infer = TRUE)
+)
+
+z <- qnorm(0.975)
+irr_lu_fc <- as_tibble(tr_lu) %>%
+  transmute(
+    landgebruik,
+    beta = log_c_density.trend,
+    SE   = SE,
+    # IRRs for fold changes:
+    IRR_e   = exp(beta * 1),          LCL_e   = exp((beta - z*SE) * 1),          UCL_e   = exp((beta + z*SE) * 1),
+    IRR_2x  = exp(beta * log(2)),     LCL_2x  = exp((beta - z*SE) * log(2)),     UCL_2x  = exp((beta + z*SE) * log(2)),
+    IRR_10x = exp(beta * log(10)),    LCL_10x = exp((beta - z*SE) * log(10)),    UCL_10x = exp((beta + z*SE) * log(10)),
+    p.value
+  )
+
+print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
+
+```
+
 
 #### Correlation carbon density
 
