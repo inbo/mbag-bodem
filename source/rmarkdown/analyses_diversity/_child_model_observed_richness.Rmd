@@ -829,36 +829,41 @@ performance::check_zeroinflation(mod)
 Model-based predictions: richness vs c_density by landgebruik
 
 ```{r}
-# Build grid over c_density within each land-use (keep your “pinning” lines)
-by_vars <- c("landgebruik", "c_density")
-nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
-
-if ("total_count" %in% names(data_subset)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
-}
+# Grid per landgebruik over c_density; fix depth to a reference for clarity
 ref_depth <- if ("diepte" %in% names(data_subset) &&
                  any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
-nd$diepte <- ref_depth
 
-# Get predictions (response scale), marginal over REs
+nd_lu <- tidyr::crossing(
+  landgebruik = levels(data_subset$landgebruik),
+  c_density   = cd_seq
+) %>%
+  mutate(
+    log_c_density = log(c_density),
+    total_count   = if ("total_count" %in% names(data_subset))
+                      median(data_subset$total_count, na.rm = TRUE) else NA_real_,
+    diepte        = if ("diepte" %in% names(data_subset)) ref_depth else factor(NA)
+  )
+
 pr <- marginaleffects::predictions(
-  model   = mod,
-  newdata = nd,
+  model   = m_richness_full_int,
+  newdata = nd_lu,
   type    = "response",
   vcov    = TRUE,
   re.form = NA
 )
 
-# Plot: x = c_density, facet by land-use
-library(ggplot2)
-ggplot(pr, aes(x = c_density, y = estimate)) +
+ggplot(pr, aes(c_density, estimate)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
   geom_line() +
   facet_wrap(~ landgebruik, scales = "free_y") +
-  labs(x = "Carbon density", y = "Predicted richness",
-       title = "Predicted richness vs carbon density by land-use",
-       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
-                         ", depth = ", ref_depth)) +
+  labs(
+    x = "Carbon density",
+    y = "Voorspelde rijkdom",
+    title = "Voorspelde rijkdom vs carbon density per landgebruik",
+    subtitle = paste0("Bij total_count = ",
+                      round(median(data_subset$total_count, na.rm = TRUE)),
+                      if ("diepte" %in% names(data_subset)) paste0(", diepte = ", ref_depth) else "")
+  ) +
   theme_bw()
 
 
