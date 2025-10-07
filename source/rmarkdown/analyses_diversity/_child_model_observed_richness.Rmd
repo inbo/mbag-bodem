@@ -869,14 +869,6 @@ ggplot(pr, aes(c_density, estimate)) +
 
 ```
 
-```{r}
-resp_var <- all.vars(formula(mod))[1]
-last_plot() +
-  geom_point(data = data_subset,
-             aes(x = c_density, y = .data[[resp_var]]),
-             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
-
-```
 
 
 Per–land-use effect sizes (IRR) for c_density
