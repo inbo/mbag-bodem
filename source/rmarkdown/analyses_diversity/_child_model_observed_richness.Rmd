@@ -725,35 +725,6 @@ result
 
 ```
 
-option 2
-
-```{r}
-library(purrr)
-library(dplyr)
-library(tibble)
-
-z <- qnorm(0.975)
-deltas <- c("×e (e-fold)" = 1, "×2 (doubling)" = log(2), "×10 (tenfold)" = log(10))
-
-result <- imap_dfr(deltas, ~ {
-  out <- summary(
-    emtrends(m_richness_full, ~ 1, var = "log_c_density",
-             mode = "latent", delta = .x, infer = TRUE)
-  )
-  as_tibble(out) %>%
-    transmute(
-      increment = .y,
-      beta = log_c_density.trend, SE = SE, p.value,
-      IRR = exp(beta),
-      LCL = exp(beta - z * SE),
-      UCL = exp(beta + z * SE)
-    )
-})
-
-result
-
-```
-
 
 Plot: predicted richness vs c_density (averaged over LU & depth)
 
@@ -1031,8 +1002,6 @@ ggplot(pr_log, aes(log_c_density, estimate)) +
   theme_bw()
 
 ```
-
-
 
 
 the below is not applicable anymore when using log(c_density)
