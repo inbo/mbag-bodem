@@ -691,18 +691,28 @@ m_richness_full <- update(
 summary(m_richness_full)
 ```
 
-global c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
+Global effect as IRR for fold changes (×e, ×2, ×10) across different landuse changes
 
 ```{r}
-# Global IRR per IQR for c_density from the additive model
-iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
-tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "c_density", mode = "latent", infer = TRUE))
-irr_add <- transform(as.data.frame(tr_add),
-                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(c_density.trend * iqr_cd),
-                     LCL = exp((c_density.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((c_density.trend + 1.96*SE) * iqr_cd))
-irr_add[, c("increment","IRR","LCL","UCL","p.value")]
+# Slope on log link for a 1-unit increase in log(c_density) = effect per e-fold increase in c_density
+tr_add <- emtrends(m_richness_full, ~ 1, var = "log_c_density", mode = "latent")
+tr_add_sum <- summary(tr_add, infer = TRUE)
+
+z <- qnorm(0.975)
+as_tibble(tr_add_sum) %>%
+  transmute(
+    # beta is slope w.r.t. log(c_density)
+    beta = log_c_density.trend,
+    SE   = SE,
+    # choose deltas for fold changes:
+    increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)"),
+    delta     = c(1, log(2), log(10)),
+    IRR = exp(beta * delta),
+    LCL = exp((beta - z * SE) * delta),
+    UCL = exp((beta + z * SE) * delta),
+    p.value
+  )
+
 ```
 
 Plot global c_density effect
