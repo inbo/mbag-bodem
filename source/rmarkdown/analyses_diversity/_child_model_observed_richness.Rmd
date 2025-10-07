@@ -816,6 +816,37 @@ ggplot(ap, aes(c_density, estimate)) +
 
 ```
 
+alternative: use plot_predictions() on the log scale
+
+```{r}
+nd <- insight::get_datagrid(
+  m_richness_full,
+  by = c("landgebruik", "diepte", "log_c_density"),
+  length = 80
+) %>%
+  mutate(
+    total_count = if ("total_count" %in% names(data_subset))
+      median(data_subset$total_count, na.rm = TRUE) else NA_real_
+  )
+
+p <- marginaleffects::plot_predictions(
+  model     = m_richness_full,
+  newdata   = nd,
+  condition = "log_c_density",   # <- model term
+  type      = "response",
+  vcov      = TRUE,
+  re.form   = NA,
+  points    = 0.1
+)
+
+# Relabel x ticks in natural units
+p + scale_x_continuous(
+  name   = "Carbon density",
+  labels = function(x) signif(exp(x), 3)
+)
+
+```
+
 
 Interaction model with log(c_density) (to get landuse specific slopes)
 
