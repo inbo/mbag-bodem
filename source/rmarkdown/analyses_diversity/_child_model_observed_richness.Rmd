@@ -882,18 +882,27 @@ tr_lu <- summary(
 )
 
 z <- qnorm(0.975)
-as_tibble(tr_lu) %>%
+irr_lu_fc <- as_tibble(tr_lu) %>%
   transmute(
     landgebruik,
     beta = log_c_density.trend,
     SE   = SE,
-    # Report multiple fold changes:
+    # IRRs for fold changes:
     IRR_e   = exp(beta * 1),          LCL_e   = exp((beta - z*SE) * 1),          UCL_e   = exp((beta + z*SE) * 1),
     IRR_2x  = exp(beta * log(2)),     LCL_2x  = exp((beta - z*SE) * log(2)),     UCL_2x  = exp((beta + z*SE) * log(2)),
     IRR_10x = exp(beta * log(10)),    LCL_10x = exp((beta - z*SE) * log(10)),    UCL_10x = exp((beta + z*SE) * log(10)),
     p.value
   )
 
+print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
+
+```
+
+table version
+
+```{r}
+knitr::kable(irr_lu_fc, digits = 3,
+             caption = "Per–land-use IRRs for e-, 2-, and 10-fold increases in carbon density")
 
 ```
 
