@@ -934,7 +934,7 @@ performance::check_zeroinflation(mod)
 
 ```
 
-Model-based predictions: richness vs c_density by landgebruik
+Plot model-based predictions: richness vs c_density by landgebruik
 
 ```{r}
 # Grid per landgebruik over c_density; fix depth to a reference for clarity
@@ -976,6 +976,64 @@ ggplot(pr, aes(c_density, estimate)) +
 
 
 ```
+
+alternative: plot on the log scale
+
+```{r}
+# --- Plot vs log(c_density), facetted by landgebruik ---
+
+# define log-scale grid
+min_cd <- min(data_subset$c_density[data_subset$c_density > 0], na.rm = TRUE)
+max_cd <- max(data_subset$c_density, na.rm = TRUE)
+log_seq <- seq(log(min_cd), log(max_cd), length.out = 80)
+
+nd_lu_log <- tidyr::crossing(
+  landgebruik   = levels(data_subset$landgebruik),
+  log_c_density = log_seq
+) %>%
+  mutate(
+    c_density   = exp(log_c_density),  # for pretty axis labels later if needed
+    total_count = if ("total_count" %in% names(data_subset))
+                    median(data_subset$total_count, na.rm = TRUE) else NA_real_,
+    diepte      = if ("diepte" %in% names(data_subset)) {
+                    lv <- levels(droplevels(data_subset$diepte))
+                    if (any(grepl("0-10", lv))) "0-10" else lv[1]
+                  } else factor(NA)
+  )
+
+pr_log <- marginaleffects::predictions(
+  model   = m_richness_full_int,
+  newdata = nd_lu_log,
+  type    = "response",
+  vcov    = TRUE,
+  re.form = NA
+)
+
+# choose natural-unit tick marks for readability
+breaks_nat <- pretty(c(min_cd, max_cd), n = 5)
+
+ggplot(pr_log, aes(log_c_density, estimate)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
+  geom_line() +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  scale_x_continuous(
+    name   = "Carbon density",
+    breaks = log(breaks_nat),
+    labels = signif(breaks_nat, 3)
+  ) +
+  labs(
+    y = "Voorspelde rijkdom",
+    title = "Voorspelde rijkdom vs log(carbon density) per landgebruik",
+    subtitle = paste0("Bij total_count = ",
+                      round(median(data_subset$total_count, na.rm = TRUE)),
+                      if ("diepte" %in% names(data_subset)) paste0(", diepte = ", nd_lu_log$diepte[1]) else "")
+  ) +
+  theme_bw()
+
+```
+
+
+
 
 the below is not applicable anymore when using log(c_density)
 
