@@ -289,9 +289,16 @@ cat(
     "rijen.\n"
   )
 )
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
+data_subset <- data_subset %>%
+  mutate(log_c_density = log(c_density)) %>%  # log-transform predictor
+  { 
+    # Guard: non-positive c_density cannot be logged
+    if (any(!is.finite(.$log_c_density))) {
+      stop("c_density bevat niet-positieve waarden; log() is niet gedefinieerd. Filter/aanpassen vereist.")
+    } else .
+  } %>%
+  filter(complete.cases(across(all_of(c(variables_no_collinearity, "log_c_density"))))) %>%
+  droplevels()
 nr2 <- nrow(data_subset)
 
 cat(
@@ -314,7 +321,7 @@ form_richness_full <- update(
   form_richness,
   . ~ .
     + swc_vol
-    + c_density
+    + log_c_density
     + poly(ph_kcl, 2)
     + textuur_som_klei_zand
 )
@@ -628,17 +635,17 @@ for (i in efvars) {
 p
 ```
 
-global c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
+global log_c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
 
 ```{r}
-# Global IRR per IQR for c_density from the additive model
-iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
-tr_add <- summary(emtrends(lowest_aic, ~ 1, var = "c_density", mode = "latent", infer = TRUE))
+# Global IRR per IQR for log_c_density from the additive model
+iqr_cd <- IQR(data_subset$log_c_density, na.rm = TRUE)
+tr_add <- summary(emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent", infer = TRUE))
 irr_add <- transform(as.data.frame(tr_add),
                      increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(c_density.trend * iqr_cd),
-                     LCL = exp((c_density.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((c_density.trend + 1.96*SE) * iqr_cd))
+                     IRR = exp(log_c_density.trend * iqr_cd),
+                     LCL = exp((log_c_density.trend - 1.96*SE) * iqr_cd),
+                     UCL = exp((log_c_density.trend + 1.96*SE) * iqr_cd))
 irr_add[, c("increment","IRR","LCL","UCL","p.value")]
 ```
 
