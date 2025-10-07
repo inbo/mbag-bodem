@@ -677,17 +677,21 @@ lowest_aic_int <- update(
 
 ```
 
+summary of the model that includes the interaction between log(c_density) and landuse
+
 ```{r}
 summary(lowest_aic_int)
 
 ```
+
+Does this model fit better or worse?
 
 ```{r}
 anova(lowest_aic, lowest_aic_int)  # LRT for interaction
 
 ```
 
-Per–land-use IRRs for fold changes (no subsetting)
+Per–land-use IRRs for fold changes in carbon density (no subsetting)
 
 ```{r}
 # Slopes per landgebruik w.r.t. log(c_density) on latent scale
