@@ -666,7 +666,7 @@ result
 Include the interaction between log(c_density) and landuse (to get landuse specific slopes)
 
 ```{r}
-form_richness_full_int <- update(form_richness, . ~ . + landgebruik * log_c_density)
+form_richness_full_int <- update(form_richness_full, . ~ . + landgebruik * log_c_density)
 
 lowest_aic_int <- update(
   lowest_aic,
