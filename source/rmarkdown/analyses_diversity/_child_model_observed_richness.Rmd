@@ -731,7 +731,12 @@ Plot: predicted richness vs c_density (averaged over LU & depth)
 We vary log_c_density (the model term), then back-transform for the x-axis.
 
 ```{r}
-# Grid on natural scale → log() for the model
+library(dplyr)
+library(tidyr)
+library(marginaleffects)
+library(ggplot2)
+
+# Range & grid on the natural scale, then log-transform for the model
 min_cd <- min(data_subset$c_density[data_subset$c_density > 0], na.rm = TRUE)
 max_cd <- max(data_subset$c_density, na.rm = TRUE)
 cd_seq  <- seq(min_cd, max_cd, length.out = 80)
@@ -745,11 +750,13 @@ if ("diepte" %in% names(data_subset)) {
 }
 
 nd <- tidyr::crossing(!!!grid_list) %>%
-  mutate(total_count = if ("total_count" %in% names(data_subset))
-                         median(data_subset$total_count, na.rm = TRUE) else NA_real_)
+  mutate(
+    total_count = if ("total_count" %in% names(data_subset))
+      median(data_subset$total_count, na.rm = TRUE) else NA_real_
+  )
 
-# Average over LU & depth at each log_c_density
-ap <- avg_predictions(
+# Proper averaging with SEs over LU & depth at each log_c_density
+ap <- marginaleffects::avg_predictions(
   m_richness_full,
   newdata = nd,
   by      = "log_c_density",
@@ -759,40 +766,33 @@ ap <- avg_predictions(
 ) %>%
   mutate(c_density = exp(log_c_density))
 
-# y-limits based on CI (add a tiny padding)
-y_rng <- range(ap$conf.low, ap$conf.high, na.rm = TRUE)
-pad   <- diff(y_rng) * 0.03
-y_lims <- c(y_rng[1] - pad, y_rng[2] + pad)
-
+# Plot: x = c_density (natural units), single averaged curve
 ggplot(ap, aes(c_density, estimate)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line(linewidth = 0.7) +
-  coord_cartesian(ylim = y_lims) +
+  geom_line() +
   labs(
     x = "Carbon density",
     y = "Predicted richness",
     title = "Predicted richness vs carbon density (averaged over land-use & depth)"
   ) +
-  theme_bw()
+  theme_bw() +
+  # Optional: overlay faint raw points
+  { 
+    resp_var <- all.vars(formula(m_richness_full))[1]
+    list(geom_point(data = data_subset,
+                    aes(x = c_density, y = .data[[resp_var]]),
+                    inherit.aes = FALSE, alpha = 0.12, size = 0.9))
+  }
+
 
 ```
 
 alternative: use plot_predictions() on the log scale
 
 ```{r}
-
-# Natural-scale tick marks for labeling the (log) x-axis
-min_cd <- min(data_subset$c_density[data_subset$c_density > 0], na.rm = TRUE)
-max_cd <- max(data_subset$c_density, na.rm = TRUE)
-breaks_nat <- pretty(c(min_cd, max_cd), n = 5)
-
-# Build grid over the model term (log_c_density) and averaging factors
-by_vars <- c("landgebruik", "log_c_density")
-if ("diepte" %in% names(data_subset)) by_vars <- c(by_vars, "diepte")
-
-nd_log <- insight::get_datagrid(
+nd <- insight::get_datagrid(
   m_richness_full,
-  by     = by_vars,
+  by = c("landgebruik", "diepte", "log_c_density"),
   length = 80
 ) %>%
   mutate(
@@ -800,39 +800,21 @@ nd_log <- insight::get_datagrid(
       median(data_subset$total_count, na.rm = TRUE) else NA_real_
   )
 
-# Numeric predictions for tight y-limits (no raw points)
-pr <- predictions(
-  model   = m_richness_full,
-  newdata = nd_log,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
-)
-
-y_rng <- range(pr$conf.low, pr$conf.high, na.rm = TRUE)
-
-# Plot on log_c_density; hide points; relabel x in natural units; clamp y to CI band
-p <- plot_predictions(
+p <- marginaleffects::plot_predictions(
   model     = m_richness_full,
-  newdata   = nd_log,
-  condition = "log_c_density",
+  newdata   = nd,
+  condition = "log_c_density",   # <- model term
   type      = "response",
   vcov      = TRUE,
   re.form   = NA,
-  points    = 0
+  points    = 0.1
 )
 
-p +
-  coord_cartesian(ylim = y_rng) +
-  scale_x_continuous(
-    name   = "Carbon density",
-    breaks = log(breaks_nat),
-    labels = function(x) signif(exp(x), 3)
-  ) +
-  labs(y = "Predicted richness",
-       title = "Predicted richness vs log(carbon density) (averaged over LU & depth)") +
-  theme_bw()
-
+# Relabel x ticks in natural units
+p + scale_x_continuous(
+  name   = "Carbon density",
+  labels = function(x) signif(exp(x), 3)
+)
 
 ```
 
