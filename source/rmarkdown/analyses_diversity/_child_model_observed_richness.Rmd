@@ -657,26 +657,21 @@ variables_no_collinearity <- c(
 )
 
 nr1 <- nrow(data_subset)
-cat(
-  paste(
-    "De originele dataset heeft",
-    nr1,
-    "rijen.\n"
-  )
-)
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
-nr2 <- nrow(data_subset)
+cat("De originele dataset heeft", nr1, "rijen.\n")
 
-cat(
-  paste(
-    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
-    één van de covariaten, heeft de dataset",
-    nr2,
-    "rijen.\n"
-  )
-)
+data_subset <- data_subset %>%
+  mutate(log_c_density = log(c_density)) %>%  # log-transform predictor
+  { 
+    # Guard: non-positive c_density cannot be logged
+    if (any(!is.finite(.$log_c_density))) {
+      stop("c_density bevat niet-positieve waarden; log() is niet gedefinieerd. Filter/aanpassen vereist.")
+    } else .
+  } %>%
+  filter(complete.cases(across(all_of(c(variables_no_collinearity, "log_c_density"))))) %>%
+  droplevels()
+
+nr2 <- nrow(data_subset)
+cat("Na verwijderen van rijen met ontbrekende covariaten heeft de dataset", nr2, "rijen.\n")
 ```
 
 
