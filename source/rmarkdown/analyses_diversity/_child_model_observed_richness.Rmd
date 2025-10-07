@@ -693,27 +693,67 @@ summary(m_richness_full)
 
 Global effect as IRR for fold changes (×e, ×2, ×10) across different landuse changes
 
+option 1
+
 ```{r}
-# Slope on log link for a 1-unit increase in log(c_density) = effect per e-fold increase in c_density
+library(dplyr)
+library(tidyr)
+library(tibble)
+
+# Slope for log(c_density) on the latent (log) scale
 tr_add <- emtrends(m_richness_full, ~ 1, var = "log_c_density", mode = "latent")
 tr_add_sum <- summary(tr_add, infer = TRUE)
 
 z <- qnorm(0.975)
-as_tibble(tr_add_sum) %>%
-  transmute(
-    # beta is slope w.r.t. log(c_density)
-    beta = log_c_density.trend,
-    SE   = SE,
-    # choose deltas for fold changes:
-    increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)"),
-    delta     = c(1, log(2), log(10)),
+
+coef_tbl <- as_tibble(tr_add_sum) %>%
+  transmute(beta = log_c_density.trend, SE = SE, p.value = p.value)
+
+inc_tbl <- tibble(
+  increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)"),
+  delta     = c(1, log(2), log(10))
+)
+
+result <- crossing(coef_tbl, inc_tbl) %>%
+  mutate(
     IRR = exp(beta * delta),
     LCL = exp((beta - z * SE) * delta),
-    UCL = exp((beta + z * SE) * delta),
-    p.value
+    UCL = exp((beta + z * SE) * delta)
   )
 
+result
+
 ```
+
+option 2
+
+```{r}
+library(purrr)
+library(dplyr)
+library(tibble)
+
+z <- qnorm(0.975)
+deltas <- c("×e (e-fold)" = 1, "×2 (doubling)" = log(2), "×10 (tenfold)" = log(10))
+
+result <- imap_dfr(deltas, ~ {
+  out <- summary(
+    emtrends(m_richness_full, ~ 1, var = "log_c_density",
+             mode = "latent", delta = .x, infer = TRUE)
+  )
+  as_tibble(out) %>%
+    transmute(
+      increment = .y,
+      beta = log_c_density.trend, SE = SE, p.value,
+      IRR = exp(beta),
+      LCL = exp(beta - z * SE),
+      UCL = exp(beta + z * SE)
+    )
+})
+
+result
+
+```
+
 
 Plot: predicted richness vs c_density (averaged over LU & depth)
 
