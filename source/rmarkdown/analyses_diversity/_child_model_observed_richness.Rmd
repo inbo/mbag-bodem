@@ -676,15 +676,13 @@ cat("Na verwijderen van rijen met ontbrekende covariaten heeft de dataset", nr2,
 
 
 ```{r extend-model-carbon-density-{{group}}-{{primerset}}-{{unit}}}
-form_richness_full <- update(
-  form_richness,
-  . ~ .
-    + c_density)
+# Voeg log(c_density) toe aan het basismodel
+form_richness_full <- update(form_richness, . ~ . + log_c_density)
 
 m_richness_full <- update(
   m_richness,
-  formula = form_richness_full,
-  data = data_subset,
+  formula   = form_richness_full,
+  data      = data_subset,
   na.action = na.fail
 )
 ```
