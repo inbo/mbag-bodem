@@ -635,9 +635,9 @@ for (i in efvars) {
 p
 ```
 
-global log_c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
+global log_c_density effect. This gives a global (averaged) slope across the different land-use categories
 
-```{r}
+```{r log-c-density-lowest_aic-{{group}}-{{primerset}}-{{unit}}}
 
 # Slope for log(c_density) on the latent (log) scale
 tr_add <- emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent")
@@ -662,6 +662,21 @@ result <- crossing(coef_tbl, inc_tbl) %>%
 
 result
 ```
+
+```{r}
+# Append the 3 global rows for this group × primerset
+summary_all <- dplyr::bind_rows(
+  summary_all,
+  results %>%
+    dplyr::mutate(
+      group     = group,        # your current group value
+      primerset = primerset,    # your current primer set value
+      landgebruik = "global"    # 3rd column = "global"
+    ) %>%
+    dplyr::relocate(group, primerset, landgebruik)
+)
+```
+
 
 Include the interaction between log(c_density) and landuse (to get landuse specific slopes)
 
@@ -690,7 +705,7 @@ anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
 
 Per–land-use IRRs for fold changes in carbon density (no subsetting)
 
-```{r}
+```{r log-c-density-lowest-aic-int-perlanduse-{{group}}-{{primerset}}-{{unit}}}
 # Slopes per landgebruik w.r.t. log(c_density) on latent scale
 tr_lu <- summary(
   emtrends(lowest_aic_int, ~ landgebruik,
@@ -713,6 +728,22 @@ irr_lu_fc <- as_tibble(tr_lu) %>%
 print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
 
 ```
+
+```{r}
+# Append the per-landgebruik rows for this group × primerset
+summary_all <- dplyr::bind_rows(
+  summary_all,
+  irr_lu_fc %>%
+    dplyr::mutate(
+      group     = group,         # your current group value
+      primerset = primerset,     # your current primer set value
+      landgebruik = as.character(landgebruik) # ensure same type as "global"
+    ) %>%
+    dplyr::relocate(group, primerset, landgebruik)
+)
+
+```
+
 
 Plot model-based predictions: richness vs c_density by landgebruik
 
