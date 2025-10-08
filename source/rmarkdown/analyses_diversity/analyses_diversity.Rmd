@@ -271,7 +271,11 @@ summary_all <- tibble()
 
 ```
 
-```{r child-model-observed-richness, echo=FALSE, results="asis"}
+### obv alle input data
+
+Dit zijn de modelleringen obv input data van alle seizoenen
+
+```{r child-model-observed-richness-allseasons, echo=FALSE, results="asis"}
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
@@ -312,6 +316,102 @@ if (interactive()) {
     cat()
 }
 ```
+
+### obv winterhalfjaar data
+
+Dit zijn de modelleringen obv input data van november tot april
+
+```{r child-model-observed-richness-winterhalfjaar, echo=FALSE, results="asis"}
+inputs <- combined %>%
+  distinct(group, primerset, unit) %>%
+  arrange(
+    group, primerset, unit
+  ) %>%
+  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4))
+
+pmap(
+  inputs,
+  function(
+      group = group,
+      primerset = primerset,
+      unit = unit) {
+    knit_expand(
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_observed_richness.Rmd"
+      ),
+      group = group,
+      primerset = primerset,
+      unit = unit
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+# clipr::write_clip(rmd) # nolint
+
+execute_code <- function(rmd) {
+  # Extract R code from the rmd content
+  r_code <- knitr::purl(text = rmd, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd = rmd)
+} else {
+  knit_child(text = rmd, quiet = TRUE) %>%
+    cat()
+}
+```
+
+
+### obv winter data
+
+Dit zijn de modelleringen obv input data van december tot april
+
+```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
+inputs <- combined %>%
+  distinct(group, primerset, unit) %>%
+  arrange(
+    group, primerset, unit
+  ) %>%
+  filter(sampling_month %in% c(12, 1, 2, 3, 4))
+
+pmap(
+  inputs,
+  function(
+      group = group,
+      primerset = primerset,
+      unit = unit) {
+    knit_expand(
+      here(
+        "source", "rmarkdown", "analyses_diversity",
+        "_child_model_observed_richness.Rmd"
+      ),
+      group = group,
+      primerset = primerset,
+      unit = unit
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+# clipr::write_clip(rmd) # nolint
+
+execute_code <- function(rmd) {
+  # Extract R code from the rmd content
+  r_code <- knitr::purl(text = rmd, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd = rmd)
+} else {
+  knit_child(text = rmd, quiet = TRUE) %>%
+    cat()
+}
+```
+
 
 ```{r save-summary-all, include=FALSE}
 if (exists("summary_all") && nrow(summary_all) > 0) {
