@@ -1006,7 +1006,7 @@ summary(m_richness_full_int)
 ```
 
 ```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+anova(m_richness_full, m_richness_full_int, test = "Chisq")  # LRT for interaction
 
 ```
 
@@ -1320,7 +1320,7 @@ summary(m_richness_full_int)
 ```
 
 ```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+anova(m_richness_full, m_richness_full_int, test = "Chisq")  # LRT for interaction
 
 ```
 
@@ -1566,7 +1566,7 @@ summary(m_richness_full_int)
 ```
 
 ```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+anova(m_richness_full, m_richness_full_int, test = "Chisq")  # LRT for interaction
 
 ```
 
@@ -1812,7 +1812,7 @@ summary(m_richness_full_int)
 ```
 
 ```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+anova(m_richness_full, m_richness_full_int, test = "Chisq")  # LRT for interaction
 
 ```
 
@@ -2058,7 +2058,7 @@ summary(m_richness_full_int)
 ```
 
 ```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+anova(m_richness_full, m_richness_full_int, test = "Chisq")  # LRT for interaction
 
 ```
 
