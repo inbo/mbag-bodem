@@ -324,6 +324,12 @@ if (interactive()) {
 Dit zijn de modelleringen obv input data van november tot april
 
 ```{r child-model-observed-richness-winterhalfjaar, echo=FALSE, results="asis"}
+library(dplyr)
+library(purrr)
+library(stringr)
+library(here)
+library(knitr)
+
 season_run <- "winterhalfjaar"
 
 # Build the triplets for this seasonal subset
@@ -349,20 +355,23 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# Optional: copy to clipboard for inspection
-# clipr::write_clip(rmd)
-
-# --- Helper: append a unique suffix to every *named* chunk label in the child text
+# --- Helper: append a suffix to *named* chunk labels only
 add_chunk_label_suffix <- function(rmd_text, suffix) {
-  suffix <- gsub("[^A-Za-z0-9_-]+", "-", suffix)           # sanitize
-  # Match lines like: ```{r label[, ...]}  and append -suffix to the label
-  gsub("(?m)^```\\{r\\s+([^,}\\s]+)", 
-       paste0("```{r \\1-", suffix),
-       rmd_text, perl = TRUE)
+  # allow typical label chars and require a comma or } after the label
+  safe_suffix <- gsub("[^A-Za-z0-9._-]+", "-", suffix)
+  pattern     <- "(?m)^```\\{r\\s+([A-Za-z0-9._-]+)(?=\\s*[,}])"
+  replacement <- paste0("```{r \\1-", safe_suffix)
+  gsub(pattern, replacement, rmd_text, perl = TRUE)
 }
 
 # Apply suffix = season_run so labels don't collide across seasonal runs
 rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Create per-run figure / cache dirs
+fig_dir   <- file.path("figures", paste0("obs-richness-", season_run))
+cache_dir <- file.path("cache",   paste0("obs-richness-", season_run))
+dir.create(fig_dir,   recursive = TRUE, showWarnings = FALSE)
+dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Helper for interactive execution of inline Rmd text
 execute_code <- function(rmd_text) {
@@ -373,16 +382,16 @@ execute_code <- function(rmd_text) {
 if (interactive()) {
   execute_code(rmd_text = rmd_labeled)
 } else {
-  # Give this run its own figure and cache paths to avoid file clashes
   knit_child(
-    text   = rmd_labeled,
-    quiet  = TRUE,
+    text    = rmd_labeled,
+    quiet   = TRUE,
     options = list(
-      fig.path   = paste0("figures/obs-richness-", season_run, "/"),
-      cache.path = paste0("cache/obs-richness-", season_run, "/")
+      fig.path   = paste0(fig_dir, "/"),
+      cache.path = paste0(cache_dir, "/")
     )
   ) %>% cat()
 }
+
 
 ```
 
@@ -393,9 +402,19 @@ if (interactive()) {
 Dit zijn de modelleringen obv input data van december tot april
 
 ```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
+library(dplyr)
+library(purrr)
+library(stringr)
+library(here)
+library(knitr)
+
 season_run <- "winter"
 
-# Build the triplets for this seasonal subset
+# (Optional) TEMP compatibility if your Rmd has inline `r winter`
+# Prefer to change those to `r season_run` in the source.
+winter <- season_run
+
+# Build the triplets for this seasonal subset (Dec–Apr)
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(12, 1, 2, 3, 4)) %>%
@@ -418,20 +437,23 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# Optional: copy to clipboard for inspection
-# clipr::write_clip(rmd)
-
-# --- Helper: append a unique suffix to every *named* chunk label in the child text
+# --- Helper: append a suffix to *named* chunk labels only
 add_chunk_label_suffix <- function(rmd_text, suffix) {
-  suffix <- gsub("[^A-Za-z0-9_-]+", "-", suffix)           # sanitize
-  # Match lines like: ```{r label[, ...]}  and append -suffix to the label
-  gsub("(?m)^```\\{r\\s+([^,}\\s]+)", 
-       paste0("```{r \\1-", suffix),
-       rmd_text, perl = TRUE)
+  safe_suffix <- gsub("[^A-Za-z0-9._-]+", "-", suffix)        # sanitize
+  # Match lines like: ```{r mylabel[, ...]} and append -suffix to 'mylabel'
+  pattern     <- "(?m)^```\\{r\\s+([A-Za-z0-9._-]+)(?=\\s*[,}])"
+  replacement <- paste0("```{r \\1-", safe_suffix)
+  gsub(pattern, replacement, rmd_text, perl = TRUE)
 }
 
 # Apply suffix = season_run so labels don't collide across seasonal runs
 rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Create per-run figure / cache dirs (and make sure they exist)
+fig_dir   <- file.path("figures", paste0("obs-richness-", season_run))
+cache_dir <- file.path("cache",   paste0("obs-richness-", season_run))
+dir.create(fig_dir,   recursive = TRUE, showWarnings = FALSE)
+dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Helper for interactive execution of inline Rmd text
 execute_code <- function(rmd_text) {
@@ -442,13 +464,12 @@ execute_code <- function(rmd_text) {
 if (interactive()) {
   execute_code(rmd_text = rmd_labeled)
 } else {
-  # Give this run its own figure and cache paths to avoid file clashes
   knit_child(
-    text   = rmd_labeled,
-    quiet  = TRUE,
+    text    = rmd_labeled,
+    quiet   = TRUE,
     options = list(
-      fig.path   = paste0("figures/obs-richness-", season_run, "/"),
-      cache.path = paste0("cache/obs-richness-", season_run, "/")
+      fig.path   = paste0(fig_dir, "/"),
+      cache.path = paste0(cache_dir, "/")
     )
   ) %>% cat()
 }
