@@ -684,7 +684,7 @@ summary(lowest_aic_int)
 Does this model fit better or worse?
 
 ```{r}
-anova(lowest_aic, lowest_aic_int)  # LRT for interaction
+anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
 
 ```
 
