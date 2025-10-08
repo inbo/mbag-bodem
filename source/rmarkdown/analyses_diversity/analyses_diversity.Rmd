@@ -327,28 +327,22 @@ if (interactive()) {
 Dit zijn de modelleringen obv input data van november tot april
 
 ```{r child-model-observed-richness-winterhalfjaar, echo=FALSE, results="asis"}
-
 season_run <- "winterhalfjaar"
 
-
+# Build the triplets for this seasonal subset
 inputs <- combined %>%
-  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
-  distinct(group, primerset, unit) %>%
-  arrange(
-    group, primerset, unit
-  )
+  dplyr::filter(!is.na(sampling_month),
+                sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
+  dplyr::distinct(group, primerset, unit) %>%
+  dplyr::arrange(group, primerset, unit)
 
+# Expand the child Rmd for all triplets
 pmap(
   inputs,
-  function(
-      group = group,
-      primerset = primerset,
-      unit = unit) {
+  function(group, primerset, unit) {
     knit_expand(
-      here(
-        "source", "rmarkdown", "analyses_diversity",
-        "_child_model_observed_richness.Rmd"
-      ),
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_observed_richness.Rmd"),
       group = group,
       primerset = primerset,
       unit = unit,
@@ -358,20 +352,41 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# clipr::write_clip(rmd) # nolint
+# Optional: copy to clipboard for inspection
+# clipr::write_clip(rmd)
 
-execute_code <- function(rmd) {
-  # Extract R code from the rmd content
-  r_code <- knitr::purl(text = rmd, quiet = TRUE)
+# --- Helper: append a unique suffix to every *named* chunk label in the child text
+add_chunk_label_suffix <- function(rmd_text, suffix) {
+  suffix <- gsub("[^A-Za-z0-9_-]+", "-", suffix)           # sanitize
+  # Match lines like: ```{r label[, ...]}  and append -suffix to the label
+  gsub("(?m)^```\\{r\\s+([^,}\\s]+)", 
+       paste0("```{r \\1-", suffix),
+       rmd_text, perl = TRUE)
+}
+
+# Apply suffix = season_run so labels don't collide across seasonal runs
+rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Helper for interactive execution of inline Rmd text
+execute_code <- function(rmd_text) {
+  r_code <- knitr::purl(text = rmd_text, quiet = TRUE)
   eval(parse(text = r_code), envir = .GlobalEnv)
 }
 
 if (interactive()) {
-  execute_code(rmd = rmd)
+  execute_code(rmd_text = rmd_labeled)
 } else {
-  knit_child(text = rmd, quiet = TRUE) %>%
-    cat()
+  # Give this run its own figure and cache paths to avoid file clashes
+  knit_child(
+    text   = rmd_labeled,
+    quiet  = TRUE,
+    options = list(
+      fig.path   = paste0("figures/obs-richness-", season_run, "/"),
+      cache.path = paste0("cache/obs-richness-", season_run, "/")
+    )
+  ) %>% cat()
 }
+
 ```
 
 
@@ -381,27 +396,22 @@ if (interactive()) {
 Dit zijn de modelleringen obv input data van december tot april
 
 ```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
+season_run <- "winterhalfjaar"
 
-season_run <- "winter"
-
+# Build the triplets for this seasonal subset
 inputs <- combined %>%
-  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
-  distinct(group, primerset, unit) %>%
-  arrange(
-    group, primerset, unit
-  )
+  dplyr::filter(!is.na(sampling_month),
+                sampling_month %in% c(12, 1, 2, 3, 4)) %>%
+  dplyr::distinct(group, primerset, unit) %>%
+  dplyr::arrange(group, primerset, unit)
 
+# Expand the child Rmd for all triplets
 pmap(
   inputs,
-  function(
-      group = group,
-      primerset = primerset,
-      unit = unit) {
+  function(group, primerset, unit) {
     knit_expand(
-      here(
-        "source", "rmarkdown", "analyses_diversity",
-        "_child_model_observed_richness.Rmd"
-      ),
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_observed_richness.Rmd"),
       group = group,
       primerset = primerset,
       unit = unit,
@@ -411,21 +421,43 @@ pmap(
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# clipr::write_clip(rmd) # nolint
+# Optional: copy to clipboard for inspection
+# clipr::write_clip(rmd)
 
-execute_code <- function(rmd) {
-  # Extract R code from the rmd content
-  r_code <- knitr::purl(text = rmd, quiet = TRUE)
+# --- Helper: append a unique suffix to every *named* chunk label in the child text
+add_chunk_label_suffix <- function(rmd_text, suffix) {
+  suffix <- gsub("[^A-Za-z0-9_-]+", "-", suffix)           # sanitize
+  # Match lines like: ```{r label[, ...]}  and append -suffix to the label
+  gsub("(?m)^```\\{r\\s+([^,}\\s]+)", 
+       paste0("```{r \\1-", suffix),
+       rmd_text, perl = TRUE)
+}
+
+# Apply suffix = season_run so labels don't collide across seasonal runs
+rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Helper for interactive execution of inline Rmd text
+execute_code <- function(rmd_text) {
+  r_code <- knitr::purl(text = rmd_text, quiet = TRUE)
   eval(parse(text = r_code), envir = .GlobalEnv)
 }
 
 if (interactive()) {
-  execute_code(rmd = rmd)
+  execute_code(rmd_text = rmd_labeled)
 } else {
-  knit_child(text = rmd, quiet = TRUE) %>%
-    cat()
+  # Give this run its own figure and cache paths to avoid file clashes
+  knit_child(
+    text   = rmd_labeled,
+    quiet  = TRUE,
+    options = list(
+      fig.path   = paste0("figures/obs-richness-", season_run, "/"),
+      cache.path = paste0("cache/obs-richness-", season_run, "/")
+    )
+  ) %>% cat()
 }
+
 ```
+
 
 
 ```{r save-summary-all, include=FALSE}
@@ -434,7 +466,7 @@ if (exists("summary_all") && nrow(summary_all) > 0) {
     dplyr::relocate(group, primerset, landgebruik, season_run) %>%
     dplyr::arrange(season_run, group, primerset, landgebruik)
 
-  readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_and_primers.csv"))
+  readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_primers_seasons.csv"))
 }
 
 ```
