@@ -5,6 +5,8 @@
 group <- "{{group}}"
 primerset <- "{{primerset}}"
 unit <- "{{unit}}"
+season_run <- "{{season_run}}"
+
 ```
 
 ```{r}
@@ -12,7 +14,8 @@ data_subset <- combined %>%
   filter(
     group == "{{group}}",
     primerset == "{{primerset}}",
-    unit == "{{unit}}"
+    unit == "{{unit}}",
+    season_run <- "{{season_run}}"
   )
 ```
 
@@ -669,11 +672,13 @@ summary_all <- dplyr::bind_rows(
   summary_all,
   results %>%
     dplyr::mutate(
-      group     = group,        # your current group value
-      primerset = primerset,    # your current primer set value
-      landgebruik = "global"    # 3rd column = "global"
+      group       = group,
+      primerset   = primerset,
+      landgebruik = "global",
+      season_run  = season_run
     ) %>%
-    dplyr::relocate(group, primerset, landgebruik)
+    dplyr::relocate(group, primerset, landgebruik) %>%
+    dplyr::relocate(season_run, .after = landgebruik)
 )
 ```
 
@@ -730,18 +735,18 @@ print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
 ```
 
 ```{r}
-# Append the per-landgebruik rows for this group × primerset
 summary_all <- dplyr::bind_rows(
   summary_all,
   irr_lu_fc %>%
     dplyr::mutate(
-      group     = group,         # your current group value
-      primerset = primerset,     # your current primer set value
-      landgebruik = as.character(landgebruik) # ensure same type as "global"
+      group       = group,
+      primerset   = primerset,
+      landgebruik = as.character(landgebruik),
+      season_run  = season_run
     ) %>%
-    dplyr::relocate(group, primerset, landgebruik)
+    dplyr::relocate(group, primerset, landgebruik) %>%
+    dplyr::relocate(season_run, .after = landgebruik)
 )
-
 ```
 
 

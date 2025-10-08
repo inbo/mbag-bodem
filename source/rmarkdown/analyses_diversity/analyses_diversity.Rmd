@@ -82,7 +82,19 @@ diversiteit <- readr::read_csv(
   )
 ) %>%
   mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(primerset == "InseKP" & group == "annelida")
+  filter(group %in% c(
+    "nematoda",
+    "annelida",
+    "collembola",
+    "arthropoda",
+    "fungi",
+    "protisten",
+    "annelida_bold",
+    "arthropoda_bold",
+    "collembola_bold",
+    "enchytraeidae_bold",
+    "lumbricidae_bold"
+  ))
 
 
 metadata <- readr::read_csv(
@@ -276,6 +288,8 @@ summary_all <- tibble()
 Dit zijn de modelleringen obv input data van alle seizoenen
 
 ```{r child-model-observed-richness-allseasons, echo=FALSE, results="asis"}
+season_run <- "allseasons"
+
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
@@ -295,7 +309,8 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit
+      unit = unit,
+      season_run = season_run
     )
   }
 ) %>%
@@ -322,6 +337,9 @@ if (interactive()) {
 Dit zijn de modelleringen obv input data van november tot april
 
 ```{r child-model-observed-richness-winterhalfjaar, echo=FALSE, results="asis"}
+
+season_run <- "winterhalfjaar"
+
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
@@ -342,7 +360,8 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit
+      unit = unit,
+      season_run = season_run
     )
   }
 ) %>%
@@ -370,6 +389,9 @@ if (interactive()) {
 Dit zijn de modelleringen obv input data van december tot april
 
 ```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
+
+season_run <- "winter"
+
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(
@@ -390,7 +412,8 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit
+      unit = unit,
+      season_run = season_run
     )
   }
 ) %>%
@@ -416,11 +439,12 @@ if (interactive()) {
 ```{r save-summary-all, include=FALSE}
 if (exists("summary_all") && nrow(summary_all) > 0) {
   summary_all <- summary_all %>%
-    dplyr::relocate(group, primerset, landgebruik) %>%
-    dplyr::arrange(group, primerset, landgebruik)
+    dplyr::relocate(group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, group, primerset, landgebruik)
 
   readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_and_primers.csv"))
 }
+
 ```
 
 ## Shannon index
