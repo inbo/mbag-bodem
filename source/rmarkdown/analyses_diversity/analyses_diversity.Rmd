@@ -393,7 +393,7 @@ if (interactive()) {
 Dit zijn de modelleringen obv input data van december tot april
 
 ```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
-season_run <- "winterhalfjaar"
+season_run <- "winter"
 
 # Build the triplets for this seasonal subset
 inputs <- combined %>%
