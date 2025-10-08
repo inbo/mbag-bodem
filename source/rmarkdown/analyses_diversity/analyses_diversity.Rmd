@@ -313,6 +313,16 @@ if (interactive()) {
 }
 ```
 
+```{r save-summary-all, include=FALSE}
+if (exists("summary_all") && nrow(summary_all) > 0) {
+  summary_all <- summary_all %>%
+    dplyr::relocate(group, primerset, landgebruik) %>%
+    dplyr::arrange(group, primerset, landgebruik)
+
+  readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_and_primers.csv"))
+}
+```
+
 ## Shannon index
 
 ```{r child-model-shannon, eval=FALSE, echo=FALSE, results="asis"}
