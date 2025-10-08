@@ -270,7 +270,7 @@ metadata %>%
 
 # Analyses
 
-## Geobserveerde soortenrijkdom
+## Geobserveerde soortenrijkdom: allseasons
 
 We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
@@ -282,8 +282,6 @@ Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, 
 summary_all <- tibble()
 
 ```
-
-### obv alle input data
 
 Dit zijn de modelleringen obv input data van alle seizoenen
 
@@ -332,7 +330,8 @@ if (interactive()) {
 }
 ```
 
-### obv winterhalfjaar data
+## Geobserveerde soortenrijkdom: winterhalfjaar
+
 
 Dit zijn de modelleringen obv input data van november tot april
 
@@ -384,7 +383,8 @@ if (interactive()) {
 ```
 
 
-### obv winter data
+## Geobserveerde soortenrijkdom: winter
+
 
 Dit zijn de modelleringen obv input data van december tot april
 
