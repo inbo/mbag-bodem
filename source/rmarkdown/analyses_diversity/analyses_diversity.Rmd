@@ -339,10 +339,9 @@ Dit zijn de modelleringen obv input data van november tot april
 
 season_run <- "winterhalfjaar"
 
-combined %>%
-  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4))
 
 inputs <- combined %>%
+  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
   distinct(group, primerset, unit) %>%
   arrange(
     group, primerset, unit
@@ -394,10 +393,8 @@ Dit zijn de modelleringen obv input data van december tot april
 
 season_run <- "winter"
 
-combined %>%
-  filter(sampling_month %in% c(12, 1, 2, 3, 4))
-
 inputs <- combined %>%
+  filter(sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
   distinct(group, primerset, unit) %>%
   arrange(
     group, primerset, unit
