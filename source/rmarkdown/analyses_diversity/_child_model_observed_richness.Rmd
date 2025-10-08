@@ -752,40 +752,79 @@ summary_all <- dplyr::bind_rows(
 Plot model-based predictions: richness vs c_density by landgebruik
 
 ```{r}
-# Grid per landgebruik over c_density; fix depth to a reference for clarity
-ref_depth <- if ("diepte" %in% names(data_subset) &&
-                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
+# --- Levels from the fitted model ---
+.mf <- tryCatch(model.frame(lowest_aic_int), error = function(e) NULL)
 
+lu_lvls <- if (!is.null(.mf) && "landgebruik" %in% names(.mf) && is.factor(.mf$landgebruik)) {
+  levels(.mf$landgebruik)
+} else if (is.factor(data_subset$landgebruik)) {
+  levels(droplevels(data_subset$landgebruik))
+} else {
+  unique(na.omit(data_subset$landgebruik))
+}
+
+has_diepte <- !is.null(.mf) && "diepte" %in% names(.mf) && is.factor(.mf$diepte)
+if (has_diepte) {
+  dep_lvls      <- levels(.mf$diepte)
+  ref_depth_chr <- if (any(grepl("^0-10", dep_lvls))) "0-10" else dep_lvls[1]
+  ref_depth     <- factor(ref_depth_chr, levels = dep_lvls)
+}
+
+# --- Sequence for c_density (positive & finite) ---
+pos_cd <- data_subset$c_density[is.finite(data_subset$c_density)]
+stopifnot(length(pos_cd) > 0)
+cd_min <- max(min(pos_cd, na.rm = TRUE), .Machine$double.eps)
+cd_max <- max(pos_cd, na.rm = TRUE)
+cd_seq <- seq(cd_min, cd_max, length.out = 80)
+
+# --- Prediction grid (match model columns) ---
 nd_lu <- tidyr::crossing(
-  landgebruik = levels(data_subset$landgebruik),
+  landgebruik = factor(lu_lvls, levels = lu_lvls),
   c_density   = cd_seq
 ) %>%
-  mutate(
-    log_c_density = log(c_density),
+  dplyr::mutate(
+    log_c_density = log(c_density),  # harmless if model doesn't use it
     total_count   = if ("total_count" %in% names(data_subset))
-                      median(data_subset$total_count, na.rm = TRUE) else NA_real_,
-    diepte        = if ("diepte" %in% names(data_subset)) ref_depth else factor(NA)
+                      stats::median(data_subset$total_count, na.rm = TRUE) else 0,
+    diepte        = if (has_diepte) ref_depth else NULL
   )
 
-pr <- marginaleffects::predictions(
-  model   = lowest_aic_int,
-  newdata = nd_lu,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
+# --- Predictions with safe fallback ---
+pr <- tryCatch(
+  {
+    marginaleffects::predictions(
+      model   = lowest_aic_int,
+      newdata = nd_lu,
+      type    = "response",
+      vcov    = TRUE,
+      re.form = NA
+    )
+  },
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd_lu, type = "response", re.form = NA)
+    dplyr::bind_cols(nd_lu, tibble::tibble(estimate = as.numeric(est),
+                                           conf.low = NA_real_, conf.high = NA_real_))
+  }
 )
 
-ggplot(pr, aes(c_density, estimate)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line() +
+has_ci <- "conf.low" %in% names(pr) && any(is.finite(pr$conf.low))
+
+# --- Plot ---
+p <- ggplot(pr, aes(c_density, estimate))
+if (has_ci) {
+  p <- p + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+}
+p +
+  geom_line(na.rm = TRUE) +
   facet_wrap(~ landgebruik, scales = "free_y") +
   labs(
     x = "Carbon density",
     y = "Voorspelde rijkdom",
     title = "Voorspelde rijkdom vs carbon density per landgebruik",
-    subtitle = paste0("Bij total_count = ",
-                      round(median(data_subset$total_count, na.rm = TRUE)),
-                      if ("diepte" %in% names(data_subset)) paste0(", diepte = ", ref_depth) else "")
+    subtitle = paste0(
+      "Bij total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
   ) +
   theme_bw()
 
@@ -795,41 +834,55 @@ ggplot(pr, aes(c_density, estimate)) +
 alternative: plot on the log scale
 
 ```{r}
-# --- Plot vs log(c_density), facetted by landgebruik ---
+# --- Levels from the fitted model (reuse .mf, lu_lvls, has_diepte, ref_depth) ---
 
-# define log-scale grid
-min_cd <- min(data_subset$c_density[data_subset$c_density > 0], na.rm = TRUE)
-max_cd <- max(data_subset$c_density, na.rm = TRUE)
+# Positive & finite c_density for logs
+pos_cd <- data_subset$c_density[is.finite(data_subset$c_density) & data_subset$c_density > 0]
+stopifnot(length(pos_cd) > 0)
+min_cd  <- min(pos_cd, na.rm = TRUE)
+max_cd  <- max(pos_cd, na.rm = TRUE)
 log_seq <- seq(log(min_cd), log(max_cd), length.out = 80)
 
+# Prediction grid on log-scale
 nd_lu_log <- tidyr::crossing(
-  landgebruik   = levels(data_subset$landgebruik),
+  landgebruik   = factor(lu_lvls, levels = lu_lvls),
   log_c_density = log_seq
 ) %>%
-  mutate(
-    c_density   = exp(log_c_density),  # for pretty axis labels later if needed
+  dplyr::mutate(
+    c_density   = exp(log_c_density),
     total_count = if ("total_count" %in% names(data_subset))
-                    median(data_subset$total_count, na.rm = TRUE) else NA_real_,
-    diepte      = if ("diepte" %in% names(data_subset)) {
-                    lv <- levels(droplevels(data_subset$diepte))
-                    if (any(grepl("0-10", lv))) "0-10" else lv[1]
-                  } else factor(NA)
+                    stats::median(data_subset$total_count, na.rm = TRUE) else 0,
+    diepte      = if (has_diepte) ref_depth else NULL
   )
 
-pr_log <- marginaleffects::predictions(
-  model   = lowest_aic_int,
-  newdata = nd_lu_log,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
+# Predictions with safe fallback
+pr_log <- tryCatch(
+  {
+    marginaleffects::predictions(
+      model   = lowest_aic_int,
+      newdata = nd_lu_log,
+      type    = "response",
+      vcov    = TRUE,
+      re.form = NA
+    )
+  },
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd_lu_log, type = "response", re.form = NA)
+    dplyr::bind_cols(nd_lu_log, tibble::tibble(estimate = as.numeric(est),
+                                               conf.low = NA_real_, conf.high = NA_real_))
+  }
 )
 
-# choose natural-unit tick marks for readability
-breaks_nat <- pretty(c(min_cd, max_cd), n = 5)
+has_ci_log <- "conf.low" %in% names(pr_log) && any(is.finite(pr_log$conf.low))
+breaks_nat  <- pretty(c(min_cd, max_cd), n = 5)
 
-ggplot(pr_log, aes(log_c_density, estimate)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line() +
+# Plot
+p2 <- ggplot(pr_log, aes(log_c_density, estimate))
+if (has_ci_log) {
+  p2 <- p2 + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+}
+p2 +
+  geom_line(na.rm = TRUE) +
   facet_wrap(~ landgebruik, scales = "free_y") +
   scale_x_continuous(
     name   = "Carbon density",
@@ -839,9 +892,10 @@ ggplot(pr_log, aes(log_c_density, estimate)) +
   labs(
     y = "Voorspelde rijkdom",
     title = "Voorspelde rijkdom vs log(carbon density) per landgebruik",
-    subtitle = paste0("Bij total_count = ",
-                      round(median(data_subset$total_count, na.rm = TRUE)),
-                      if ("diepte" %in% names(data_subset)) paste0(", diepte = ", nd_lu_log$diepte[1]) else "")
+    subtitle = paste0(
+      "Bij total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
   ) +
   theme_bw()
 
