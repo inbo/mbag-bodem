@@ -14,8 +14,7 @@ data_subset <- combined %>%
   filter(
     group == "{{group}}",
     primerset == "{{primerset}}",
-    unit == "{{unit}}",
-    season_run <- "{{season_run}}"
+    unit == "{{unit}}"
   )
 ```
 
