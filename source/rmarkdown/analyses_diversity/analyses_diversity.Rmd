@@ -264,6 +264,12 @@ We fitten een model waarbij we de log van het totaal aantal reads in een staal a
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
 
+```{r setup-accumulator, include=FALSE}
+
+# Reset on every knit of the parent
+summary_all <- tibble()
+
+```
 
 ```{r child-model-observed-richness, echo=FALSE, results="asis"}
 inputs <- combined %>%
