@@ -665,57 +665,68 @@ result <- crossing(coef_tbl, inc_tbl) %>%
 result
 ```
 
-```{r}
-# Append the global (averaged) c_density effect, with columns matching irr_lu_fc
-summary_all <- dplyr::bind_rows(
-  summary_all,
-  {
-    # 1) Keep the common stats
-    vals <- result %>%
-      dplyr::summarise(
-        beta    = dplyr::first(beta),
-        SE      = dplyr::first(SE),
-        p.value = dplyr::first(p.value)
-      )
 
-    # 2) Pivot IRR/LCL/UCL into IRR_e / IRR_2x / IRR_10x (and LCL_/UCL_)
-    wide <- result %>%
-      dplyr::mutate(
-        inc = dplyr::case_when(
-          stringr::str_detect(increment, "e\\s*\\(e-?fold\\)") ~ "e",
-          stringr::str_detect(increment, "2\\s*\\(doubling\\)") ~ "2x",
-          stringr::str_detect(increment, "10\\s*\\(tenfold\\)") ~ "10x",
-          TRUE ~ increment
-        )
-      ) %>%
-      dplyr::select(inc, IRR, LCL, UCL) %>%
-      tidyr::pivot_wider(
-        names_from  = inc,
-        values_from = c(IRR, LCL, UCL),
-        names_glue  = "{.value}_{inc}"
-      )
+```{r append-global-cdensity, include=FALSE}
+# Requires: result (3-row tibble), group, primerset, season_run
+# Also assumes you've already created 'summary_all' in the parent.
+if (!exists("summary_all")) summary_all <- tibble::tibble()
 
-    # 3) Bind, tag, and order columns to match irr_lu_fc rows
-    dplyr::bind_cols(vals, wide) %>%
-      dplyr::mutate(
-        group       = group,
-        primerset   = primerset,
-        landgebruik = "global",
-        season_run  = season_run
-      ) %>%
-      dplyr::relocate(group, primerset, landgebruik, season_run) %>%
-      dplyr::select(
-        group, primerset, landgebruik, season_run,
-        beta, SE,
-        dplyr::any_of(c(
-          "IRR_e","LCL_e","UCL_e",
-          "IRR_2x","LCL_2x","UCL_2x",
-          "IRR_10x","LCL_10x","UCL_10x",
-          "p.value"
-        ))
-      )
-  }
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+.schema <- c(
+  "group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
 )
+
+# Convert the 3 increments (e, 2x, 10x) into one wide row with matching names
+global_row <- {
+  vals <- result %>%
+    summarise(
+      beta    = first(beta),
+      SE      = first(SE),
+      p.value = first(p.value)
+    )
+
+  wide <- result %>%
+    mutate(
+      inc = case_when(
+        str_detect(increment, "e\\s*\\(e-?fold\\)")          ~ "e",
+        str_detect(increment, "(×|x)?\\s*2\\b|doubling")     ~ "2x",
+        str_detect(increment, "(×|x)?\\s*10\\b|tenfold")     ~ "10x",
+        TRUE                                                 ~ increment
+      )
+    ) %>%
+    select(inc, IRR, LCL, UCL) %>%
+    pivot_wider(
+      names_from  = inc,
+      values_from = c(IRR, LCL, UCL),
+      names_glue  = "{.value}_{inc}"
+    )
+
+  bind_cols(vals, wide) %>%
+    mutate(
+      group       = group,
+      primerset   = primerset,
+      landgebruik = "global",
+      season_run  = season_run
+    ) %>%
+    relocate(group, primerset, landgebruik, season_run)
+}
+
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(global_row))
+if (length(missing)) global_row[missing] <- NA_real_
+global_row <- global_row %>% select(all_of(.schema))
+
+# Append
+summary_all <- bind_rows(summary_all, global_row)
+
 
 ```
 
@@ -770,6 +781,46 @@ irr_lu_fc <- as_tibble(tr_lu) %>%
 print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
 
 ```
+
+
+Append the **per-landuse** effects (`irr_lu_fc`) to `summary_all`
+
+```{r append-perlanduse-cdensity, include=FALSE}
+# Requires: irr_lu_fc (per landgebruik tibble), group, primerset, season_run
+if (!exists("summary_all")) summary_all <- tibble::tibble()
+
+library(dplyr)
+
+.schema <- c(
+  "group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
+)
+
+lu_rows <- irr_lu_fc %>%
+  mutate(
+    group       = group,
+    primerset   = primerset,
+    landgebruik = as.character(landgebruik),
+    season_run  = season_run
+  ) %>%
+  relocate(group, primerset, landgebruik, season_run)
+
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(lu_rows))
+if (length(missing)) lu_rows[missing] <- NA_real_
+lu_rows <- lu_rows %>% select(all_of(.schema))
+
+# Append
+summary_all <- bind_rows(summary_all, lu_rows)
+
+```
+
+
+plots per land-use
 
 ```{r}
 # --- Pull levels & ranges from the fitted model ---
