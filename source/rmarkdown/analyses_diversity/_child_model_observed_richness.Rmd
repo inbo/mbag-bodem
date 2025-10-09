@@ -666,19 +666,57 @@ result
 ```
 
 ```{r}
-# Append the 3 global rows for this group × primerset
+# Append the global (averaged) c_density effect, with columns matching irr_lu_fc
 summary_all <- dplyr::bind_rows(
   summary_all,
-  result %>%
-    dplyr::mutate(
-      group       = group,
-      primerset   = primerset,
-      landgebruik = "global",
-      season_run  = season_run
-    ) %>%
-    dplyr::relocate(group, primerset, landgebruik) %>%
-    dplyr::relocate(season_run, .after = landgebruik)
+  {
+    # 1) Keep the common stats
+    vals <- result %>%
+      dplyr::summarise(
+        beta    = dplyr::first(beta),
+        SE      = dplyr::first(SE),
+        p.value = dplyr::first(p.value)
+      )
+
+    # 2) Pivot IRR/LCL/UCL into IRR_e / IRR_2x / IRR_10x (and LCL_/UCL_)
+    wide <- result %>%
+      dplyr::mutate(
+        inc = dplyr::case_when(
+          stringr::str_detect(increment, "e\\s*\\(e-?fold\\)") ~ "e",
+          stringr::str_detect(increment, "2\\s*\\(doubling\\)") ~ "2x",
+          stringr::str_detect(increment, "10\\s*\\(tenfold\\)") ~ "10x",
+          TRUE ~ increment
+        )
+      ) %>%
+      dplyr::select(inc, IRR, LCL, UCL) %>%
+      tidyr::pivot_wider(
+        names_from  = inc,
+        values_from = c(IRR, LCL, UCL),
+        names_glue  = "{.value}_{inc}"
+      )
+
+    # 3) Bind, tag, and order columns to match irr_lu_fc rows
+    dplyr::bind_cols(vals, wide) %>%
+      dplyr::mutate(
+        group       = group,
+        primerset   = primerset,
+        landgebruik = "global",
+        season_run  = season_run
+      ) %>%
+      dplyr::relocate(group, primerset, landgebruik, season_run) %>%
+      dplyr::select(
+        group, primerset, landgebruik, season_run,
+        beta, SE,
+        dplyr::any_of(c(
+          "IRR_e","LCL_e","UCL_e",
+          "IRR_2x","LCL_2x","UCL_2x",
+          "IRR_10x","LCL_10x","UCL_10x",
+          "p.value"
+        ))
+      )
+  }
 )
+
 ```
 
 
