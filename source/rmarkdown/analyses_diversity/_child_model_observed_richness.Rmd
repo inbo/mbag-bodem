@@ -10,12 +10,39 @@ season_run <- "{{season_run}}"
 ```
 
 ```{r}
+# Seasonal filtering inside the child (drop-in replacement)
+months_map <- list(
+  allseasons     = NULL,
+  winterhalfjaar = c(11, 12, 1, 2, 3, 4),
+  winter         = c(12, 1, 2, 3, 4)
+)
+
 data_subset <- combined %>%
-  filter(
-    group == "{{group}}",
+  {
+    sel <- months_map[[season_run]]
+    if (!is.null(sel) && "sampling_month" %in% names(.)) {
+      dplyr::filter(., sampling_month %in% sel)
+    } else {
+      .
+    }
+  } %>%
+  dplyr::filter(
+    group     == "{{group}}",
     primerset == "{{primerset}}",
-    unit == "{{unit}}"
-  )
+    unit      == "{{unit}}"
+  ) %>%
+  droplevels()
+```
+
+```{r}
+cat("season_run =", season_run,
+    "| rows =", nrow(data_subset),
+    "| months =",
+    if ("sampling_month" %in% names(data_subset))
+      paste(sort(unique(data_subset$sampling_month)), collapse = ",")
+    else "NA",
+    "\n")
+
 ```
 
 
