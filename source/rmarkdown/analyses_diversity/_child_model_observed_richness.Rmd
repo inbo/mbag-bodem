@@ -228,6 +228,7 @@ emm_landuse
 
 ```
 
+estimate contrasts between land-use categories per depth
 
 ```{r m-richness-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable), on response scale
@@ -296,6 +297,8 @@ contrasts_landuse_table
 
 ```
 
+plot predictions richness vs sequencing depth
+
 ```{r m-richness-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
@@ -306,6 +309,8 @@ marginaleffects::plot_predictions(
 ) +
   labs(y = "Voorspeld aantal taxa")
 ```
+
+plot predictions richness vs land-use category
 
 ```{r m-richness-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
