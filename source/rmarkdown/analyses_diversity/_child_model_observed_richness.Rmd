@@ -9,8 +9,10 @@ season_run <- "{{season_run}}"
 
 ```
 
+Seasonal filtering inside the child
+
 ```{r}
-# Seasonal filtering inside the child (drop-in replacement)
+# Seasonal filtering inside the child
 months_map <- list(
   allseasons     = NULL,
   winterhalfjaar = c(11, 12, 1, 2, 3, 4),
@@ -678,8 +680,9 @@ coef_tbl <- as_tibble(tr_add_sum) %>%
   transmute(beta = log_c_density.trend, SE = SE, p.value = p.value)
 
 inc_tbl <- tibble(
-  increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)"),
-  delta     = c(1, log(2), log(10))
+  increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)", "×1.2 (+20%)"),  
+  delta     = c(1,               log(2),          log(10),         log(1.2)),
+  code      = c("e",             "2x",            "10x",           "1.2x")   # NEW      
 )
 
 result <- crossing(coef_tbl, inc_tbl) %>%
@@ -707,6 +710,7 @@ library(stringr)
   "beta","SE",
   "IRR_e","LCL_e","UCL_e",
   "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
   "IRR_10x","LCL_10x","UCL_10x",
   "p.value"
 )
@@ -721,20 +725,12 @@ global_row <- {
     )
 
   wide <- result %>%
-    mutate(
-      inc = case_when(
-        str_detect(increment, "e\\s*\\(e-?fold\\)")          ~ "e",
-        str_detect(increment, "(×|x)?\\s*2\\b|doubling")     ~ "2x",
-        str_detect(increment, "(×|x)?\\s*10\\b|tenfold")     ~ "10x",
-        TRUE                                                 ~ increment
-      )
-    ) %>%
-    select(inc, IRR, LCL, UCL) %>%
-    pivot_wider(
-      names_from  = inc,
-      values_from = c(IRR, LCL, UCL),
-      names_glue  = "{.value}_{inc}"
-    )
+  dplyr::select(code, IRR, LCL, UCL) %>%
+  tidyr::pivot_wider(
+    names_from  = code,
+    values_from = c(IRR, LCL, UCL),
+    names_glue  = "{.value}_{code}"
+  )
 
   bind_cols(vals, wide) %>%
     mutate(
@@ -801,6 +797,7 @@ irr_lu_fc <- as_tibble(tr_lu) %>%
     # IRRs for fold changes:
     IRR_e   = exp(beta * 1),          LCL_e   = exp((beta - z*SE) * 1),          UCL_e   = exp((beta + z*SE) * 1),
     IRR_2x  = exp(beta * log(2)),     LCL_2x  = exp((beta - z*SE) * log(2)),     UCL_2x  = exp((beta + z*SE) * log(2)),
+    IRR_1.2x  = exp(beta * log(1.2)), LCL_1.2x = exp((beta - z*SE) * log(1.2)),  UCL_1.2x = exp((beta + z*SE) * log(1.2)),  # NEW
     IRR_10x = exp(beta * log(10)),    LCL_10x = exp((beta - z*SE) * log(10)),    UCL_10x = exp((beta + z*SE) * log(10)),
     p.value
   )
@@ -823,9 +820,11 @@ library(dplyr)
   "beta","SE",
   "IRR_e","LCL_e","UCL_e",
   "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
   "IRR_10x","LCL_10x","UCL_10x",
   "p.value"
 )
+
 
 lu_rows <- irr_lu_fc %>%
   mutate(
