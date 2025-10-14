@@ -276,11 +276,22 @@ Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, 
 
 ```{r setup-accumulator, include=FALSE}
 
-# initiate summary correlation richness with c_density. Reset on every knit of the parent
+# Resets on every knit of the parent
+
+# Accumulator for correlation richness with c_density. 
 summary_all <- tibble()
 
 # Accumulator for emmeans summaries
 if (!exists("summary_emm")) summary_emm <- tibble()
+
+# Accumulator for land-use pairwise contrasts
+if (!exists("summary_contrasts")) summary_contrasts <- tibble()
+
+# Helpers so children can append
+append_summary_contrasts <- function(df) {
+  summary_contrasts <<- dplyr::bind_rows(summary_contrasts, df)
+  invisible(NULL)
+}
 
 append_summary_emm <- function(df) {
   summary_emm <<- dplyr::bind_rows(summary_emm, df)
@@ -512,6 +523,12 @@ if (exists("summary_emm") && nrow(summary_emm) > 0) {
     summary_emm <- summary_emm %>% arrange(season_run, group, primerset, landgebruik)
   }
   write_csv(summary_emm, file.path(output_dir, "emm_landuse_all_groups_primers_season_runs.csv"))
+}
+
+if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
+  summary_contrasts <- summary_contrasts %>%
+    arrange(season_run, group, primerset, diepte, landgebruik_1, landgebruik_2)
+  write_csv(summary_contrasts, file.path(output_dir, "summary_contrasts_landuse.csv"))
 }
 ```
 

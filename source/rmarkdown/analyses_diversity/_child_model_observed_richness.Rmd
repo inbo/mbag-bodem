@@ -292,6 +292,37 @@ write_csv(
   file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{unit}.csv"))
 )
 
+# Build a tidy table with standard columns
+contrasts_tbl <- contrasts_landuse_response %>%
+  # Ensure 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # Split "Akker / Natuurgrasland" -> two columns
+  mutate(contrast = as.character(contrast)) %>%
+  tidyr::separate(contrast, into = c("landgebruik_1", "landgebruik_2"),
+                  sep = " / ", remove = TRUE, fill = "right") %>%
+  # Choose the effect column: 'ratio' (response) else 'estimate' (link)
+  mutate(
+    effect      = dplyr::coalesce(.data$ratio, .data$estimate),
+    effect_pct  = 100 * (effect - 1),  # percent difference (numerator vs denominator)
+    lcl         = dplyr::coalesce(.data$asymp.LCL, .data$lower.CL),
+    ucl         = dplyr::coalesce(.data$asymp.UCL, .data$upper.CL),
+    stat        = dplyr::coalesce(.data$z.ratio, .data$t.ratio),
+    stat_name   = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
+                                   !is.na(.data$t.ratio) ~ "t",
+                                   TRUE ~ NA_character_)
+  ) %>%
+  # Tag with run identifiers and order columns
+  mutate(
+    group      = group,
+    primerset  = primerset,
+    season_run = season_run
+  ) %>%
+  relocate(group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
+           effect, effect_pct, SE, lcl, ucl, stat_name, stat, p.value)
+
+# Append to the parent accumulator
+append_summary_contrasts(contrasts_tbl)
+
 # Print
 contrasts_landuse_table
 
