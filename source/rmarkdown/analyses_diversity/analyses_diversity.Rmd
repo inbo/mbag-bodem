@@ -70,8 +70,6 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
-DIT IS de output obv de winterhalfjaar data
-
 
 ```{r inlezen}
 diversiteit <- readr::read_csv(
@@ -278,8 +276,11 @@ Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, 
 
 ```{r setup-accumulator, include=FALSE}
 
-# Reset on every knit of the parent
+# initiate summary correlation richness with c_density. Reset on every knit of the parent
 summary_all <- tibble()
+
+# Accumulator for emmeans summaries
+if (!exists("summary_emm")) summary_emm <- tibble()
 
 ```
 
