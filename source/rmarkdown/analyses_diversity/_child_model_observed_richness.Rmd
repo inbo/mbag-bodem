@@ -302,10 +302,10 @@ contrasts_tbl <- contrasts_landuse_response %>%
                   sep = " / ", remove = TRUE, fill = "right") %>%
   # Choose the effect column: 'ratio' (response) else 'estimate' (link)
   mutate(
-    effect      = dplyr::coalesce(.data$ratio, .data$estimate),
+    effect      = .data$ratio,
     effect_pct  = 100 * (effect - 1),  # percent difference (numerator vs denominator)
-    lcl         = dplyr::coalesce(.data$asymp.LCL, .data$lower.CL),
-    ucl         = dplyr::coalesce(.data$asymp.UCL, .data$upper.CL),
+    lcl         = .data$asymp.LCL,
+    ucl         = .data$asymp.UCL,
     stat        = dplyr::coalesce(.data$z.ratio, .data$t.ratio),
     stat_name   = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
                                    !is.na(.data$t.ratio) ~ "t",
