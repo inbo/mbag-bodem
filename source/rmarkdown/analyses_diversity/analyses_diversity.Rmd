@@ -521,7 +521,44 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
     arrange(season_run, group, primerset, diepte, landgebruik_1, landgebruik_2)
   write_csv(summary_contrasts, file.path(output_dir, "summary_contrasts_landuse.csv"))
 }
+
+
 ```
+
+```{r}
+# Create a flipped version: (landgebruik_2 / landgebruik_1)
+# Assumes summary_contrasts has: group, primerset, season_run, diepte,
+# landgebruik_1, landgebruik_2, effect (= ratio), effect_pct, lcl, ucl, stat_name, stat, p.value
+
+if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
+  sc <- summary_contrasts
+
+  # Failsafes if your accumulator kept original emmeans names
+  if (!"effect" %in% names(sc) && "ratio" %in% names(sc)) sc$effect <- sc$ratio
+  if (!"lcl"    %in% names(sc) && "asymp.LCL" %in% names(sc)) sc$lcl <- sc$asymp.LCL
+  if (!"ucl"    %in% names(sc) && "asymp.UCL" %in% names(sc)) sc$ucl <- sc$asymp.UCL
+
+  # Flip: new ratio = 1 / old ratio; CI flips to (1/ucl, 1/lcl); statistic changes sign; p-value unchanged
+  summary_contrasts_flipped <- sc %>%
+    dplyr::transmute(
+      group, primerset, season_run, diepte,
+      landgebruik_1 = landgebruik_2,
+      landgebruik_2 = landgebruik_1,
+      effect        = dplyr::if_else(is.finite(effect) & effect > 0, 1/effect, NA_real_),
+      effect_pct    = 100 * (effect - 1),
+      lcl           = dplyr::if_else(is.finite(ucl) & ucl > 0, 1/ucl, NA_real_),
+      ucl           = dplyr::if_else(is.finite(lcl) & lcl > 0, 1/lcl, NA_real_),
+      stat_name,
+      stat          = dplyr::if_else(!is.na(stat), -stat, stat),  # log-scale contrast flips sign
+      p.value
+    ) %>%
+    dplyr::arrange(season_run, group, primerset, diepte, landgebruik_1, landgebruik_2)
+
+  readr::write_csv(summary_contrasts_flipped,
+                   file.path(output_dir, "summary_contrasts_landuse_flipped.csv"))
+}
+```
+
 
 ## Shannon index
 
