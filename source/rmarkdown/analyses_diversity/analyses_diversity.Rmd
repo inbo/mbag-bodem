@@ -282,6 +282,11 @@ summary_all <- tibble()
 # Accumulator for emmeans summaries
 if (!exists("summary_emm")) summary_emm <- tibble()
 
+append_summary_emm <- function(df) {
+  summary_emm <<- dplyr::bind_rows(summary_emm, df)
+  invisible(NULL)
+}
+
 ```
 
 Dit zijn de modelleringen obv input data van alle seizoenen
@@ -500,6 +505,14 @@ if (exists("summary_all") && nrow(summary_all) > 0) {
   readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_primers_seasons.csv"))
 }
 
+if (exists("summary_emm") && nrow(summary_emm) > 0) {
+  if ("diepte" %in% names(summary_emm)) {
+    summary_emm <- summary_emm %>% arrange(season_run, group, primerset, landgebruik, diepte)
+  } else {
+    summary_emm <- summary_emm %>% arrange(season_run, group, primerset, landgebruik)
+  }
+  write_csv(summary_emm, file.path(output_dir, "emm_landuse_all_groups_primers_season_runs.csv"))
+}
 ```
 
 ## Shannon index

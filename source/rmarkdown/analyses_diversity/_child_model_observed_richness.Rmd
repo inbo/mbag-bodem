@@ -173,14 +173,19 @@ performance::check_collinearity(m_richness)
 performance::check_zeroinflation(m_richness)
 ```
 
+Samenvatting van het geselecteerde model
 
 ```{r m-richness-summary-{{group}}-{{primerset}}-{{unit}}}
 summary(m_richness) |> print(digits = 2)
 ```
 
+Anova voor de variabelen in het geselecteerde model
+
 ```{r m-richness-anova-{{group}}-{{primerset}}-{{unit}}}
 car::Anova(m_richness) |> print(digits = 2)
 ```
+
+estimate marginal means per land-use category per depth
 
 ```{r m-richness-marginal-means-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable)
@@ -198,6 +203,24 @@ write_csv(
   as.data.frame(emm_landuse),
   file = file.path(output_dir, glue("emmeans_landuse_{group}_{primerset}_{unit}.csv"))
 )
+
+emm_df <- as.data.frame(emm_landuse) %>%
+  as_tibble() %>%
+  mutate(
+    # tag with run identifiers
+    group       = group,
+    primerset   = primerset,
+    season_run  = season_run,
+    # always keep landgebruik as character for a stable schema
+    landgebruik = as.character(landgebruik)
+  ) %>%
+  # ensure a 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # order columns: required 4 first, then diepte, then the emmeans columns
+  relocate(group, primerset, landgebruik, season_run, diepte)
+
+# Append to the parent accumulator
+append_summary_emm(emm_df)
 
 # print
 emm_landuse
