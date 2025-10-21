@@ -76,10 +76,11 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_known_species_v19.csv"
+    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
   )
 ) %>%
-  mutate(group = if_else(group == "Nematoda", "nematoda", group))
+  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
+  filter(group == "arthropoda")
 
 
 metadata <- readr::read_csv(
@@ -598,36 +599,12 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
 # ==== ACCUMULATORS: Shannon diversity ====
 
 # 1) Pairwise land-use contrasts (Shannon; differences on response scale)
-if (!exists("summary_contrasts_shannon", envir = .GlobalEnv)) {
-  summary_contrasts_shannon <- tibble::tibble(
-    group         = character(),
-    primerset     = character(),
-    season_run    = character(),
-    diepte        = character(),
-    landgebruik_1 = character(),
-    landgebruik_2 = character(),
-    estimate_diff = double(),   # difference in Shannon EMMs (response scale)
-    SE            = double(),
-    lcl           = double(),
-    ucl           = double(),
-    stat_name     = character(),
-    stat          = double(),
-    p.value       = double()
-  )
-}
 
-append_summary_contrasts_shannon <- function(df_rows) {
-  stopifnot(is.data.frame(df_rows))
-  if (nrow(df_rows) == 0) return(invisible(NULL))
-  wanted <- c("group","primerset","season_run","diepte",
-              "landgebruik_1","landgebruik_2",
-              "estimate_diff","SE","lcl","ucl","stat_name","stat","p.value")
-  missing <- setdiff(wanted, names(df_rows))
-  if (length(missing)) df_rows[missing] <- NA
-  current <- get("summary_contrasts_shannon", envir = .GlobalEnv)
-  assign("summary_contrasts_shannon",
-         dplyr::bind_rows(current, dplyr::select(df_rows, dplyr::all_of(wanted))),
-         envir = .GlobalEnv)
+if (!exists("summary_contrasts_shannon")) summary_contrasts_shannon <- tibble()
+
+append_summary_contrasts_shannon <- function(df) {
+  summary_contrasts_shannon <<- dplyr::bind_rows(summary_contrasts_shannon, df)
+  invisible(NULL)
 }
 
 # 2) Model family (Shannon)
@@ -834,6 +811,8 @@ if (exists("summary_contrasts_shannon", envir = .GlobalEnv)) {
     file.path(output_dir, "summary_contrasts_landuse_shannon.csv")
   )
 }
+
+
 if (exists("summary_models_shannon", envir = .GlobalEnv)) {
   readr::write_csv(
     summary_models_shannon,
