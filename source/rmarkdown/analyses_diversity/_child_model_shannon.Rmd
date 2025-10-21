@@ -46,6 +46,8 @@ cat("season_run =", season_run,
 
 ```
 
+basic statistics
+
 ```{r}
 data_subset %>%
   group_by(landgebruik, diepte) %>%
@@ -62,6 +64,7 @@ data_subset <- data_subset %>%
 diepte_ok <- length(unique(data_subset$diepte)) > 1
 ```
 
+Fitting models
 
 ```{r m-shannon-{{group}}-{{primerset}}-{{unit}}}
 if (diepte_ok) {
@@ -107,17 +110,19 @@ if (!zeroes) {
 }
 ```
 
+Performance check selected model
 
 ```{r m-shannon-checks-{{group}}-{{primerset}}-{{unit}}}
 performance::check_model(m_shannon)
 ```
 
+Summary selected model
 
 ```{r m-shannon-summary-{{group}}-{{primerset}}-{{unit}}}
 summary(m_shannon) |> print(digits = 2)
 ```
 
-Shannon: capture model family
+Capture model family
 
 ```{r}
 # ---- Shannon: capture model family (NEW) ----
@@ -142,12 +147,13 @@ append_model_family_shannon(
 
 ```
 
+Anova selected model
 
 ```{r m-shannon-anova-{{group}}-{{primerset}}-{{unit}}}
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
-estimate contrasts between land-use categories per depth
+Estimate contrasts between land-use categories per depth
 
 ```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
@@ -178,7 +184,7 @@ print(contrasts_shannon_landuse_response)
 
 ```
 
-accumulator contrasts between land-use categories per depth
+Accumulator contrasts between land-use categories per depth
 
 ```{r}
 # ---- Append to parent accumulator (NEW) ----
@@ -217,7 +223,7 @@ append_summary_contrasts_shannon(contrasts_tbl_sh)
 
 ```
 
-marginal effects average predictions (double check marginal means but different method)
+Marginal effects average predictions (double check marginal means but different method)
 
 ```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 predicted_values <- marginaleffects::avg_predictions(
@@ -251,7 +257,7 @@ marginaleffects::plot_predictions(
   scale_x_log10()
 ```
 
-plot predictions design variables
+Plot predictions design variables
 
 ```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
