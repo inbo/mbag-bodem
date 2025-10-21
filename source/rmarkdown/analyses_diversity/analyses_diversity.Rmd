@@ -76,14 +76,10 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
+    "mbag_combined_dataframe_INBO_known_species_v19.csv"
   )
 ) %>%
-  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(group %in% c(
-    "nematoda",
-    "arthropoda"
-  ))
+  mutate(group = if_else(group == "Nematoda", "nematoda", group))
 
 
 metadata <- readr::read_csv(
@@ -278,6 +274,17 @@ if (!exists("summary_emm")) summary_emm <- tibble()
 # Accumulator for land-use pairwise contrasts
 if (!exists("summary_contrasts")) summary_contrasts <- tibble()
 
+# Accumulator for family of selected model m_richness
+
+if (!exists("summary_models", envir = .GlobalEnv)) {
+  summary_models <- tibble::tibble(
+    group        = character(),
+    primerset    = character(),
+    season_run   = character(),
+    model_family = character()
+  )
+}
+
 # Helpers so children can append
 append_summary_contrasts <- function(df) {
   summary_contrasts <<- dplyr::bind_rows(summary_contrasts, df)
@@ -287,6 +294,24 @@ append_summary_contrasts <- function(df) {
 append_summary_emm <- function(df) {
   summary_emm <<- dplyr::bind_rows(summary_emm, df)
   invisible(NULL)
+}
+
+append_model_family <- function(group, primerset, season_run, model_family) {
+  row <- tibble::tibble(
+    group        = group,
+    primerset    = primerset,
+    season_run   = season_run,
+    model_family = as.character(model_family)
+  )
+  if (exists("summary_models", envir = .GlobalEnv)) {
+    assign(
+      "summary_models",
+      dplyr::bind_rows(get("summary_models", envir = .GlobalEnv), row),
+      envir = .GlobalEnv
+    )
+  } else {
+    assign("summary_models", row, envir = .GlobalEnv)
+  }
 }
 
 ```
