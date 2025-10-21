@@ -160,7 +160,7 @@ Estimate contrasts between land-use categories per depth
 emm_shannon_landuse_by_depth <- emmeans(
   m_shannon,
   specs = "landgebruik",
-  by = "diepte",
+  by = if (diepte_ok) "diepte" else NULL,
   data = data_subset,
   type = "response"
 )
@@ -176,7 +176,7 @@ contrasts_shannon_landuse_response <- contrast(
 # Save to CSV
 write_csv(
   contrasts_shannon_landuse_response,
-  file = file.path(output_dir, glue("contrasts_landuse_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_shannon_{group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -187,41 +187,79 @@ print(contrasts_shannon_landuse_response)
 Accumulator contrasts between land-use categories per depth
 
 ```{r}
-# ---- Append to parent accumulator (NEW) ----
+# Summary table
 contrasts_tbl_sh <- contrasts_shannon_landuse_response %>%
-  tibble::as_tibble() %>%
-  # ensure diepte column exists (it should, since by="diepte")
-  { if (!"diepte" %in% names(.)) dplyr::mutate(., diepte = NA_character_) else . } %>%
-  # split "Akker / Natuurgrasland" into two columns
-  tidyr::separate(.data$contrast,
-                  into = c("landgebruik_1","landgebruik_2"),
-                  sep  = " / ",
-                  remove = TRUE, fill = "right") %>%
-  # harmonize columns from emmeans outputs
-  dplyr::mutate(
-    estimate_diff = dplyr::coalesce(.data$estimate, .data$contrast),  # differences on response scale
-    SE            = .data$SE,
-    lcl           = dplyr::coalesce(.data$asymp.LCL, .data$lower.CL),
-    ucl           = dplyr::coalesce(.data$asymp.UCL, .data$upper.CL),
-    stat          = dplyr::coalesce(.data$z.ratio, .data$t.ratio),
-    stat_name     = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
-                                     !is.na(.data$t.ratio) ~ "t",
-                                     TRUE ~ NA_character_)
+  as_tibble() %>%
+  dplyr::select(
+    dplyr::any_of(c(
+      "diepte",        # only present if diepte_ok == TRUE
+      "contrast",
+      "estimate",      # default column name
+      "ratio",         # appears instead of 'estimate' when type = "response"
+      "SE",
+      "z.ratio",       # or t.ratio, one of them will always exist with infer=TRUE
+      "p.value",
+      "asymp.LCL",
+      "asymp.UCL"
+    ))
+  )
+
+# Sort
+if (diepte_ok) {
+  contrasts_tbl_sh <- contrasts_tbl_sh %>% arrange(diepte, p.value)
+} else {
+  contrasts_tbl_sh <- contrasts_tbl_sh %>% arrange(p.value)
+}
+
+# Save
+write_csv(
+  contrasts_tbl_sh,
+  file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{unit}.csv"))
+)
+
+if (!"z.ratio" %in% names(contrasts_shannon_landuse_response) && "t.ratio" %in% names(contrasts_shannon_landuse_response)) {
+  contrasts_shannon_landuse_response$z.ratio <- contrasts_shannon_landuse_response$t.ratio
+}
+
+if (!"asymp.LCL" %in% names(contrasts_shannon_landuse_response) && "lower.CL" %in% names(contrasts_shannon_landuse_response)) {
+  contrasts_shannon_landuse_response$asymp.LCL <- contrasts_shannon_landuse_response$lower.CL
+  contrasts_shannon_landuse_response$asymp.UCL <- contrasts_shannon_landuse_response$upper.CL
+}
+
+
+# Build a tidy table with standard columns
+contrasts_tbl_shannon <- contrasts_shannon_landuse_response %>%
+  # Ensure 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # Split "Akker / Natuurgrasland" -> two columns
+  mutate(contrast = as.character(contrast)) %>%
+  tidyr::separate(contrast, into = c("landgebruik_1", "landgebruik_2"),
+                  sep = " / ", remove = TRUE, fill = "right") %>%
+  mutate(
+    effect      = .data$ratio,
+    effect_pct  = 100 * (effect - 1),  # percent difference (numerator vs denominator)
+    lcl         = .data$asymp.LCL,
+    ucl         = .data$asymp.UCL,
+    stat        = .data$z.ratio,
+    stat_name   = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
+                                   TRUE ~ NA_character_)
   ) %>%
-  # tag with identifiers
-  dplyr::mutate(
+  # Tag with run identifiers and order columns
+  mutate(
     group      = group,
     primerset  = primerset,
     season_run = season_run
   ) %>%
-  dplyr::select(group, primerset, season_run, diepte,
-                landgebruik_1, landgebruik_2,
-                estimate_diff, SE, lcl, ucl, stat_name, stat, p.value)
+  relocate(group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
+           effect, effect_pct, SE, lcl, ucl, stat_name, stat, p.value)
 
-append_summary_contrasts_shannon(contrasts_tbl_sh)
+# Append to the parent accumulator
+append_summary_contrasts_shannon(contrasts_tbl_shannon)
 
-
+# Print
+contrasts_tbl_sh
 ```
+
 
 Marginal effects average predictions (double check marginal means but different method)
 
