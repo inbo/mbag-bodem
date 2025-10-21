@@ -4,17 +4,47 @@
 group <- "{{group}}"
 primerset <- "{{primerset}}"
 unit <- "{{unit}}"
+season_run <- "{{season_run}}"
+
+```
+
+Seasonal filtering inside the child
+
+```{r}
+# Seasonal filtering inside the child
+months_map <- list(
+  allseasons     = NULL,
+  winterhalfjaar = c(11, 12, 1, 2, 3, 4),
+  winter         = c(12, 1, 2, 3, 4)
+)
+
+data_subset <- combined %>%
+  {
+    sel <- months_map[[season_run]]
+    if (!is.null(sel) && "sampling_month" %in% names(.)) {
+      dplyr::filter(., sampling_month %in% sel)
+    } else {
+      .
+    }
+  } %>%
+  dplyr::filter(
+    group     == "{{group}}",
+    primerset == "{{primerset}}",
+    unit      == "{{unit}}"
+  ) %>%
+  droplevels()
 ```
 
 ```{r}
-data_subset <- combined %>%
-  filter(
-    group == "{{group}}",
-    primerset == "{{primerset}}",
-    unit == "{{unit}}"
-  )
-```
+cat("season_run =", season_run,
+    "| rows =", nrow(data_subset),
+    "| months =",
+    if ("sampling_month" %in% names(data_subset))
+      paste(sort(unique(data_subset$sampling_month)), collapse = ",")
+    else "NA",
+    "\n")
 
+```
 
 ```{r}
 data_subset %>%
@@ -87,6 +117,32 @@ performance::check_model(m_shannon)
 summary(m_shannon) |> print(digits = 2)
 ```
 
+Shannon: capture model family
+
+```{r}
+# ---- Shannon: capture model family (NEW) ----
+get_family_name <- function(model) {
+  tryCatch({
+    fam <- stats::family(model)
+    if (is.list(fam) && !is.null(fam$family)) as.character(fam$family)
+    else if (inherits(fam, "family") && !is.null(fam$family)) fam$family
+    else if (is.character(fam)) fam
+    else NA_character_
+  }, error = function(e) NA_character_)
+}
+
+model_family_shannon <- get_family_name(m_shannon)
+
+append_model_family_shannon(
+  group        = group,
+  primerset    = primerset,
+  season_run   = season_run,
+  model_family = model_family_shannon
+)
+
+```
+
+
 ```{r m-shannon-anova-{{group}}-{{primerset}}-{{unit}}}
 car::Anova(m_shannon) |> print(digits = 2)
 ```
@@ -95,61 +151,7 @@ estimate contrasts between land-use categories per depth
 
 ```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
-emm_landuse_by_depth <- emmeans(
-  m_shannon,
-  specs = "landgebruik",
-  by = "diepte",
-  data = data_subset
-)
-
-# Compute pairwise contrasts
-contrasts_landuse_by_depth <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
-  as.data.frame()
-
-# Save to CSV
-write_csv(
-  contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print
-print(contrasts_landuse_by_depth)
-
-```
-
-```{r m-shannon-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
-# Add BH-adjusted p-values per depth
-contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    estimate,
-    SE,
-    z.ratio,
-    p.value,
-    p_bh
-  ) %>%
-  arrange(diepte, p.value)
-
-
-# Save corrected results to CSV
-write_csv(
-  contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_bh_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print
-contrasts_landuse_by_depth_corrected
-
-```
-
-```{r m-shannon-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
-# Estimate marginal means per land use per depth
-emm_landuse_by_depth <- emmeans(
+emm_shannon_landuse_by_depth <- emmeans(
   m_shannon,
   specs = "landgebruik",
   by = "diepte",
@@ -157,53 +159,65 @@ emm_landuse_by_depth <- emmeans(
   type = "response"
 )
 
-# Compute pairwise contrasts
-contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none", infer = c(TRUE, TRUE)) %>%
+# Pairwise contrasts (auto adjustment by emmeans; keep CIs & p-values)
+contrasts_shannon_landuse_response <- contrast(
+  emm_shannon_landuse_by_depth,
+  method = "pairwise",
+  infer = c(TRUE, TRUE)
+) %>%
   as.data.frame()
 
 # Save to CSV
 write_csv(
-  contrasts_landuse_by_depth_response,
-  file = file.path(output_dir, glue("emmans_contrasts_shannon_landuse_by_depth_response_{group}_{primerset}_{unit}.csv"))
+  contrasts_shannon_landuse_response,
+  file = file.path(output_dir, glue("contrasts_landuse_response_{group}_{primerset}_{unit}.csv"))
 )
 
 # Print
-print(contrasts_landuse_by_depth_response)
+print(contrasts_shannon_landuse_response)
 
 ```
 
+accumulator contrasts between land-use categories per depth
 
-```{r m-shannon-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
-# Add BH-adjusted p-values per depth
-contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    ratio,
-    SE,
-    z.ratio,
-    p.value,
-    p_bh,
-    asymp.LCL,
-    asymp.UCL
+```{r}
+# ---- Append to parent accumulator (NEW) ----
+contrasts_tbl_sh <- contrasts_shannon_landuse_response %>%
+  tibble::as_tibble() %>%
+  # ensure diepte column exists (it should, since by="diepte")
+  { if (!"diepte" %in% names(.)) dplyr::mutate(., diepte = NA_character_) else . } %>%
+  # split "Akker / Natuurgrasland" into two columns
+  tidyr::separate(.data$contrast,
+                  into = c("landgebruik_1","landgebruik_2"),
+                  sep  = " / ",
+                  remove = TRUE, fill = "right") %>%
+  # harmonize columns from emmeans outputs
+  dplyr::mutate(
+    estimate_diff = dplyr::coalesce(.data$estimate, .data$contrast),  # differences on response scale
+    SE            = .data$SE,
+    lcl           = dplyr::coalesce(.data$asymp.LCL, .data$lower.CL),
+    ucl           = dplyr::coalesce(.data$asymp.UCL, .data$upper.CL),
+    stat          = dplyr::coalesce(.data$z.ratio, .data$t.ratio),
+    stat_name     = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
+                                     !is.na(.data$t.ratio) ~ "t",
+                                     TRUE ~ NA_character_)
   ) %>%
-  arrange(diepte, p.value)
+  # tag with identifiers
+  dplyr::mutate(
+    group      = group,
+    primerset  = primerset,
+    season_run = season_run
+  ) %>%
+  dplyr::select(group, primerset, season_run, diepte,
+                landgebruik_1, landgebruik_2,
+                estimate_diff, SE, lcl, ucl, stat_name, stat, p.value)
 
+append_summary_contrasts_shannon(contrasts_tbl_sh)
 
-# Save corrected results to CSV
-write_csv(
-  contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_bh_response_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print
-contrasts_landuse_by_depth_corrected
 
 ```
+
+marginal effects average predictions (double check marginal means but different method)
 
 ```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 predicted_values <- marginaleffects::avg_predictions(
@@ -223,6 +237,8 @@ write_csv(
 print(predicted_values)
 ```
 
+Plot predictions total count
+
 ```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
@@ -234,6 +250,8 @@ marginaleffects::plot_predictions(
   labs(y = "Shannon index") +
   scale_x_log10()
 ```
+
+plot predictions design variables
 
 ```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(

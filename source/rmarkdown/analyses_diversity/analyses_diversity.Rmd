@@ -592,7 +592,71 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
 ```
 
 
-## Shannon index
+## Shannon index: allseasons
+
+```{r}
+# ==== ACCUMULATORS: Shannon diversity ====
+
+# 1) Pairwise land-use contrasts (Shannon; differences on response scale)
+if (!exists("summary_contrasts_shannon", envir = .GlobalEnv)) {
+  summary_contrasts_shannon <- tibble::tibble(
+    group         = character(),
+    primerset     = character(),
+    season_run    = character(),
+    diepte        = character(),
+    landgebruik_1 = character(),
+    landgebruik_2 = character(),
+    estimate_diff = double(),   # difference in Shannon EMMs (response scale)
+    SE            = double(),
+    lcl           = double(),
+    ucl           = double(),
+    stat_name     = character(),
+    stat          = double(),
+    p.value       = double()
+  )
+}
+
+append_summary_contrasts_shannon <- function(df_rows) {
+  stopifnot(is.data.frame(df_rows))
+  if (nrow(df_rows) == 0) return(invisible(NULL))
+  wanted <- c("group","primerset","season_run","diepte",
+              "landgebruik_1","landgebruik_2",
+              "estimate_diff","SE","lcl","ucl","stat_name","stat","p.value")
+  missing <- setdiff(wanted, names(df_rows))
+  if (length(missing)) df_rows[missing] <- NA
+  current <- get("summary_contrasts_shannon", envir = .GlobalEnv)
+  assign("summary_contrasts_shannon",
+         dplyr::bind_rows(current, dplyr::select(df_rows, dplyr::all_of(wanted))),
+         envir = .GlobalEnv)
+}
+
+# 2) Model family (Shannon)
+if (!exists("summary_models_shannon", envir = .GlobalEnv)) {
+  summary_models_shannon <- tibble::tibble(
+    group        = character(),
+    primerset    = character(),
+    season_run   = character(),
+    model_family = character()
+  )
+}
+
+append_model_family_shannon <- function(group, primerset, season_run, model_family) {
+  row <- tibble::tibble(
+    group        = group,
+    primerset    = primerset,
+    season_run   = season_run,
+    model_family = as.character(model_family)
+  )
+  current <- get("summary_models_shannon", envir = .GlobalEnv)
+  assign("summary_models_shannon",
+         dplyr::bind_rows(current, row),
+         envir = .GlobalEnv)
+}
+
+```
+
+Dit zijn de modelleringen obv input data van alle seizoenen
+
 
 ```{r child-model-shannon, echo=FALSE, results="asis"}
 inputs <- combined %>%
@@ -625,6 +689,24 @@ pmap(
 knit_child(text = rmd, quiet = TRUE) %>%
   cat()
 ```
+
+```{r}
+# ==== SAVE Shannon summaries ====
+if (exists("summary_contrasts_shannon", envir = .GlobalEnv)) {
+  readr::write_csv(
+    summary_contrasts_shannon,
+    file.path(output_dir, "summary_contrasts_landuse_shannon.csv")
+  )
+}
+if (exists("summary_models_shannon", envir = .GlobalEnv)) {
+  readr::write_csv(
+    summary_models_shannon,
+    file.path(output_dir, "summary_model_family_shannon.csv")
+  )
+}
+
+```
+
 
 ## Simpson index
 
