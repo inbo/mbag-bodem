@@ -594,7 +594,7 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
 
 ## Shannon index
 
-```{r child-model-shannon, eval=FALSE, echo=FALSE, results="asis"}
+```{r child-model-shannon, echo=FALSE, results="asis"}
 inputs <- combined %>%
   distinct(group, primerset, unit) %>%
   arrange(

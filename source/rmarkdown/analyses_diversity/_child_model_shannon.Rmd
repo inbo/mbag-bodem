@@ -91,76 +91,7 @@ summary(m_shannon) |> print(digits = 2)
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
-```{r m-shannon-marginal-means-{{group}}-{{primerset}}-{{unit}}}
-# Estimated marginal means per land use *within each depth layer*
-emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
-  m_shannon,
-  variables = "landgebruik",
-  newdata = data_subset,
-  by = c("diepte", "landgebruik"),
-  type = "response"
-)
-
-
-# Save to CSV with automatic naming
-write_csv(
-  emmeans_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
-
-# print
-emmeans_landuse_by_depth
-```
-
-
-```{r m-shannon-contrasts-{{group}}-{{primerset}}-{{unit}}}
-# Compute all pairwise contrasts between land use types within each depth layer
-contrasts_landuse_by_depth <- marginaleffects::comparisons(
-  model = m_shannon,
-  variables = "landgebruik",
-  newdata = data_subset,
-  type = "response",
-  by = "diepte")
-
-# Save to CSV with automatic naming
-write_csv(
-  contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("contrasts_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print the results
-print(contrasts_landuse_by_depth)
-
-```
-
-```{r m-shannon-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
-# Add bh-corrected p-values per depth group
-contrasts_shannon_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    estimate,
-    std.error,
-    conf.low,
-    conf.high,
-    p.value,
-    p_bh
-  ) %>%
-  arrange(diepte, p.value)
-
-# Save adjusted results to CSV
-write_csv(
-  contrasts_shannon_landuse_by_depth_adj,
-  file = file.path(output_dir, glue("contrasts_shannon_landuse_by_depth_adj_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print adjusted summary
-print(contrasts_shannon_landuse_by_depth_adj)
-
-```
+estimate contrasts between land-use categories per depth
 
 ```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
