@@ -64,6 +64,8 @@ data_subset <- data_subset %>%
 diepte_ok <- length(unique(data_subset$diepte)) > 1
 ```
 
+#### Basismodel
+
 Fitting models
 
 ```{r m-shannon-{{group}}-{{primerset}}-{{unit}}}
@@ -308,4 +310,570 @@ marginaleffects::plot_predictions(
   labs(y = "Shannon index")
 ```
 
+#### Met fysicochemische data
 
+Stapsgewijze modelselectie:
+
+```{r}
+variables_no_collinearity <- c(
+  "total_count",
+  "landgebruik",
+  "diepte"[diepte_ok],
+  "cmon_plot_id",
+  "c_density",
+  "swc_vol",
+  "ph_kcl",
+  "textuur_som_klei_zand"
+)
+
+nr1 <- nrow(data_subset)
+cat(
+  paste(
+    "De originele dataset heeft",
+    nr1,
+    "rijen.\n"
+  )
+)
+data_subset <- data_subset %>%
+  mutate(log_c_density = log(c_density)) %>%  # log-transform predictor
+  { 
+    # Guard: non-positive c_density cannot be logged
+    if (any(!is.finite(.$log_c_density))) {
+      stop("c_density bevat niet-positieve waarden; log() is niet gedefinieerd. Filter/aanpassen vereist.")
+    } else .
+  } %>%
+  filter(complete.cases(across(all_of(c(variables_no_collinearity, "log_c_density"))))) %>%
+  droplevels()
+nr2 <- nrow(data_subset)
+
+cat(
+  paste(
+    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
+    één van de covariaten, heeft de dataset",
+    nr2,
+    "rijen.\n"
+  )
+)
+```
+
+We voegen alle niet collineaire fysicochemische variabelen toe aan het basismodel.
+Voor pH gebruiken we een kwadratische effect.
+Dit wordt het `full model`.
+
+```{r extend-shannon-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
+form_shannon_full <- update(
+  form_shannon,
+  . ~ .
+    + swc_vol
+    + log_c_density
+    + poly(ph_kcl, 2)
+    + textuur_som_klei_zand
+)
+
+m_shannon_full <- update(
+  m_shannon,
+  formula = form_shannon_full,
+  data = data_subset,
+  na.action = na.fail
+)
+```
+
+We vergelijken de parameterschattingen van het basis en volledig model.
+
+```{r coefficients-se-shannon-{{group}}-{{primerset}}-{{unit}}}
+base_model_coefs <- broom.mixed::tidy(m_shannon)
+full_model_coefs <- broom.mixed::tidy(m_shannon_full)
+
+coefs_df <- rbind(
+  data.frame(Model = "Base", base_model_coefs),
+  data.frame(Model = "Full", full_model_coefs)
+)
+```
+
+```{r plot-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{unit}}}
+ggplot(
+  coefs_df,
+  aes(x = term, y = estimate, fill = Model)
+) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(
+    aes(
+      ymin = estimate - std.error,
+      ymax = estimate + std.error
+    ),
+    width = 0.2, position = position_dodge(0.9)
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  labs(
+    title = "Coefficient Estimates and Standard Errors",
+    x = "Predictor",
+    y = "Estimate",
+    fill = "Model"
+  )
+```
+
+```{r save-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{unit}}}
+readr::write_csv(
+  coefs_df,
+  file = file.path(
+    output_dir,
+    glue::glue("coefs_base_vs_full_shannon-{group}_{primerset}_{unit}.csv")
+  )
+)
+```
+
+Modelselectie met de functie `dredge`.
+We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
+
+```{r model-selection-and-comparison-shannon-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
+if (diepte_ok) {
+  model_set <- dredge(
+    m_shannon_full,
+    m.lim = c(NA, 7),
+    fixed = ~
+      cond(log(total_count + 1))
+    + cond(landgebruik)
+    + cond(diepte)
+    + (1 | cmon_plot_id)
+  )
+} else {
+  model_set <- dredge(
+    m_shannon_full,
+    m.lim = c(NA, 7),
+    fixed = ~
+      cond(log(total_count + 1))
+    + cond(landgebruik)
+    + (1 | cmon_plot_id)
+  )
+}
+```
+
+Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
+
+```{r importance-per-predictor-shannon-{{group}}-{{primerset}}-{{unit}}}
+importance_df <- sw(model_set)
+print(importance_df)
+```
+
+Visualisatie van modellen die minder dan 4 AICc verschillen van het model met laagste AICc (rij 1):
+
+```{r}
+dd <- subset(model_set, delta < 4)
+
+par(mar = c(3, 5, 6, 4))
+plot(dd, labAsExpr = TRUE)
+```
+
+Dit is de samenvatting voor het model met de laagste AICc:
+
+```{r}
+lowest_aic <- get.models(dd, 1)[[1]]
+summary(lowest_aic)
+```
+
+```{r m-shannon-anova-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+car::Anova(lowest_aic) |> print(digits = 2)
+```
+
+plot model diagnostics and model predictions
+
+```{r error=TRUE}
+p <- performance::check_predictions(lowest_aic)
+plot(p) + facet_zoom(xlim = c(0, 10))
+p <- performance::check_overdispersion(lowest_aic)
+p
+p %>% plot()
+p <- performance::check_residuals(lowest_aic)
+p
+p %>% plot()
+performance::check_collinearity(lowest_aic)
+performance::check_zeroinflation(lowest_aic)
+```
+
+
+```{r}
+at <- car::Anova(lowest_aic)
+efvars <- rownames(at)[order(-at$Chisq)]
+interactingvars <- efvars[grepl(":", efvars)]
+interactingvars <- stringr::str_split(interactingvars, ":") %>%
+  unlist() %>%
+  unique()
+efvars <- efvars[!efvars %in% interactingvars]
+efvars <- stringr::str_replace_all(
+  efvars, "^(\\w+\\()?(.+?)(\\))?$", "\\2"
+)
+efvars <- ifelse(
+  efvars == "diepte:landgebruik", "landgebruik:diepte", efvars
+)
+efvars <- ifelse(
+  efvars == "total_count + 1", "total_count", efvars
+)
+efvars <- ifelse(
+  efvars == "ph_kcl, 2", "ph_kcl", efvars
+)
+
+p <- vector(mode = "list", length = length(efvars))
+p <- set_names(p, efvars)
+for (i in efvars) {
+  if (grepl(":", i)) {
+    conds <- stringr::str_split_1(i, ":")
+    nd <- insight::get_datagrid(
+      lowest_aic,
+      by = conds,
+      length = 50
+    )
+    pl <- marginaleffects::plot_predictions(
+      model = lowest_aic,
+      by = conds,
+      newdata = nd,
+      vcov = TRUE,
+      type = "response",
+      points = 0.1,
+      re.form = NA
+    )
+  } else {
+    nd <- insight::get_datagrid(
+      lowest_aic,
+      by = i,
+      length = 50
+    )
+    pl <- marginaleffects::plot_predictions(
+      lowest_aic,
+      by = i,
+      newdata = nd,
+      vcov = TRUE,
+      type = "response",
+      points = 0.1,
+      re.form = NA
+    )
+  }
+  p[[i]] <- pl
+}
+
+p
+```
+
+global log_c_density effect. This gives a global (averaged) slope across the different land-use categories
+```{r log-c-density-lowest_aic-shannon-{{group}}-{{primerset}}-{{unit}}}
+
+# Slope for log(c_density) on the latent (log) scale
+tr_add <- emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent")
+tr_add_sum <- summary(tr_add, infer = TRUE)
+
+z <- qnorm(0.975)
+
+coef_tbl <- as_tibble(tr_add_sum) %>%
+  transmute(beta = log_c_density.trend, SE = SE, p.value = p.value)
+
+inc_tbl <- tibble(
+  increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)", "×1.2 (+20%)"),  
+  delta     = c(1,               log(2),          log(10),         log(1.2)),
+  code      = c("e",             "2x",            "10x",           "1.2x")   # NEW      
+)
+
+result <- crossing(coef_tbl, inc_tbl) %>%
+  mutate(
+    IRR = exp(beta * delta),
+    LCL = exp((beta - z * SE) * delta),
+    UCL = exp((beta + z * SE) * delta)
+  )
+
+result
+```
+
+```{r}
+# Requires: result (3-row tibble), group, primerset, season_run
+# Also assumes you've already created 'summary_cdensity_shannon_all' in the parent.
+if (!exists("summary_cdensity_shannon_all")) summary_cdensity_shannon_all <- tibble::tibble()
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+.schema <- c(
+  "group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
+)
+
+# Convert the 3 increments (e, 2x, 10x) into one wide row with matching names
+global_row <- {
+  vals <- result %>%
+    summarise(
+      beta    = first(beta),
+      SE      = first(SE),
+      p.value = first(p.value)
+    )
+
+  wide <- result %>%
+  dplyr::select(code, IRR, LCL, UCL) %>%
+  tidyr::pivot_wider(
+    names_from  = code,
+    values_from = c(IRR, LCL, UCL),
+    names_glue  = "{.value}_{code}"
+  )
+
+  bind_cols(vals, wide) %>%
+    mutate(
+      group       = group,
+      primerset   = primerset,
+      landgebruik = "global",
+      season_run  = season_run
+    ) %>%
+    relocate(group, primerset, landgebruik, season_run)
+}
+
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(global_row))
+if (length(missing)) global_row[missing] <- NA_real_
+global_row <- global_row %>% select(all_of(.schema))
+
+# Append
+summary_cdensity_shannon_all <- bind_rows(summary_cdensity_shannon_all, global_row)
+
+
+```
+
+Include the interaction between log(c_density) and landuse (to get landuse specific slopes)
+
+```{r}
+lowest_aic_int <- update(
+  lowest_aic,
+  formula.  = ~ . + landgebruik * log_c_density,
+  data      = data_subset,
+  na.action = na.fail)
+
+```
+
+summary of the model that includes the interaction between log(c_density) and landuse
+
+```{r}
+summary(lowest_aic_int)
+
+```
+
+Does this model fit better or worse?
+
+```{r}
+anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
+
+```
+
+Per–land-use IRRs for fold changes in carbon density (no subsetting)
+
+```{r log-c-density-lowest-aic-int-perlanduse-shannon-{{group}}-{{primerset}}-{{unit}}}
+# Slopes per landgebruik w.r.t. log(c_density) on latent scale
+tr_lu <- summary(
+  emtrends(lowest_aic_int, ~ landgebruik,
+           var = "log_c_density", mode = "latent", infer = TRUE)
+)
+
+z <- qnorm(0.975)
+irr_lu_fc <- as_tibble(tr_lu) %>%
+  transmute(
+    landgebruik,
+    beta = log_c_density.trend,
+    SE   = SE,
+    # IRRs for fold changes:
+    IRR_e   = exp(beta * 1),          LCL_e   = exp((beta - z*SE) * 1),          UCL_e   = exp((beta + z*SE) * 1),
+    IRR_2x  = exp(beta * log(2)),     LCL_2x  = exp((beta - z*SE) * log(2)),     UCL_2x  = exp((beta + z*SE) * log(2)),
+    IRR_1.2x  = exp(beta * log(1.2)), LCL_1.2x = exp((beta - z*SE) * log(1.2)),  UCL_1.2x = exp((beta + z*SE) * log(1.2)),  # NEW
+    IRR_10x = exp(beta * log(10)),    LCL_10x = exp((beta - z*SE) * log(10)),    UCL_10x = exp((beta + z*SE) * log(10)),
+    p.value
+  )
+
+print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
+
+```
+
+Append the **per-landuse** effects (`irr_lu_fc`) to `summary_all`
+
+```{r}
+# Requires: irr_lu_fc (per landgebruik tibble), group, primerset, season_run
+
+if (!exists("summary_cdensity_shannon_all")) summary_cdensity_shannon_all <- tibble::tibble()
+
+.schema <- c(
+  "group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
+)
+
+
+lu_rows <- irr_lu_fc %>%
+  mutate(
+    group       = group,
+    primerset   = primerset,
+    landgebruik = as.character(landgebruik),
+    season_run  = season_run
+  ) %>%
+  relocate(group, primerset, landgebruik, season_run)
+
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(lu_rows))
+if (length(missing)) lu_rows[missing] <- NA_real_
+lu_rows <- lu_rows %>% select(all_of(.schema))
+
+# Append
+summary_cdensity_shannon_all <- bind_rows(summary_cdensity_shannon_all, lu_rows)
+
+```
+
+plots per land-use
+
+```{r}
+# --- Pull levels & ranges from the fitted model ---
+.mf <- model.frame(lowest_aic_int)  # training frame actually used
+stopifnot("landgebruik" %in% names(.mf))  # should be there after you added the interaction
+lu_lvls <- levels(.mf$landgebruik)
+
+has_diepte <- "diepte" %in% names(.mf) && is.factor(.mf$diepte)
+if (has_diepte) {
+  dep_lvls      <- levels(.mf$diepte)
+  ref_depth_chr <- if (any(grepl("^0-10", dep_lvls))) "0-10" else dep_lvls[1]
+  ref_depth     <- factor(ref_depth_chr, levels = dep_lvls)
+}
+
+# Range for log_c_density strictly within training data (avoid extrapolation weirdness)
+stopifnot("log_c_density" %in% names(.mf))
+rng_log <- range(.mf$log_c_density, na.rm = TRUE)
+log_seq <- seq(rng_log[1], rng_log[2], length.out = 80)
+
+# --- Build datagrid from the MODEL (auto-fills all other covariates) ---
+nd <- insight::get_datagrid(
+  lowest_aic_int,
+  by     = c("landgebruik", "log_c_density"),
+  length = 80
+)
+
+# Force the grid to use *all* landgebruik levels & our log grid
+nd <- tidyr::crossing(
+  landgebruik   = factor(lu_lvls, levels = lu_lvls),
+  log_c_density = log_seq
+) %>%
+  dplyr::left_join(
+    # take a single representative row from get_datagrid per landgebruik to carry other covariates
+    nd %>%
+      dplyr::group_by(landgebruik) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-log_c_density),  # we’ll supply our own sequence
+    by = "landgebruik"
+  ) %>%
+  { if (has_diepte) dplyr::mutate(., diepte = ref_depth) else . } %>%
+  dplyr::mutate(c_density = exp(log_c_density))
+
+# --- Predictions with CI; fall back to point preds if CI fails ---
+pr <- tryCatch(
+  marginaleffects::predictions(
+    model   = lowest_aic_int,
+    newdata = nd,
+    type    = "response",
+    vcov    = TRUE,
+    re.form = NA
+  ),
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd, type = "response", re.form = NA)
+    dplyr::bind_cols(nd, tibble::tibble(estimate = as.numeric(est),
+                                        conf.low = NA_real_, conf.high = NA_real_))
+  }
+)
+
+has_ci <- "conf.low" %in% names(pr) && any(is.finite(pr$conf.low))
+
+# --- Plot ---
+p <- ggplot(pr, aes(c_density, estimate))
+if (has_ci) p <- p + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+p + geom_line(na.rm = TRUE) +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  labs(
+    x = "Carbon density",
+    y = "Voorspelde shannon diversity index",
+    title = "Voorspelde shannon diversity index vs carbon density per landgebruik",
+    subtitle = paste0(
+      "Bij total_count = ",
+      if ("total_count" %in% names(.mf)) round(stats::median(.mf$total_count, na.rm = TRUE)) else "—",
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
+  ) +
+  theme_bw()
+
+```
+
+alternative: plot on the log scale
+
+```{r}
+# Reuse .mf, lu_lvls, has_diepte, ref_depth from above
+
+rng_log <- range(.mf$log_c_density, na.rm = TRUE)
+log_seq <- seq(rng_log[1], rng_log[2], length.out = 80)
+
+nd_log <- insight::get_datagrid(
+  lowest_aic_int,
+  by     = c("landgebruik", "log_c_density"),
+  length = 80
+)
+
+nd_log <- tidyr::crossing(
+  landgebruik   = factor(lu_lvls, levels = lu_lvls),
+  log_c_density = log_seq
+) %>%
+  dplyr::left_join(
+    nd_log %>%
+      dplyr::group_by(landgebruik) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-log_c_density),
+    by = "landgebruik"
+  ) %>%
+  { if (has_diepte) dplyr::mutate(., diepte = ref_depth) else . } %>%
+  dplyr::mutate(c_density = exp(log_c_density))
+
+pr_log <- tryCatch(
+  marginaleffects::predictions(
+    model   = lowest_aic_int,
+    newdata = nd_log,
+    type    = "response",
+    vcov    = TRUE,
+    re.form = NA
+  ),
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd_log, type = "response", re.form = NA)
+    dplyr::bind_cols(nd_log, tibble::tibble(estimate = as.numeric(est),
+                                            conf.low = NA_real_, conf.high = NA_real_))
+  }
+)
+
+has_ci_log <- "conf.low" %in% names(pr_log) && any(is.finite(pr_log$conf.low))
+breaks_nat  <- pretty(range(nd_log$c_density, na.rm = TRUE), n = 5)
+
+p2 <- ggplot(pr_log, aes(log_c_density, estimate))
+if (has_ci_log) p2 <- p2 + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+p2 + geom_line(na.rm = TRUE) +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  scale_x_continuous(
+    name   = "Carbon density",
+    breaks = log(breaks_nat),
+    labels = signif(breaks_nat, 3)
+  ) +
+  labs(
+    y = "Voorspelde shannon diversity index",
+    title = "Voorspelde shannon diversity index vs log(carbon density) per landgebruik",
+    subtitle = paste0(
+      "Bij total_count = ",
+      if ("total_count" %in% names(.mf)) round(stats::median(.mf$total_count, na.rm = TRUE)) else "—",
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
+  ) +
+  theme_bw()
+
+```
