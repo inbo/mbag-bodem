@@ -547,6 +547,13 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
   write_csv(summary_contrasts, file.path(output_dir, "summary_contrasts_landuse.csv"))
 }
 
+# ---- Save the model-family summary once, after all season runs ----
+if (exists("summary_models", envir = .GlobalEnv)) {
+  readr::write_csv(
+    summary_models,
+    file.path(output_dir, "summary_model_family.csv")
+  )
+}
 
 ```
 
