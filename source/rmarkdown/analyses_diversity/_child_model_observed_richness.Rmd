@@ -160,6 +160,38 @@ Het geselecteerde model is:
 insight::get_call(m_richness)
 ```
 
+Capture model family for this run
+
+```{r}
+# ---- Capture model family for this run ----
+get_family_name <- function(model) {
+  tryCatch({
+    fam <- stats::family(model)
+    if (is.list(fam) && !is.null(fam$family)) {
+      as.character(fam$family)
+    } else if (inherits(fam, "family") && !is.null(fam$family)) {
+      fam$family
+    } else if (is.character(fam)) {
+      fam
+    } else {
+      NA_character_
+    }
+  }, error = function(e) NA_character_)
+}
+
+model_family <- get_family_name(m_richness)
+
+# Append a row (uses the helper defined in the parent)
+append_model_family(
+  group       = group,
+  primerset   = primerset,
+  season_run  = season_run,
+  model_family = model_family
+)
+
+```
+
+
 ```{r m-richness-checks-{{group}}-{{primerset}}-{{unit}}, error=TRUE}
 p <- performance::check_predictions(m_richness)
 plot(p) + facet_zoom(xlim = c(0, 10))
