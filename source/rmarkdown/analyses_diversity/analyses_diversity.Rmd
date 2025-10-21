@@ -630,6 +630,10 @@ append_model_family_shannon <- function(group, primerset, season_run, model_fami
          envir = .GlobalEnv)
 }
 
+
+# 3) Accumulator for correlation shannon diversity with c_density. 
+summary_cdensity_shannon_all <- tibble()
+
 ```
 
 Dit zijn de modelleringen voor Shannon diversity obv input data van alle seizoenen
@@ -818,6 +822,15 @@ if (exists("summary_models_shannon", envir = .GlobalEnv)) {
     summary_models_shannon,
     file.path(output_dir, "summary_model_family_shannon.csv")
   )
+}
+
+
+if (exists("summary_cdensity_shannon_all") && nrow(summary_cdensity_shannon_all) > 0) {
+  summary_cdensity_shannon_all <- summary_cdensity_shannon_all %>%
+    dplyr::relocate(group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, group, primerset, landgebruik)
+
+  readr::write_csv(summary_cdensity_shannon_all, file.path(output_dir, "shannon_vs_c_density_all_groups_primers_seasons.csv"))
 }
 
 ```

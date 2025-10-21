@@ -691,7 +691,7 @@ print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
 
 ```
 
-Append the **per-landuse** effects (`irr_lu_fc`) to `summary_all`
+Append the **per-landuse** effects (`irr_lu_fc`) to `summary_cdensity_shannon_all`
 
 ```{r}
 # Requires: irr_lu_fc (per landgebruik tibble), group, primerset, season_run
