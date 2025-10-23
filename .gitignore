@@ -20,3 +20,8 @@ docs
 libs
 output
 renv/library
+
+# Ignore analysis output folders
+source/rmarkdown/analyses_diversity/nematodes_final/
+source/rmarkdown/analyses_diversity/resultaten2/
+source/rmarkdown/analyses_diversity/test_dieptelagen_apart/
