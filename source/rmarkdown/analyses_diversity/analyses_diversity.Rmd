@@ -282,7 +282,7 @@ if (!exists("summary_contrasts")) summary_contrasts <- tibble()
 
 if (!exists("summary_models", envir = .GlobalEnv)) {
   summary_models <- tibble::tibble(
-    guild        = character(),
+    group        = character(),
     primerset    = character(),
     season_run   = character(),
     model_family = character()
@@ -300,9 +300,9 @@ append_summary_emm <- function(df) {
   invisible(NULL)
 }
 
-append_model_family <- function(guild, primerset, season_run, model_family) {
+append_model_family <- function(group, primerset, season_run, model_family) {
   row <- tibble::tibble(
-    guild        = guild,
+    group        = group,
     primerset    = primerset,
     season_run   = season_run,
     model_family = as.character(model_family)
@@ -530,24 +530,24 @@ if (interactive()) {
 ```{r save-summary-all, include=FALSE}
 if (exists("summary_all") && nrow(summary_all) > 0) {
   summary_all <- summary_all %>%
-    dplyr::relocate(guild, primerset, landgebruik, season_run) %>%
-    dplyr::arrange(season_run, guild, primerset, landgebruik)
+    dplyr::relocate(group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, group, primerset, landgebruik)
 
-  readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_guilds_primers_seasons.csv"))
+  readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_primers_seasons.csv"))
 }
 
 if (exists("summary_emm") && nrow(summary_emm) > 0) {
   if ("diepte" %in% names(summary_emm)) {
-    summary_emm <- summary_emm %>% arrange(season_run, guild, primerset, landgebruik, diepte)
+    summary_emm <- summary_emm %>% arrange(season_run, group, primerset, landgebruik, diepte)
   } else {
-    summary_emm <- summary_emm %>% arrange(season_run, guild, primerset, landgebruik)
+    summary_emm <- summary_emm %>% arrange(season_run, group, primerset, landgebruik)
   }
-  write_csv(summary_emm, file.path(output_dir, "emm_landuse_all_guilds_primers_season_runs.csv"))
+  write_csv(summary_emm, file.path(output_dir, "emm_landuse_all_groups_primers_season_runs.csv"))
 }
 
 if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
   summary_contrasts <- summary_contrasts %>%
-    arrange(season_run, guild, primerset, diepte, landgebruik_1, landgebruik_2)
+    arrange(season_run, group, primerset, diepte, landgebruik_1, landgebruik_2)
   write_csv(summary_contrasts, file.path(output_dir, "summary_contrasts_landuse.csv"))
 }
 
@@ -613,16 +613,16 @@ append_summary_contrasts_shannon <- function(df) {
 # 2) Model family (Shannon)
 if (!exists("summary_models_shannon", envir = .GlobalEnv)) {
   summary_models_shannon <- tibble::tibble(
-    guild        = character(),
+    group        = character(),
     primerset    = character(),
     season_run   = character(),
     model_family = character()
   )
 }
 
-append_model_family_shannon <- function(guild, primerset, season_run, model_family) {
+append_model_family_shannon <- function(group, primerset, season_run, model_family) {
   row <- tibble::tibble(
-    guild        = guild,
+    group        = group,
     primerset    = primerset,
     season_run   = season_run,
     model_family = as.character(model_family)
@@ -830,10 +830,10 @@ if (exists("summary_models_shannon", envir = .GlobalEnv)) {
 
 if (exists("summary_cdensity_shannon_all") && nrow(summary_cdensity_shannon_all) > 0) {
   summary_cdensity_shannon_all <- summary_cdensity_shannon_all %>%
-    dplyr::relocate(guild, primerset, landgebruik, season_run) %>%
-    dplyr::arrange(season_run, guild, primerset, landgebruik)
+    dplyr::relocate(group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, group, primerset, landgebruik)
 
-  readr::write_csv(summary_cdensity_shannon_all, file.path(output_dir, "shannon_vs_c_density_all_guilds_primers_seasons.csv"))
+  readr::write_csv(summary_cdensity_shannon_all, file.path(output_dir, "shannon_vs_c_density_all_groups_primers_seasons.csv"))
 }
 
 ```
