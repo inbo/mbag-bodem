@@ -80,7 +80,7 @@ diversiteit <- readr::read_csv(
   )
 ) %>%
   mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(guild %in% c(
+  filter(group %in% c(
     "mycorrhiza",
     "plant pathogen",
     "saprotroph"
