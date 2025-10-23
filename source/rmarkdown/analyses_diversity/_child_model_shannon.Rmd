@@ -1,10 +1,10 @@
 
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{guild}}")`
 
 ```{r}
 group <- "{{group}}"
 primerset <- "{{primerset}}"
-unit <- "{{unit}}"
+guild <- "{{guild}}"
 season_run <- "{{season_run}}"
 
 ```
@@ -31,7 +31,7 @@ data_subset <- combined %>%
   dplyr::filter(
     group     == "{{group}}",
     primerset == "{{primerset}}",
-    unit      == "{{unit}}"
+    guild      == "{{guild}}"
   ) %>%
   droplevels()
 ```
@@ -69,7 +69,7 @@ diepte_ok <- length(unique(data_subset$diepte)) > 1
 
 Fitting models
 
-```{r m-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-{{group}}-{{primerset}}-{{guild}}}
 if (diepte_ok) {
   form_shannon <- formula(
   shannon ~
@@ -115,13 +115,13 @@ if (!zeroes) {
 
 Performance check selected model
 
-```{r m-shannon-checks-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-checks-{{group}}-{{primerset}}-{{guild}}}
 performance::check_model(m_shannon)
 ```
 
 Summary selected model
 
-```{r m-shannon-summary-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-summary-{{group}}-{{primerset}}-{{guild}}}
 summary(m_shannon) |> print(digits = 2)
 ```
 
@@ -152,13 +152,13 @@ append_model_family_shannon(
 
 Anova selected model
 
-```{r m-shannon-anova-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-anova-{{group}}-{{primerset}}-{{guild}}}
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
 Estimate contrasts between land-use categories per depth
 
-```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{guild}}}
 # Estimate marginal means per land use per depth
 emm_shannon_landuse_by_depth <- emmeans(
   m_shannon,
@@ -179,7 +179,7 @@ contrasts_shannon_landuse_response <- contrast(
 # Save to CSV
 write_csv(
   contrasts_shannon_landuse_response,
-  file = file.path(output_dir, glue("contrasts_landuse_shannon_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_shannon_{group}_{primerset}_{guild}.csv"))
 )
 
 # Print
@@ -217,7 +217,7 @@ if (diepte_ok) {
 # Save
 write_csv(
   contrasts_tbl_sh,
-  file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{guild}.csv"))
 )
 
 if (!"z.ratio" %in% names(contrasts_shannon_landuse_response) && "t.ratio" %in% names(contrasts_shannon_landuse_response)) {
@@ -266,7 +266,7 @@ contrasts_tbl_sh
 
 Marginal effects average predictions (double check marginal means but different method)
 
-```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{guild}}}
 predicted_values <- marginaleffects::avg_predictions(
   m_shannon,
   variables = c("landgebruik", "diepte"),
@@ -277,7 +277,7 @@ predicted_values <- marginaleffects::avg_predictions(
 # save to CSV
 write_csv(
   predicted_values,
-  file = file.path(output_dir, glue("predicted_values_shannon_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("predicted_values_shannon_{group}_{primerset}_{guild}.csv"))
 )
 
 # View
@@ -286,7 +286,7 @@ print(predicted_values)
 
 Plot predictions total count
 
-```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{guild}}}
 marginaleffects::plot_predictions(
   m_shannon,
   condition = c("total_count"),
@@ -300,7 +300,7 @@ marginaleffects::plot_predictions(
 
 Plot predictions design variables
 
-```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{guild}}}
 marginaleffects::plot_predictions(
   m_shannon,
   condition = c("landgebruik", "diepte"[diepte_ok]),
@@ -361,7 +361,7 @@ We voegen alle niet collineaire fysicochemische variabelen toe aan het basismode
 Voor pH gebruiken we een kwadratische effect.
 Dit wordt het `full model`.
 
-```{r extend-shannon-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-shannon-model-additional-predictors-{{group}}-{{primerset}}-{{guild}}}
 form_shannon_full <- update(
   form_shannon,
   . ~ .
@@ -381,7 +381,7 @@ m_shannon_full <- update(
 
 We vergelijken de parameterschattingen van het basis en volledig model.
 
-```{r coefficients-se-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r coefficients-se-shannon-{{group}}-{{primerset}}-{{guild}}}
 base_model_coefs <- broom.mixed::tidy(m_shannon)
 full_model_coefs <- broom.mixed::tidy(m_shannon_full)
 
@@ -391,7 +391,7 @@ coefs_df <- rbind(
 )
 ```
 
-```{r plot-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r plot-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{guild}}}
 ggplot(
   coefs_df,
   aes(x = term, y = estimate, fill = Model)
@@ -414,12 +414,12 @@ ggplot(
   )
 ```
 
-```{r save-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r save-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{guild}}}
 readr::write_csv(
   coefs_df,
   file = file.path(
     output_dir,
-    glue::glue("coefs_base_vs_full_shannon-{group}_{primerset}_{unit}.csv")
+    glue::glue("coefs_base_vs_full_shannon-{group}_{primerset}_{guild}.csv")
   )
 )
 ```
@@ -427,7 +427,7 @@ readr::write_csv(
 Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
-```{r model-selection-and-comparison-shannon-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
+```{r model-selection-and-comparison-shannon-{{group}}-{{primerset}}-{{guild}}, warning=FALSE}
 if (diepte_ok) {
   model_set <- dredge(
     m_shannon_full,
@@ -452,7 +452,7 @@ if (diepte_ok) {
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
 
-```{r importance-per-predictor-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r importance-per-predictor-shannon-{{group}}-{{primerset}}-{{guild}}}
 importance_df <- sw(model_set)
 print(importance_df)
 ```
@@ -473,7 +473,7 @@ lowest_aic <- get.models(dd, 1)[[1]]
 summary(lowest_aic)
 ```
 
-```{r m-shannon-anova-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-anova-incl-fyschem-{{group}}-{{primerset}}-{{guild}}}
 car::Anova(lowest_aic) |> print(digits = 2)
 ```
 
@@ -556,7 +556,7 @@ p
 ```
 
 global log_c_density effect. This gives a global (averaged) slope across the different land-use categories
-```{r log-c-density-lowest_aic-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r log-c-density-lowest_aic-shannon-{{group}}-{{primerset}}-{{guild}}}
 
 # Slope for log(c_density) on the latent (log) scale
 tr_add <- emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent")
@@ -667,7 +667,7 @@ anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
 
 Per–land-use IRRs for fold changes in carbon density (no subsetting)
 
-```{r log-c-density-lowest-aic-int-perlanduse-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r log-c-density-lowest-aic-int-perlanduse-shannon-{{group}}-{{primerset}}-{{guild}}}
 # Slopes per landgebruik w.r.t. log(c_density) on latent scale
 tr_lu <- summary(
   emtrends(lowest_aic_int, ~ landgebruik,

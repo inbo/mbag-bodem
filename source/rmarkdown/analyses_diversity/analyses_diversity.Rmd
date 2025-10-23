@@ -76,24 +76,15 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
+    "mbag_functional_diversity.csv"
   )
 ) %>%
   mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(group %in% c(
-    "nematoda",
-    "annelida",
-    "collembola",
-    "arthropoda",
-    "fungi",
-    "protisten",
-    "annelida_bold",
-    "arthropoda_bold",
-    "collembola_bold",
-    "enchytraeidae_bold",
-    "lumbricidae_bold"
+  filter(guild %in% c(
+    "mycorrhiza",
+    "plant pathogen",
+    "saprotroph"
   ))
-
 
 metadata <- readr::read_csv(
   file.path(
@@ -155,7 +146,7 @@ We moeten dus geen nulwaarnemingen meer toevoegen
 
 ```{r}
 groups <- diversiteit %>%
-  distinct(primerset, group, unit)
+  distinct(primerset, group, guild)
 
 samples <- metadata %>%
   distinct(sample)
@@ -167,7 +158,7 @@ samples_groups <- expand_grid(
 combined <- samples_groups %>%
   full_join(
     diversiteit,
-    by = c("sample", "primerset", "group", "unit")
+    by = c("sample", "primerset", "group", "guild")
   ) %>%
   inner_join(metadata, by = join_by(sample))
 
@@ -207,7 +198,7 @@ combined %>%
   geom_point(aes(x = total_count, y = observed)) +
   scale_x_log10() +
   labs(y = "Observed number of taxa") +
-  facet_wrap(group ~ primerset ~ unit, scales = "free")
+  facet_wrap(group ~ primerset ~ guild, scales = "free")
 ```
 
 Relaties tussen de drie diversiteitsmaten:
@@ -236,7 +227,7 @@ Aantal samples met nul OTUs:
 
 ```{r}
 combined %>%
-  group_by(group, primerset, unit) %>%
+  group_by(group, primerset, guild) %>%
   mutate(
     observed0 =
       ifelse(observed == 0, "geen OTU", "minstens 1 OTU")
@@ -335,9 +326,9 @@ Dit zijn de modelleringen obv input data van alle seizoenen
 season_run <- "allseasons"
 
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(group, primerset, guild) %>%
   arrange(
-    group, primerset, unit
+    group, primerset, guild
   )
 
 pmap(
@@ -345,7 +336,7 @@ pmap(
   function(
       group = group,
       primerset = primerset,
-      unit = unit) {
+      guild = guild) {
     knit_expand(
       here(
         "source", "rmarkdown", "analyses_diversity",
@@ -353,7 +344,7 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit,
+      guild = guild,
       season_run = season_run
     )
   }
@@ -394,19 +385,19 @@ season_run <- "winterhalfjaar"
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(group, primerset, guild) %>%
+  dplyr::arrange(group, primerset, guild)
 
 # Expand the child Rmd for all triplets
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(group, primerset, guild) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_observed_richness.Rmd"),
       group = group,
       primerset = primerset,
-      unit = unit,
+      guild = guild,
       season_run = season_run
     )
   }
@@ -476,19 +467,19 @@ winter <- season_run
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(group, primerset, guild) %>%
+  dplyr::arrange(group, primerset, guild)
 
 # Expand the child Rmd for all triplets
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(group, primerset, guild) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_observed_richness.Rmd"),
       group = group,
       primerset = primerset,
-      unit = unit,
+      guild = guild,
       season_run = season_run
     )
   }
@@ -655,18 +646,18 @@ Dit zijn de modelleringen voor Shannon diversity obv input data van alle seizoen
 season_run <- "allseasons"
 
 inputs <- combined %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(group, primerset, guild) %>%
+  dplyr::arrange(group, primerset, guild)
 
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(group, primerset, guild) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_shannon.Rmd"),
       group = group,
       primerset = primerset,
-      unit = unit,
+      guild = guild,
       season_run = season_run
     )
   }
@@ -697,19 +688,19 @@ season_run <- "winterhalfjaar"
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(group, primerset, guild) %>%
+  dplyr::arrange(group, primerset, guild)
 
 # Expand child Rmds
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(group, primerset, guild) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_shannon.Rmd"),
       group = group,
       primerset = primerset,
-      unit = unit,
+      guild = guild,
       season_run = season_run
     )
   }
@@ -764,19 +755,19 @@ winter <- season_run
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(group, primerset, guild) %>%
+  dplyr::arrange(group, primerset, guild)
 
 # Expand child Rmds
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(group, primerset, guild) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_shannon.Rmd"),
       group = group,
       primerset = primerset,
-      unit = unit,
+      guild = guild,
       season_run = season_run
     )
   }
@@ -852,9 +843,9 @@ if (exists("summary_cdensity_shannon_all") && nrow(summary_cdensity_shannon_all)
 
 ```{r child-model-simpson, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(group, primerset, guild) %>%
   arrange(
-    group, primerset, unit
+    group, primerset, guild
   )
 
 pmap(
@@ -862,7 +853,7 @@ pmap(
   function(
       group = group,
       primerset = primerset,
-      unit = unit) {
+      guild = guild) {
     knit_expand(
       here(
         "source", "rmarkdown", "analyses_diversity",
@@ -870,7 +861,7 @@ pmap(
       ),
       group = group,
       primerset = primerset,
-      unit = unit
+      guild = guild
     )
   }
 ) %>%
