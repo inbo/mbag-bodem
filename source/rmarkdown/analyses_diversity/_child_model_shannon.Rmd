@@ -159,136 +159,35 @@ car::Anova(m_shannon) |> print(digits = 2)
 Estimate contrasts between land-use categories per depth
 
 ```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
-# --- EMMs per land use (and depth if applicable) on the response (H′) scale
+# Estimate marginal means per land use per depth
 emm_shannon_landuse_by_depth <- emmeans(
   m_shannon,
   specs = "landgebruik",
-  by    = if (diepte_ok) "diepte" else NULL,
-  data  = data_subset,
-  type  = "response",
-  component = "response"   # crucial for ziGamma: overall ('global') mean incl. zeros
+  by = if (diepte_ok) "diepte" else NULL,
+  data = data_subset,
+  type = "response"
 )
 
-# Put contrasts on the identity scale (H′) so pairwise are differences, not ratios
-emm_shannon_resp <- regrid(emm_shannon_landuse_by_depth, transform = "response")
-
-# --- Pairwise *differences* in H′ (ΔH′) with CIs & p-values
-pairs_deltaH <- contrast(
-  emm_shannon_resp,
+# Pairwise contrasts (auto adjustment by emmeans; keep CIs & p-values)
+contrasts_shannon_landuse_response <- contrast(
+  emm_shannon_landuse_by_depth,
   method = "pairwise",
-  by     = if (diepte_ok) "diepte" else NULL,
-  infer  = c(TRUE, TRUE)
-) %>% as.data.frame()
+  infer = c(TRUE, TRUE)
+) %>%
+  as.data.frame()
 
+# Save to CSV
+write_csv(
+  contrasts_shannon_landuse_response,
+  file = file.path(output_dir, glue("contrasts_landuse_shannon_{group}_{primerset}_{unit}.csv"))
+)
 
-# Ensure 'diepte' column exists for the no-depth case
-if (!"diepte" %in% names(pairs_deltaH)) {
-  pairs_deltaH$diepte <- NA_character_
-}
+# Print
+print(contrasts_shannon_landuse_response)
 
-# Split "A - B" (differences) OR "A / B" (just in case) into two columns
-contrasts_tbl_deltaH <- pairs_deltaH %>%
-  tibble::as_tibble() %>%
-  dplyr::mutate(contrast = as.character(.data$contrast)) %>%
-  tidyr::separate(
-    contrast,
-    into = c("landgebruik_1", "landgebruik_2"),
-    sep  = " / | - ",
-    remove = TRUE, fill = "right"
-  ) %>%
-  dplyr::mutate(
-    delta_H   = .data$estimate,
-    lcl       = .data$asymp.LCL,
-    ucl       = .data$asymp.UCL,
-    hill_ratio = exp(delta_H),
-    hill_LCL   = exp(lcl),
-    hill_UCL   = exp(ucl),
-    stat       = .data$z.ratio,
-    stat_name  = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
-                                  TRUE ~ NA_character_)
-  )
-
-print(pairs_deltaH)
 ```
-
-```{r}
-print(contrasts_tbl_deltaH)
-```
-
 
 Accumulator contrasts between land-use categories per depth
-
-```{r}
-# --- Per-group EMMs (H′) and Hill numbers, to attach to each side of the pair
-emm_tbl <- as.data.frame(emm_shannon_resp) %>%
-  { if (!"diepte" %in% names(.)) dplyr::mutate(., diepte = NA_character_) else . } %>%
-  dplyr::transmute(
-    diepte,
-    landgebruik,
-    H_mean = emmean,
-    H_SE   = SE,
-    H_LCL  = asymp.LCL,
-    H_UCL  = asymp.UCL,
-    Hill_mean = exp(H_mean),
-    Hill_LCL  = exp(H_LCL),
-    Hill_UCL  = exp(H_UCL)
-  )
-
-# Join EMMs for both sides of the contrast
-if (isTRUE(diepte_ok)) {
-  by1 <- c("diepte" = "diepte", "landgebruik_1" = "landgebruik")
-  by2 <- c("diepte" = "diepte", "landgebruik_2" = "landgebruik")
-} else {
-  by1 <- c("landgebruik_1" = "landgebruik")
-  by2 <- c("landgebruik_2" = "landgebruik")
-}
-
-contrasts_tbl_shannon <- contrasts_tbl_deltaH %>%
-  dplyr::left_join(emm_tbl, by = by1, multiple = "first") %>%
-  dplyr::rename(
-    H1_mean = H_mean, H1_SE = H_SE, H1_LCL = H_LCL, H1_UCL = H_UCL,
-    Hill1_mean = Hill_mean, Hill1_LCL = Hill_LCL, Hill1_UCL = Hill_UCL
-  ) %>%
-  dplyr::left_join(emm_tbl, by = by2, multiple = "first") %>%
-  dplyr::rename(
-    H2_mean = H_mean, H2_SE = H_SE, H2_LCL = H_LCL, H2_UCL = H_UCL,
-    Hill2_mean = Hill_mean, Hill2_LCL = Hill_LCL, Hill2_UCL = Hill_UCL
-  ) %>%
-  # Tag with run identifiers and tidy columns
-  dplyr::mutate(
-    group      = group,
-    primerset  = primerset,
-    season_run = season_run
-  ) %>%
-  dplyr::select(
-    group, primerset, season_run, diepte,
-    landgebruik_1, landgebruik_2,
-    # Pairwise contrast results
-    delta_H, lcl, ucl, hill_ratio, hill_LCL, hill_UCL,
-    SE, stat_name, stat, p.value,
-    # EMMs for each side (H′ and Hill)
-    H1_mean, H1_SE, H1_LCL, H1_UCL, Hill1_mean, Hill1_LCL, Hill1_UCL,
-    H2_mean, H2_SE, H2_LCL, H2_UCL, Hill2_mean, Hill2_LCL, Hill2_UCL
-  ) %>%
-  { if (diepte_ok) dplyr::arrange(., diepte, p.value) else dplyr::arrange(., p.value) }
-
-# Save per-run table
-readr::write_csv(
-  contrasts_tbl_shannon,
-  file = file.path(output_dir, glue::glue("contrasts_landuse_table_deltaH_hill_withEMMs_{group}_{primerset}_{unit}.csv"))
-)
-
-# Append to the parent accumulator (your existing helper) and write summary
-append_summary_contrasts_shannon(contrasts_tbl_shannon)
-
-
-# (Optional) also save raw EMMs for reference
-readr::write_csv(
-  emm_tbl %>% dplyr::mutate(group = group, primerset = primerset, season_run = season_run),
-  file = file.path(output_dir, glue::glue("emmeans_shannon_groups_H_and_Hill_{group}_{primerset}_{unit}.csv"))
-)
-```
-
 
 ```{r}
 # Summary table
