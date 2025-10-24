@@ -55,7 +55,6 @@ insekp <- readRDS(
 tt_insekp <- tidytacos::from_phyloseq(insekp)
 ```
 
-
 ```{r}
 tt_insekp_all <- tidytacos::everything(tt_insekp)
 
@@ -145,7 +144,6 @@ prevalences <- prevalences |>
   )
 ```
 
-
 ```{r}
 scdata_annelida <- scdata |>
   filter(
@@ -164,7 +162,6 @@ scdata_annelida |>
   kable()
 ```
 
-
 ```{r}
 # need to aggregate because different swarms/ASV/OTU can have same
 # taxon_resolved within a sample
@@ -180,7 +177,6 @@ scdata_annelida <- scdata_annelida |>
   filter(n() > 30) |>
   ungroup()
 ```
-
 
 ```{r}
 sccomp_dir <- here::here(
@@ -200,10 +196,10 @@ m1 <- sccomp_estimate(
   formula_composition =
     ~ Landgebruik_MBAG + Diepte + Landgebruik_MBAG:Diepte + (1 | Cmon_PlotID),
   formula_variability = ~ 1,
-  .sample = sample_id,
-  .cell_group = taxon_resolved,
-  .abundance = count,
-  cores = 4,
+  sample = "sample_id",
+  cell_group = "taxon_resolved",
+  abundance = "count",
+  cores = as.integer(Sys.getenv("SLURM_NTASKS")),
   output_directory = sccomp_dir, # might want to change this
   bimodal_mean_variability_association = FALSE,
   percent_false_positive = 5,
@@ -218,12 +214,23 @@ m1 <- sccomp_estimate(
 head(m1, n = 10)
 ```
 
+Check in output directory for "correct/latest" model
+
 ```{r eval=FALSE}
-test <- cmdstanr::as_cmdstan_fit(
-  file.path(
-    sccomp_dir,
-    "glm_multi_beta_binomial-202412051111-1-6c1f45.csv")
-)
+myff = list.files(
+    sccomp_dir, full.names = T, pattern = "glm_multi_beta_binomial")[1]
+
+test_as_cmdstan_fit <- cmdstanr::as_cmdstan_fit( myff)
+```
+
+This does not work for Nick on HPC (test is an environment?)
+```{r eval=FALSE}
+typeof(test)
+test
+```
+
+```{r eval=FALSE}
+
 
 # the model contains 50 x 80 = 4000 posterior samples for 31875 parameters
 # (incl transformed parameters)
@@ -241,13 +248,11 @@ pars <- lapply(
 sum(unlist(pars)) # 31875
 ```
 
-
 Check Rhat!
 
-- Rhat < 1.01 is OK
-- Rhat between 1.01 and 1.1 is worrying
-- Rhat > 1.1 bad
-
+-   Rhat \< 1.01 is OK
+-   Rhat between 1.01 and 1.1 is worrying
+-   Rhat \> 1.1 bad
 
 ```{r}
 hist(m1$c_rhat)
@@ -255,9 +260,9 @@ hist(m1$c_rhat)
 
 Check ESS (effective sample size)!
 
-- ESS > 100 is OK
-- ESS between 20 and 100 might be enough
-- ESS < 20 problematic
+-   ESS \> 100 is OK
+-   ESS between 20 and 100 might be enough
+-   ESS \< 20 problematic
 
 ```{r}
 hist(m1$c_ess_bulk)
@@ -266,8 +271,8 @@ hist(m1$c_ess_tail)
 
 If problems:
 
-- try `"hmc"` algorithm
-- increase number of iterations
+-   try `"hmc"` algorithm
+-   increase number of iterations
 
 Calculate `FDR`:
 
@@ -294,16 +299,14 @@ m1_contrast <- sccomp_test(
 
 These contrasts are in logit (=log-odds) scale and represent log-odds ratios:
 
-$$
-\begin{align*}
+\$\$ \begin{align*}
 \log\left(\frac{P_{R_{0-10}}}{1-P_{R_{0-10}}}\right) = \text{log-odds } R_{0-10}
 \tag*{Intercept parameter: Akker (R for reference) and 0-10 cm}\\
 
 \text{log odds } T_{0-10} - \text{log odds } R_{0-10} & =
 \log\left(\frac{\text{odds } T_{0-10}}{\text{odds } R_{0-10}}\right)
 \tag*{Land-use T parameter = difference contrast}
-\end{align*}
-$$
+\end{align*} \$\$
 
 We can transform the difference contrasts from the log-odds differences to odds-ratios for visualisation and easier interpretation.
 
@@ -355,14 +358,13 @@ m1_plots <- m1_contrast |>
     )
   )
 
-patchwork::wrap_plots(
+pp = patchwork::wrap_plots(
   m1_plots$plot,
   guides = "collect",
   axis_titles = "collect"
   ) &
   patchwork::plot_annotation(title = "Verschillen met akkers")
 ```
-
 
 Interpretation aid (the code below does not work; not sure how to fix):
 
@@ -374,4 +376,3 @@ m1 |>
     to = "Natuurgrasland"
   )
 ```
-
