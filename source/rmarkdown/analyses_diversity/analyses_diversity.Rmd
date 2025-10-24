@@ -80,19 +80,7 @@ diversiteit <- readr::read_csv(
   )
 ) %>%
   mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(group %in% c(
-    "nematoda",
-    "annelida",
-    "collembola",
-    "arthropoda",
-    "fungi",
-    "protisten",
-    "annelida_bold",
-    "arthropoda_bold",
-    "collembola_bold",
-    "enchytraeidae_bold",
-    "lumbricidae_bold"
-  ))
+  filter(primerset == "InseKP" & group == "annelida")
 
 
 metadata <- readr::read_csv(
@@ -274,7 +262,7 @@ We fitten een model waarbij we de log van het totaal aantal reads in een staal a
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
 
-```{r setup-accumulator, include=FALSE}
+```{r setup-accumulator, eval=FALSE, include=FALSE}
 
 # Resets on every knit of the parent
 
@@ -331,7 +319,7 @@ append_model_family <- function(group, primerset, season_run, model_family) {
 
 Dit zijn de modelleringen obv input data van alle seizoenen
 
-```{r child-model-observed-richness-allseasons, echo=FALSE, results="asis"}
+```{r child-model-observed-richness-allseasons, eval=FALSE, echo=FALSE, results="asis"}
 season_run <- "allseasons"
 
 inputs <- combined %>%
@@ -381,7 +369,7 @@ if (interactive()) {
 
 Dit zijn de modelleringen obv input data van november tot april
 
-```{r child-model-observed-richness-winterhalfjaar, echo=FALSE, results="asis"}
+```{r child-model-observed-richness-winterhalfjaar, eval=FALSE, echo=FALSE, results="asis"}
 library(dplyr)
 library(purrr)
 library(stringr)
@@ -459,7 +447,7 @@ if (interactive()) {
 
 Dit zijn de modelleringen obv input data van december tot april
 
-```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
+```{r child-model-observed-richness-winter, eval=FALSE, echo=FALSE, results="asis"}
 library(dplyr)
 library(purrr)
 library(stringr)
@@ -536,7 +524,7 @@ if (interactive()) {
 
 
 
-```{r save-summary-all, include=FALSE}
+```{r save-summary-all, eval=FALSE, include=FALSE}
 if (exists("summary_all") && nrow(summary_all) > 0) {
   summary_all <- summary_all %>%
     dplyr::relocate(group, primerset, landgebruik, season_run) %>%
@@ -570,7 +558,7 @@ if (exists("summary_models", envir = .GlobalEnv)) {
 
 ```
 
-```{r}
+```{r eval=FALSE}
 # Create a flipped version: (landgebruik_2 / landgebruik_1)
 # Assumes summary_contrasts has: group, primerset, season_run, diepte,
 # landgebruik_1, landgebruik_2, effect (= ratio), effect_pct, lcl, ucl, stat_name, stat, p.value
@@ -645,6 +633,14 @@ append_model_family_shannon <- function(group, primerset, season_run, model_fami
 
 # 3) Accumulator for correlation shannon diversity with c_density. 
 summary_cdensity_shannon_all <- tibble()
+
+# Accumulator for emmeans summaries
+if (!exists("summary_emm_shannon")) summary_emm_shannon <- tibble()
+
+append_summary_emm <- function(df) {
+  summary_emm_shannon <<- dplyr::bind_rows(summary_emm_shannon, df)
+  invisible(NULL)
+}
 
 ```
 

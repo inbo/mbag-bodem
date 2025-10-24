@@ -156,6 +156,48 @@ Anova selected model
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
+estimate marginal means
+
+```{r}
+# Estimated marginal means per land use (and per depth if applicable)
+
+emm_landuse <- emmeans(
+  m_richness,
+  specs = "landgebruik",
+  by = if (diepte_ok) "diepte" else NULL,
+  data = data_subset,
+  type = "response"
+)
+
+# Save to CSV with automatic naming
+write_csv(
+  as.data.frame(emm_landuse),
+  file = file.path(output_dir, glue("emmeans_landuse_{group}_{primerset}_{unit}.csv"))
+)
+
+emm_df <- as.data.frame(emm_landuse) %>%
+  as_tibble() %>%
+  mutate(
+    # tag with run identifiers
+    group       = group,
+    primerset   = primerset,
+    season_run  = season_run,
+    # always keep landgebruik as character for a stable schema
+    landgebruik = as.character(landgebruik)
+  ) %>%
+  # ensure a 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # order columns: required 4 first, then diepte, then the emmeans columns
+  relocate(group, primerset, landgebruik, season_run, diepte)
+
+# Append to the parent accumulator
+append_summary_emm(emm_df)
+
+# print
+emm_landuse
+```
+
+
 Estimate contrasts between land-use categories per depth
 
 ```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
@@ -187,7 +229,7 @@ print(contrasts_shannon_landuse_response)
 
 ```
 
-Accumulator contrasts between land-use categories per depth
+Accumulator contrasts Shannon diversity between land-use categories per depth
 
 ```{r}
 # Summary table
