@@ -263,6 +263,60 @@ append_summary_contrasts_shannon(contrasts_tbl_shannon)
 contrasts_tbl_sh
 ```
 
+```{r}
+# --- Also compute ΔH′ and Hill fold-changes, keeping the original output intact ---
+
+# Put EMMs onto the identity (H′) scale so pairwise are *differences* (ΔH′), not ratios
+emm_shannon_resp <- regrid(emm_shannon_landuse_by_depth, transform = "response")
+
+# Pairwise differences in H′
+contrasts_shannon_deltaH <- contrast(
+  emm_shannon_resp,
+  method = "pairwise",
+  by     = if (diepte_ok) "diepte" else NULL,
+  infer  = c(TRUE, TRUE)
+) %>% 
+  as.data.frame() %>%
+  dplyr::mutate(
+    LCL = .data$asymp.LCL,
+    UCL = .data$asymp.UCL,
+    stat = .data$z.ratio,
+    stat_name = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
+                                 TRUE ~ NA_character_)
+  )
+
+# Tidy ΔH′ + Hill ratios table (separate "A / B")
+contrasts_tbl_shannon_deltaH <- contrasts_shannon_deltaH %>%
+  { if (!"diepte" %in% names(.)) dplyr::mutate(., diepte = NA_character_) else . } %>%
+  dplyr::mutate(contrast = as.character(.data$contrast)) %>%
+  tidyr::separate(contrast, into = c("landgebruik_1", "landgebruik_2"),
+                  sep = " / ", remove = TRUE, fill = "right") %>%
+  dplyr::mutate(
+    delta_H    = .data$estimate,
+    lcl        = .data$LCL,
+    ucl        = .data$UCL,
+    hill_ratio = exp(delta_H),
+    hill_LCL   = exp(lcl),
+    hill_UCL   = exp(ucl)
+  ) %>%
+  dplyr::mutate(
+    group      = group,
+    primerset  = primerset,
+    season_run = season_run
+  ) %>%
+  { if (diepte_ok) dplyr::arrange(., diepte, p.value) else dplyr::arrange(., p.value) }
+
+# Save ΔH′ + Hill table (in addition to your original CSVs)
+readr::write_csv(
+  contrasts_tbl_shannon_deltaH,
+  file = file.path(output_dir, glue::glue("contrasts_landuse_table_deltaH_hill_{group}_{primerset}_{unit}.csv"))
+)
+
+# Append ΔH′ + Hill table to your accumulator as well
+append_summary_contrasts_shannon(contrasts_tbl_shannon_deltaH)
+
+```
+
 
 Marginal effects average predictions (double check marginal means but different method)
 
