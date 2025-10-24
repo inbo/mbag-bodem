@@ -165,8 +165,7 @@ emm_shannon_landuse_by_depth <- emmeans(
   specs = "landgebruik",
   by    = if (diepte_ok) "diepte" else NULL,
   data  = data_subset,
-  type  = "response",
-  component = "response"   # crucial for ziGamma: overall ('global') mean incl. zeros
+  type  = "response"
 )
 
 # Put contrasts on the identity scale (H′) so pairwise are differences, not ratios
