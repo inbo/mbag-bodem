@@ -156,6 +156,67 @@ Anova selected model
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
+accumulator landgebruik output in anova
+
+```{r}
+# ---- anova-landgebruik-extract-and-append -----------------------------------
+suppressPackageStartupMessages({
+  library(dplyr); library(tibble)
+})
+
+# Helper safely extracts the 'landgebruik' row from car::Anova
+.extract_landgebruik_row <- function(model, term = "landgebruik") {
+  out <- try(car::Anova(model, type = 2), silent = TRUE)
+  if (inherits(out, "try-error")) {
+    return(tibble(
+      term        = term,
+      chisq       = NA_real_,
+      df          = NA_real_,
+      p.value     = NA_real_,
+      anova_ok    = FALSE,
+      note        = as.character(out)
+    ))
+  }
+  tab <- as.data.frame(out) %>% tibble::rownames_to_column("term")
+  if (!term %in% tab$term) {
+    return(tibble(
+      term        = term,
+      chisq       = NA_real_,
+      df          = NA_real_,
+      p.value     = NA_real_,
+      anova_ok    = TRUE,
+      note        = "term not in Anova table"
+    ))
+  }
+  row <- tab %>% filter(term == !!term) %>%
+    transmute(
+      term,
+      chisq   = as.numeric(.data[["Chisq"]]),
+      df      = as.numeric(.data[["Df"]]),
+      p.value = as.numeric(.data[["Pr(>Chisq)"]]),
+      anova_ok = TRUE,
+      note    = NA_character_
+    )
+  row
+}
+
+# Build the row enriched with identifiers from the knitting context
+lg_row <- .extract_landgebruik_row(m_shannon, term = "landgebruik") %>%
+  mutate(
+    group       = get0("group", ifnotfound = NA_character_),
+    primerset   = get0("primerset", ifnotfound = NA_character_),
+    unit        = get0("unit", ifnotfound = NA_character_),
+    season_run  = get0("season_run", ifnotfound = NA_character_),
+    n_obs       = tryCatch(stats::nobs(m_shannon), error = function(e) NA_integer_)
+  ) %>%
+  relocate(group, primerset, unit, season_run, .before = term)
+
+# Append to the parent accumulator living in the same knit session
+anova_landgebruik_all <<- append(anova_landgebruik_all, list(lg_row))
+
+```
+
+
 estimate marginal means shannon diversity
 
 ```{r}
