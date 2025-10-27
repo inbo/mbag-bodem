@@ -94,7 +94,6 @@ diversiteit <- readr::read_csv(
     "lumbricidae_bold"
   ))
 
-
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
@@ -646,13 +645,17 @@ append_model_family_shannon <- function(group, primerset, season_run, model_fami
 # 3) Accumulator for correlation shannon diversity with c_density. 
 summary_cdensity_shannon_all <- tibble()
 
-# Accumulator for emmeans summaries
+# 4) Accumulator for emmeans summaries
 if (!exists("summary_emm_shannon")) summary_emm_shannon <- tibble()
 
 append_summary_emm <- function(df) {
   summary_emm_shannon <<- dplyr::bind_rows(summary_emm_shannon, df)
   invisible(NULL)
 }
+
+# 5) Accumulator for landgebruik in Anova
+
+anova_landgebruik_all <- list()
 
 ```
 
@@ -862,6 +865,13 @@ if (exists("summary_emm_shannon") && nrow(summary_emm_shannon) > 0) {
   }
   write_csv(summary_emm_shannon, file.path(output_dir, "emm_shannon_landuse_all_groups_primers_season_runs.csv"))
 }
+
+
+# ---- finalize-anova-landgebruik ---------------------------------------------
+anova_landgebruik_all_df <- dplyr::bind_rows(anova_landgebruik_all)
+
+write_csv(anova_landgebruik_all_df, file.path(output_dir, "shannon_anova_landgebruik_all.csv"))
+
 
 ```
 
