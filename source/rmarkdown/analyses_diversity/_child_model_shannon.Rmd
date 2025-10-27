@@ -156,24 +156,19 @@ Anova selected model
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
-estimate marginal means
+estimate marginal means shannon diversity
 
 ```{r}
 # Estimated marginal means per land use (and per depth if applicable)
 
 emm_landuse <- emmeans(
-  m_richness,
+  m_shannon,
   specs = "landgebruik",
   by = if (diepte_ok) "diepte" else NULL,
   data = data_subset,
   type = "response"
 )
 
-# Save to CSV with automatic naming
-write_csv(
-  as.data.frame(emm_landuse),
-  file = file.path(output_dir, glue("emmeans_landuse_{group}_{primerset}_{unit}.csv"))
-)
 
 emm_df <- as.data.frame(emm_landuse) %>%
   as_tibble() %>%
@@ -298,14 +293,68 @@ contrasts_tbl_shannon <- contrasts_shannon_landuse_response %>%
   relocate(group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
            effect, effect_pct, SE, lcl, ucl, stat_name, stat, p.value)
 
+
+# --- Build ΔH′ + Hill table and JOIN into existing contrasts_tbl_shannon ---
+
+# Regrid to identity (H′) so pairwise are differences (ΔH′)
+emm_shannon_resp <- regrid(emm_shannon_landuse_by_depth, transform = "response")
+
+# Pairwise differences in H′
+contrasts_shannon_deltaH <- contrast(
+  emm_shannon_resp,
+  method = "pairwise",
+  by     = if (diepte_ok) "diepte" else NULL,
+  infer  = c(TRUE, TRUE)
+) %>% as.data.frame()
+
+# Tidy ΔH′; standardize columns + split "A / B" or "A - B"
+delta_tbl <- contrasts_shannon_deltaH %>%
+  { if (!"diepte" %in% names(.)) dplyr::mutate(., diepte = NA_character_) else . } %>%
+  dplyr::mutate(
+    LCL = .data$asymp.LCL,
+    UCL = .data$asymp.UCL,
+    stat_delta = .data$z.ratio,
+    contrast = as.character(.data$contrast)
+  ) %>%
+  tidyr::separate(
+    contrast, into = c("landgebruik_1","landgebruik_2"),
+    sep = " / | - ", remove = TRUE, fill = "right"
+  ) %>%
+  dplyr::transmute(
+    diepte, landgebruik_1, landgebruik_2,
+    delta_H       = estimate,
+    deltaH_LCL    = LCL,
+    deltaH_UCL    = UCL,
+    hill_ratio    = exp(delta_H),
+    hill_LCL      = exp(deltaH_LCL),
+    hill_UCL      = exp(deltaH_UCL),
+    stat_name_delta = dplyr::case_when(!is.na(stat_delta) ~ "z", TRUE ~ NA_character_),
+    stat_delta    = stat_delta,
+    p.value_delta = p.value
+  )
+
+# JOIN ΔH′/Hill columns into your original ratio table (one row per pair)
+contrasts_tbl_shannon <- contrasts_tbl_shannon %>%
+  dplyr::left_join(
+    delta_tbl,
+    by = c("diepte","landgebruik_1","landgebruik_2")
+  )
+
+contrasts_tbl_shannon <- contrasts_tbl_shannon %>%
+  dplyr::rename(ratio_LCL = lcl, ratio_UCL = ucl) %>%
+  dplyr::relocate(ratio_LCL, ratio_UCL, .after = effect_pct)
+
+
 # Append to the parent accumulator
 append_summary_contrasts_shannon(contrasts_tbl_shannon)
 
 # Print
-contrasts_tbl_sh
+#contrasts_tbl_shannon
 ```
 
-```{r}
+Keep the below, in case the above does not work
+
+```{r eval=FALSE}
 # --- Also compute ΔH′ and Hill fold-changes, keeping the original output intact ---
 
 # Put EMMs onto the identity (H′) scale so pairwise are *differences* (ΔH′), not ratios

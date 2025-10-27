@@ -80,7 +80,19 @@ diversiteit <- readr::read_csv(
   )
 ) %>%
   mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(primerset == "InseKP" & group == "annelida")
+  filter(group %in% c(
+    "nematoda",
+    "annelida",
+    "collembola",
+    "arthropoda",
+    "fungi",
+    "protisten",
+    "annelida_bold",
+    "arthropoda_bold",
+    "collembola_bold",
+    "enchytraeidae_bold",
+    "lumbricidae_bold"
+  ))
 
 
 metadata <- readr::read_csv(
@@ -839,6 +851,16 @@ if (exists("summary_cdensity_shannon_all") && nrow(summary_cdensity_shannon_all)
     dplyr::arrange(season_run, group, primerset, landgebruik)
 
   readr::write_csv(summary_cdensity_shannon_all, file.path(output_dir, "shannon_vs_c_density_all_groups_primers_seasons.csv"))
+}
+
+
+if (exists("summary_emm_shannon") && nrow(summary_emm_shannon) > 0) {
+  if ("diepte" %in% names(summary_emm_shannon)) {
+    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, group, primerset, landgebruik, diepte)
+  } else {
+    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, group, primerset, landgebruik)
+  }
+  write_csv(summary_emm_shannon, file.path(output_dir, "emm_shannon_landuse_all_groups_primers_season_runs.csv"))
 }
 
 ```
