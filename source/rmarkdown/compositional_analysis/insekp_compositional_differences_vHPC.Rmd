@@ -364,7 +364,14 @@ pp = patchwork::wrap_plots(
   axis_titles = "collect"
   ) &
   patchwork::plot_annotation(title = "Verschillen met akkers")
+
 ```
+
+```{r}
+pp
+```
+
+
 
 Interpretation aid (the code below does not work; not sure how to fix):
 
