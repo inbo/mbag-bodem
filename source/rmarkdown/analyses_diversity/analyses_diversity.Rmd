@@ -196,6 +196,20 @@ combined <- combined %>%
   droplevels()
 ```
 
+seizoenale spreiding
+
+```{r}
+counts_all <- metadata %>%
+  distinct(sample, landgebruik, sampling_season) %>%
+  count(landgebruik, sampling_season, name = "n") %>%
+  complete(landgebruik, sampling_season, fill = list(n = 0))
+
+ggplot(counts_all, aes(landgebruik, n, fill = sampling_season)) +
+  geom_col() + labs(x = "Landgebruik", y = "Aantal stalen", fill = "Sampling season") +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 25, hjust = 1))
+
+```
+
 
 Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
 
