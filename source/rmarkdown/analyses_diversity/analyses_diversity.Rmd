@@ -201,12 +201,52 @@ seizoenale spreiding
 ```{r}
 counts_all <- metadata %>%
   distinct(sample, landgebruik, sampling_season) %>%
+  # remove true NAs
+  filter(!is.na(landgebruik), !is.na(sampling_season)) %>%
+  # drop categories you don't want
+  filter(!landgebruik %in% c("Heide", "Moeras")) %>%
   count(landgebruik, sampling_season, name = "n") %>%
-  complete(landgebruik, sampling_season, fill = list(n = 0))
+  complete(landgebruik, sampling_season, fill = list(n = 0)) %>%
+  droplevels()
 
 ggplot(counts_all, aes(landgebruik, n, fill = sampling_season)) +
-  geom_col() + labs(x = "Landgebruik", y = "Aantal stalen", fill = "Sampling season") +
-  theme_minimal() + theme(axis.text.x = element_text(angle = 25, hjust = 1))
+  geom_col() +
+  labs(x = "Landgebruik", y = "Aantal stalen", fill = "Sampling season") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1)) +
+  # belt-and-braces: hide any remaining NA in the legend if they sneak in
+  scale_fill_discrete(na.translate = FALSE)
+
+```
+
+spreiding per maand
+
+```{r}
+
+counts_all_month <- metadata %>%
+  distinct(sample, landgebruik, sampling_month) %>%
+  # drop true NAs
+  filter(!is.na(landgebruik), !is.na(sampling_month)) %>%
+  # drop unwanted land-use types
+  filter(!landgebruik %in% c("Heide", "Moeras")) %>%
+  count(landgebruik, sampling_month, name = "n") %>%
+  # ensure all months 1–12 appear (zeros where absent)
+  complete(landgebruik, sampling_month = 1:12, fill = list(n = 0)) %>%
+  mutate(
+    month_lab = factor(
+      sampling_month,
+      levels = 1:12,
+      labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    )
+  ) %>%
+  droplevels()
+
+ggplot(counts_all_month, aes(x = landgebruik, y = n, fill = month_lab)) +
+  geom_col() +
+  labs(x = "Landgebruik", y = "Aantal stalen", fill = "Sampling month") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1)) +
+  scale_fill_discrete(drop = FALSE)  # keep all months in legend
 
 ```
 
