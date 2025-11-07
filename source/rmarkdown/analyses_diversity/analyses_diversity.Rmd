@@ -79,20 +79,14 @@ diversiteit <- readr::read_csv(
     "mbag_combined_dataframe_INBO_ILVO_v19.csv"
   )
 ) %>%
-  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(group %in% c(
-    "nematoda",
-    "annelida",
-    "collembola",
-    "arthropoda",
-    "fungi",
-    "protisten",
-    "annelida_bold",
-    "arthropoda_bold",
-    "collembola_bold",
-    "enchytraeidae_bold",
-    "lumbricidae_bold"
-  ))
+  rename(taxon_group = group) %>%
+  mutate(
+    taxon_group = if_else(taxon_group == "Nematoda", "nematoda", taxon_group)
+  ) %>%
+  filter(
+    taxon_group %in% c("annelida", "arthropoda")
+  )
+
 
 metadata <- readr::read_csv(
   file.path(
@@ -154,7 +148,7 @@ We moeten dus geen nulwaarnemingen meer toevoegen
 
 ```{r}
 groups <- diversiteit %>%
-  distinct(primerset, group, unit)
+  distinct(primerset, taxon_group, unit)
 
 samples <- metadata %>%
   distinct(sample)
@@ -166,7 +160,7 @@ samples_groups <- expand_grid(
 combined <- samples_groups %>%
   full_join(
     diversiteit,
-    by = c("sample", "primerset", "group", "unit")
+    by = c("sample", "primerset", "taxon_group", "unit")
   ) %>%
   inner_join(metadata, by = join_by(sample))
 
@@ -260,7 +254,7 @@ combined %>%
   geom_point(aes(x = total_count, y = observed)) +
   scale_x_log10() +
   labs(y = "Observed number of taxa") +
-  facet_wrap(group ~ primerset ~ unit, scales = "free")
+  facet_wrap(taxon_group ~ primerset ~ unit, scales = "free")
 ```
 
 Relaties tussen de drie diversiteitsmaten:
@@ -270,13 +264,13 @@ combined %>%
   ggplot() +
   geom_autopoint(
     aes(
-      colour = group, shape = primerset
+      colour = taxon_group, shape = primerset
     ),
     alpha = 0.5
   ) +
   geom_autodensity(
     aes(
-      fill = group
+      fill = taxon_group
     ),
     alpha = 0.5
   ) +
@@ -289,7 +283,7 @@ Aantal samples met nul OTUs:
 
 ```{r}
 combined %>%
-  group_by(group, primerset, unit) %>%
+  group_by(taxon_group, primerset, unit) %>%
   mutate(
     observed0 =
       ifelse(observed == 0, "geen OTU", "minstens 1 OTU")
@@ -327,7 +321,7 @@ We fitten een model waarbij we de log van het totaal aantal reads in een staal a
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
 
-```{r setup-accumulator, eval=FALSE, include=FALSE}
+```{r setup-accumulator, include=FALSE}
 
 # Resets on every knit of the parent
 
@@ -344,7 +338,7 @@ if (!exists("summary_contrasts")) summary_contrasts <- tibble()
 
 if (!exists("summary_models", envir = .GlobalEnv)) {
   summary_models <- tibble::tibble(
-    group        = character(),
+    taxon_group        = character(),
     primerset    = character(),
     season_run   = character(),
     model_family = character()
@@ -362,9 +356,9 @@ append_summary_emm <- function(df) {
   invisible(NULL)
 }
 
-append_model_family <- function(group, primerset, season_run, model_family) {
+append_model_family <- function(taxon_group, primerset, season_run, model_family) {
   row <- tibble::tibble(
-    group        = group,
+    taxon_group        = taxon_group,
     primerset    = primerset,
     season_run   = season_run,
     model_family = as.character(model_family)
@@ -384,19 +378,19 @@ append_model_family <- function(group, primerset, season_run, model_family) {
 
 Dit zijn de modelleringen obv input data van alle seizoenen
 
-```{r child-model-observed-richness-allseasons, eval=FALSE, echo=FALSE, results="asis"}
+```{r child-model-observed-richness-allseasons, echo=FALSE, results="asis"}
 season_run <- "allseasons"
 
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(taxon_group, primerset, unit) %>%
   arrange(
-    group, primerset, unit
+    taxon_group, primerset, unit
   )
 
 pmap(
   inputs,
   function(
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit) {
     knit_expand(
@@ -404,7 +398,7 @@ pmap(
         "source", "rmarkdown", "analyses_diversity",
         "_child_model_observed_richness.Rmd"
       ),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit,
       season_run = season_run
@@ -447,17 +441,17 @@ season_run <- "winterhalfjaar"
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
 
 # Expand the child Rmd for all triplets
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(taxon_group, primerset, unit) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_observed_richness.Rmd"),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit,
       season_run = season_run
@@ -529,17 +523,17 @@ winter <- season_run
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
 
 # Expand the child Rmd for all triplets
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(taxon_group, primerset, unit) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_observed_richness.Rmd"),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit,
       season_run = season_run
@@ -589,27 +583,27 @@ if (interactive()) {
 
 
 
-```{r save-summary-all, eval=FALSE, include=FALSE}
+```{r save-summary-all, include=FALSE}
 if (exists("summary_all") && nrow(summary_all) > 0) {
   summary_all <- summary_all %>%
-    dplyr::relocate(group, primerset, landgebruik, season_run) %>%
-    dplyr::arrange(season_run, group, primerset, landgebruik)
+    dplyr::relocate(taxon_group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, taxon_group, primerset, landgebruik)
 
   readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_primers_seasons.csv"))
 }
 
 if (exists("summary_emm") && nrow(summary_emm) > 0) {
   if ("diepte" %in% names(summary_emm)) {
-    summary_emm <- summary_emm %>% arrange(season_run, group, primerset, landgebruik, diepte)
+    summary_emm <- summary_emm %>% arrange(season_run, taxon_group, primerset, landgebruik, diepte)
   } else {
-    summary_emm <- summary_emm %>% arrange(season_run, group, primerset, landgebruik)
+    summary_emm <- summary_emm %>% arrange(season_run, taxon_group, primerset, landgebruik)
   }
   write_csv(summary_emm, file.path(output_dir, "emm_landuse_all_groups_primers_season_runs.csv"))
 }
 
 if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
   summary_contrasts <- summary_contrasts %>%
-    arrange(season_run, group, primerset, diepte, landgebruik_1, landgebruik_2)
+    arrange(season_run, taxon_group, primerset, diepte, landgebruik_1, landgebruik_2)
   write_csv(summary_contrasts, file.path(output_dir, "summary_contrasts_landuse.csv"))
 }
 
@@ -624,8 +618,9 @@ if (exists("summary_models", envir = .GlobalEnv)) {
 ```
 
 ```{r eval=FALSE}
+# WERKT NIET
 # Create a flipped version: (landgebruik_2 / landgebruik_1)
-# Assumes summary_contrasts has: group, primerset, season_run, diepte,
+# Assumes summary_contrasts has: taxon_group, primerset, season_run, diepte,
 # landgebruik_1, landgebruik_2, effect (= ratio), effect_pct, lcl, ucl, stat_name, stat, p.value
 
 if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
@@ -639,7 +634,7 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
   # Flip: new ratio = 1 / old ratio; CI flips to (1/ucl, 1/lcl); statistic changes sign; p-value unchanged
   summary_contrasts_flipped <- sc %>%
     dplyr::transmute(
-      group, primerset, season_run, diepte,
+      taxon_group, primerset, season_run, diepte,
       landgebruik_1 = landgebruik_2,
       landgebruik_2 = landgebruik_1,
       effect        = dplyr::if_else(is.finite(effect) & effect > 0, 1/effect, NA_real_),
@@ -650,7 +645,7 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
       stat          = dplyr::if_else(!is.na(stat), -stat, stat),  # log-scale contrast flips sign
       p.value
     ) %>%
-    dplyr::arrange(season_run, group, primerset, diepte, landgebruik_1, landgebruik_2)
+    dplyr::arrange(season_run, taxon_group, primerset, diepte, landgebruik_1, landgebruik_2)
 
   readr::write_csv(summary_contrasts_flipped,
                    file.path(output_dir, "summary_contrasts_landuse_flipped.csv"))
@@ -675,16 +670,16 @@ append_summary_contrasts_shannon <- function(df) {
 # 2) Model family (Shannon)
 if (!exists("summary_models_shannon", envir = .GlobalEnv)) {
   summary_models_shannon <- tibble::tibble(
-    group        = character(),
+    taxon_group        = character(),
     primerset    = character(),
     season_run   = character(),
     model_family = character()
   )
 }
 
-append_model_family_shannon <- function(group, primerset, season_run, model_family) {
+append_model_family_shannon <- function(taxon_group, primerset, season_run, model_family) {
   row <- tibble::tibble(
-    group        = group,
+    taxon_group        = taxon_group,
     primerset    = primerset,
     season_run   = season_run,
     model_family = as.character(model_family)
@@ -720,16 +715,16 @@ Dit zijn de modelleringen voor Shannon diversity obv input data van alle seizoen
 season_run <- "allseasons"
 
 inputs <- combined %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
 
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(taxon_group, primerset, unit) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_shannon.Rmd"),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit,
       season_run = season_run
@@ -755,24 +750,24 @@ if (interactive()) {
 
 Dit zijn de modelleringen voor Shannon diversity obv input data van maanden 11 tot 4 (november tot april)
 
-```{r child-model-shannon-winterhalfjaar, echo=FALSE, results="asis"}
+```{r child-model-shannon-winterhalfjaar, eval=FALSE, echo=FALSE, results="asis"}
 season_run <- "winterhalfjaar"
 
 # Triplets present in this seasonal subset
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
 
 # Expand child Rmds
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(taxon_group, primerset, unit) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_shannon.Rmd"),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit,
       season_run = season_run
@@ -819,7 +814,7 @@ if (interactive()) {
 
 Dit zijn de modelleringen voor Shannon diversity obv input data van maanden 12 tot 4 (december tot april)
 
-```{r child-model-shannon-winter, echo=FALSE, results="asis"}
+```{r child-model-shannon-winter, eval=FALSE, echo=FALSE, results="asis"}
 season_run <- "winter"
 
 # (Optional) TEMP compatibility if any inline code still refers to `winter`
@@ -829,17 +824,17 @@ winter <- season_run
 inputs <- combined %>%
   dplyr::filter(!is.na(sampling_month),
                 sampling_month %in% c(12, 1, 2, 3, 4)) %>%
-  dplyr::distinct(group, primerset, unit) %>%
-  dplyr::arrange(group, primerset, unit)
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
 
 # Expand child Rmds
 pmap(
   inputs,
-  function(group, primerset, unit) {
+  function(taxon_group, primerset, unit) {
     knit_expand(
       here("source", "rmarkdown", "analyses_diversity",
            "_child_model_shannon.Rmd"),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit,
       season_run = season_run
@@ -904,8 +899,8 @@ if (exists("summary_models_shannon", envir = .GlobalEnv)) {
 
 if (exists("summary_cdensity_shannon_all") && nrow(summary_cdensity_shannon_all) > 0) {
   summary_cdensity_shannon_all <- summary_cdensity_shannon_all %>%
-    dplyr::relocate(group, primerset, landgebruik, season_run) %>%
-    dplyr::arrange(season_run, group, primerset, landgebruik)
+    dplyr::relocate(taxon_group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, taxon_group, primerset, landgebruik)
 
   readr::write_csv(summary_cdensity_shannon_all, file.path(output_dir, "shannon_vs_c_density_all_groups_primers_seasons.csv"))
 }
@@ -913,9 +908,9 @@ if (exists("summary_cdensity_shannon_all") && nrow(summary_cdensity_shannon_all)
 
 if (exists("summary_emm_shannon") && nrow(summary_emm_shannon) > 0) {
   if ("diepte" %in% names(summary_emm_shannon)) {
-    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, group, primerset, landgebruik, diepte)
+    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, taxon_group, primerset, landgebruik, diepte)
   } else {
-    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, group, primerset, landgebruik)
+    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, taxon_group, primerset, landgebruik)
   }
   write_csv(summary_emm_shannon, file.path(output_dir, "emm_shannon_landuse_all_groups_primers_season_runs.csv"))
 }
@@ -934,15 +929,15 @@ write_csv(anova_landgebruik_all_df, file.path(output_dir, "shannon_anova_landgeb
 
 ```{r child-model-simpson, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(taxon_group, primerset, unit) %>%
   arrange(
-    group, primerset, unit
+    taxon_group, primerset, unit
   )
 
 pmap(
   inputs,
   function(
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit) {
     knit_expand(
@@ -950,7 +945,7 @@ pmap(
         "source", "rmarkdown", "analyses_diversity",
         "_child_model_simpson.Rmd"
       ),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit
     )

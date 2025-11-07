@@ -1,8 +1,8 @@
 
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+### `r stringr::str_to_sentence("{{taxon_group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
-group <- "{{group}}"
+taxon_group <- "{{taxon_group}}"
 primerset <- "{{primerset}}"
 unit <- "{{unit}}"
 season_run <- "{{season_run}}"
@@ -29,7 +29,7 @@ data_subset <- combined %>%
     }
   } %>%
   dplyr::filter(
-    group     == "{{group}}",
+    taxon_group     == "{{taxon_group}}",
     primerset == "{{primerset}}",
     unit      == "{{unit}}"
   ) %>%
@@ -90,7 +90,7 @@ ggplot(counts_season, aes(x = landgebruik, y = n, fill = sampling_season)) +
 
 #### Basismodel
 
-```{r m-richness-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-{{taxon_group}}-{{primerset}}-{{unit}}}
 if (diepte_ok) {
   form_richness <- formula(
   observed ~
@@ -207,7 +207,7 @@ model_family <- get_family_name(m_richness)
 
 # Append a row (uses the helper defined in the parent)
 append_model_family(
-  group       = group,
+  taxon_group       = taxon_group,
   primerset   = primerset,
   season_run  = season_run,
   model_family = model_family
@@ -216,7 +216,7 @@ append_model_family(
 ```
 
 
-```{r m-richness-checks-{{group}}-{{primerset}}-{{unit}}, error=TRUE}
+```{r m-richness-checks-{{taxon_group}}-{{primerset}}-{{unit}}, error=TRUE}
 p <- performance::check_predictions(m_richness)
 plot(p) + facet_zoom(xlim = c(0, 10))
 p <- performance::check_overdispersion(m_richness)
@@ -231,19 +231,19 @@ performance::check_zeroinflation(m_richness)
 
 Samenvatting van het geselecteerde model
 
-```{r m-richness-summary-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-summary-{{taxon_group}}-{{primerset}}-{{unit}}}
 summary(m_richness) |> print(digits = 2)
 ```
 
 Anova voor de variabelen in het geselecteerde model
 
-```{r m-richness-anova-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-anova-{{taxon_group}}-{{primerset}}-{{unit}}}
 car::Anova(m_richness) |> print(digits = 2)
 ```
 
 estimate marginal means per land-use category per depth
 
-```{r m-richness-marginal-means-per-depth-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-marginal-means-per-depth-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable)
 
 emm_landuse <- emmeans(
@@ -257,14 +257,14 @@ emm_landuse <- emmeans(
 # Save to CSV with automatic naming
 write_csv(
   as.data.frame(emm_landuse),
-  file = file.path(output_dir, glue("emmeans_landuse_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_landuse_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 emm_df <- as.data.frame(emm_landuse) %>%
   as_tibble() %>%
   mutate(
     # tag with run identifiers
-    group       = group,
+    taxon_group       = taxon_group,
     primerset   = primerset,
     season_run  = season_run,
     # always keep landgebruik as character for a stable schema
@@ -273,7 +273,7 @@ emm_df <- as.data.frame(emm_landuse) %>%
   # ensure a 'diepte' column exists even if diepte_ok == FALSE
   { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
   # order columns: required 4 first, then diepte, then the emmeans columns
-  relocate(group, primerset, landgebruik, season_run, diepte)
+  relocate(taxon_group, primerset, landgebruik, season_run, diepte)
 
 # Append to the parent accumulator
 append_summary_emm(emm_df)
@@ -286,7 +286,7 @@ emm_landuse
 
 estimate contrasts between land-use categories per depth
 
-```{r m-richness-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-per-depth-response-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable), on response scale
 emm_landuse <- emmeans(
   m_richness,
@@ -307,7 +307,7 @@ contrasts_landuse_response <- contrast(
 # Save to CSV
 write_csv(
   contrasts_landuse_response,
-  file = file.path(output_dir, glue("contrasts_landuse_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -317,7 +317,7 @@ print(contrasts_landuse_response)
 ```
 
 
-```{r m-richness-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-per-depth-response-bh-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Summary table
 contrasts_landuse_table <- contrasts_landuse_response %>%
   as_tibble() %>%
@@ -345,7 +345,7 @@ if (diepte_ok) {
 # Save
 write_csv(
   contrasts_landuse_table,
-  file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_table_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 if (!"z.ratio" %in% names(contrasts_landuse_response) && "t.ratio" %in% names(contrasts_landuse_response)) {
@@ -377,11 +377,11 @@ contrasts_tbl <- contrasts_landuse_response %>%
   ) %>%
   # Tag with run identifiers and order columns
   mutate(
-    group      = group,
+    taxon_group      = taxon_group,
     primerset  = primerset,
     season_run = season_run
   ) %>%
-  relocate(group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
+  relocate(taxon_group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
            effect, effect_pct, SE, lcl, ucl, stat_name, stat, p.value)
 
 # Append to the parent accumulator
@@ -394,7 +394,7 @@ contrasts_landuse_table
 
 plot predictions richness vs sequencing depth
 
-```{r m-richness-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-preds-total-count-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
   condition = c("total_count"),
@@ -407,7 +407,7 @@ marginaleffects::plot_predictions(
 
 plot predictions richness vs land-use category
 
-```{r m-richness-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-preds-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
   condition = c("landgebruik", "diepte"[diepte_ok]),
@@ -470,7 +470,7 @@ We voegen alle niet collineaire fysicochemische variabelen toe aan het basismode
 Voor pH gebruiken we een kwadratische effect.
 Dit wordt het `full model`.
 
-```{r extend-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-additional-predictors-{{taxon_group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
@@ -490,7 +490,7 @@ m_richness_full <- update(
 
 We vergelijken de parameterschattingen van het basis en volledig model.
 
-```{r coefficients-se-{{group}}-{{primerset}}-{{unit}}}
+```{r coefficients-se-{{taxon_group}}-{{primerset}}-{{unit}}}
 base_model_coefs <- broom.mixed::tidy(m_richness)
 full_model_coefs <- broom.mixed::tidy(m_richness_full)
 
@@ -500,7 +500,7 @@ coefs_df <- rbind(
 )
 ```
 
-```{r plot-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
+```{r plot-coefficient-estimates-{{taxon_group}}-{{primerset}}-{{unit}}}
 ggplot(
   coefs_df,
   aes(x = term, y = estimate, fill = Model)
@@ -523,12 +523,12 @@ ggplot(
   )
 ```
 
-```{r save-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
+```{r save-coefficient-estimates-{{taxon_group}}-{{primerset}}-{{unit}}}
 readr::write_csv(
   coefs_df,
   file = file.path(
     output_dir,
-    glue::glue("coefs_base_vs_full_{group}_{primerset}_{unit}.csv")
+    glue::glue("coefs_base_vs_full_{taxon_group}_{primerset}_{unit}.csv")
   )
 )
 ```
@@ -537,7 +537,7 @@ readr::write_csv(
 Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
-```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
+```{r model-selection-and-comparison-{{taxon_group}}-{{primerset}}-{{unit}}, warning=FALSE}
 if (diepte_ok) {
   model_set <- dredge(
     m_richness_full,
@@ -562,7 +562,7 @@ if (diepte_ok) {
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
 
-```{r importance-per-predictor-{{group}}-{{primerset}}-{{unit}}}
+```{r importance-per-predictor-{{taxon_group}}-{{primerset}}-{{unit}}}
 importance_df <- sw(model_set)
 print(importance_df)
 ```
@@ -576,7 +576,7 @@ par(mar = c(3, 5, 6, 4))
 plot(dd, labAsExpr = TRUE)
 ```
 
-```{r save-model-selection-{{group}}-{{primerset}}-{{unit}}}
+```{r save-model-selection-{{taxon_group}}-{{primerset}}-{{unit}}}
 
 # -- Full selection table
 model_set_tbl <- model_set %>%
@@ -586,7 +586,7 @@ model_set_tbl <- model_set %>%
 
 write_csv(
   model_set_tbl,
-  file.path(output_dir, glue("full_model_set_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("full_model_set_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # -- ΔAICc < 4 subset
@@ -598,7 +598,7 @@ dd_tbl <- dd_obj %>%
 
 write_csv(
   dd_tbl,
-  file.path(output_dir, glue("model_set_delta_lt4_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("model_set_delta_lt4_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # -- 95% cumulative weight subset
@@ -608,7 +608,7 @@ cumw_tbl <- model_set_tbl %>%
 
 write_csv(
   cumw_tbl,
-  file.path(output_dir, glue("model_set_cumw95_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("model_set_cumw95_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Variable importance (sum of weights by term)
@@ -618,12 +618,12 @@ imp_tbl <- tibble(term = names(imp), importance = as.numeric(imp)) %>%
 
 write_csv(
   imp_tbl,
-  file.path(output_dir, glue("model_importance_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("model_importance_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # -- (Reproducibility) Save the objects too
-saveRDS(model_set, file.path(output_dir, glue("model_set_{group}_{primerset}_{unit}.rds")))
-saveRDS(dd_obj,    file.path(output_dir, glue("model_set_delta_lt4_{group}_{primerset}_{unit}.rds")))
+saveRDS(model_set, file.path(output_dir, glue("model_set_{taxon_group}_{primerset}_{unit}.rds")))
+saveRDS(dd_obj,    file.path(output_dir, glue("model_set_delta_lt4_{taxon_group}_{primerset}_{unit}.rds")))
 
 
 ```
@@ -636,11 +636,11 @@ lowest_aic <- get.models(dd, 1)[[1]]
 summary(lowest_aic)
 ```
 
-```{r m-richness-anova-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-anova-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
 car::Anova(lowest_aic) |> print(digits = 2)
 ```
 
-```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-marginal-means-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable), on response scale
 emm_landuse_incl_fyschem <- emmeans(
   lowest_aic,
@@ -653,7 +653,7 @@ emm_landuse_incl_fyschem <- emmeans(
 # Keep original filename
 write_csv(
   as.data.frame(emm_landuse_incl_fyschem),
-  file = file.path(output_dir, glue("emmeans_landuse_incl_fyschem_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_landuse_incl_fyschem_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -661,7 +661,7 @@ emm_landuse_incl_fyschem
 
 ```
 
-```{r m-richness-contrasts-per-depth-response-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-per-depth-response-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Pairwise contrasts on response scale (keep CIs & p-values), via emmeans
 contrasts_landuse_response_incl_fyschem <- contrast(
   emm_landuse_incl_fyschem,
@@ -673,7 +673,7 @@ contrasts_landuse_response_incl_fyschem <- contrast(
 # Write
 write_csv(
   contrasts_landuse_response_incl_fyschem,
-  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -682,7 +682,7 @@ print(contrasts_landuse_response_incl_fyschem)
 ```
 
 
-```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-incl-fyschem-adj-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Summary table, aligned with base-model structure
 contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_response_incl_fyschem %>%
   as_tibble() %>%
@@ -704,7 +704,7 @@ contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_response_incl_f
 # Keep original adjusted filename (content is now the summary table without BH)
 write_csv(
   contrasts_landuse_by_depth_incl_fyschem_adj,
-  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_adj_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_adj_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -791,7 +791,7 @@ p
 
 global log_c_density effect. This gives a global (averaged) slope across the different land-use categories
 
-```{r log-c-density-lowest_aic-{{group}}-{{primerset}}-{{unit}}}
+```{r log-c-density-lowest_aic-{{taxon_group}}-{{primerset}}-{{unit}}}
 
 # Slope for log(c_density) on the latent (log) scale
 tr_add <- emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent")
@@ -820,7 +820,7 @@ result
 
 
 ```{r}
-# Requires: result (3-row tibble), group, primerset, season_run
+# Requires: result (3-row tibble), taxon_group, primerset, season_run
 # Also assumes you've already created 'summary_all' in the parent.
 if (!exists("summary_all")) summary_all <- tibble::tibble()
 
@@ -829,7 +829,7 @@ library(tidyr)
 library(stringr)
 
 .schema <- c(
-  "group","primerset","landgebruik","season_run",
+  "taxon_group","primerset","landgebruik","season_run",
   "beta","SE",
   "IRR_e","LCL_e","UCL_e",
   "IRR_2x","LCL_2x","UCL_2x",
@@ -857,12 +857,12 @@ global_row <- {
 
   bind_cols(vals, wide) %>%
     mutate(
-      group       = group,
+      taxon_group       = taxon_group,
       primerset   = primerset,
       landgebruik = "global",
       season_run  = season_run
     ) %>%
-    relocate(group, primerset, landgebruik, season_run)
+    relocate(taxon_group, primerset, landgebruik, season_run)
 }
 
 # Guarantee full schema exists
@@ -904,7 +904,7 @@ anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
 
 Per–land-use IRRs for fold changes in carbon density (no subsetting)
 
-```{r log-c-density-lowest-aic-int-perlanduse-{{group}}-{{primerset}}-{{unit}}}
+```{r log-c-density-lowest-aic-int-perlanduse-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Slopes per landgebruik w.r.t. log(c_density) on latent scale
 tr_lu <- summary(
   emtrends(lowest_aic_int, ~ landgebruik,
@@ -933,13 +933,13 @@ print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
 Append the **per-landuse** effects (`irr_lu_fc`) to `summary_all`
 
 ```{r}
-# Requires: irr_lu_fc (per landgebruik tibble), group, primerset, season_run
+# Requires: irr_lu_fc (per landgebruik tibble), taxon_group, primerset, season_run
 if (!exists("summary_all")) summary_all <- tibble::tibble()
 
 library(dplyr)
 
 .schema <- c(
-  "group","primerset","landgebruik","season_run",
+  "taxon_group","primerset","landgebruik","season_run",
   "beta","SE",
   "IRR_e","LCL_e","UCL_e",
   "IRR_2x","LCL_2x","UCL_2x",
@@ -951,12 +951,12 @@ library(dplyr)
 
 lu_rows <- irr_lu_fc %>%
   mutate(
-    group       = group,
+    taxon_group       = taxon_group,
     primerset   = primerset,
     landgebruik = as.character(landgebruik),
     season_run  = season_run
   ) %>%
-  relocate(group, primerset, landgebruik, season_run)
+  relocate(taxon_group, primerset, landgebruik, season_run)
 
 # Guarantee full schema exists
 missing <- setdiff(.schema, names(lu_rows))
@@ -1152,7 +1152,7 @@ cat("Na verwijderen van rijen met ontbrekende covariaten heeft de dataset", nr2,
 ```
 
 
-```{r extend-model-carbon-density-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-carbon-density-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Voeg log(c_density) toe aan het basismodel
 form_richness_full <- update(form_richness, . ~ . + log_c_density)
 
@@ -1573,7 +1573,7 @@ cat(
 ```
 
 
-```{r extend-model-bulk-density-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-bulk-density-{{taxon_group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
@@ -1819,7 +1819,7 @@ cat(
 ```
 
 
-```{r extend-model-ph-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-ph-{{taxon_group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
@@ -2065,7 +2065,7 @@ cat(
 ```
 
 
-```{r extend-model-soil-texture-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-soil-texture-{{taxon_group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
@@ -2311,7 +2311,7 @@ cat(
 ```
 
 
-```{r extend-model-swc-vol-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-swc-vol-{{taxon_group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .

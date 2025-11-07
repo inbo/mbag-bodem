@@ -1,8 +1,8 @@
 
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+### `r stringr::str_to_sentence("{{taxon_group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
-group <- "{{group}}"
+taxon_group <- "{{taxon_group}}"
 primerset <- "{{primerset}}"
 unit <- "{{unit}}"
 season_run <- "{{season_run}}"
@@ -29,7 +29,7 @@ data_subset <- combined %>%
     }
   } %>%
   dplyr::filter(
-    group     == "{{group}}",
+    taxon_group     == "{{taxon_group}}",
     primerset == "{{primerset}}",
     unit      == "{{unit}}"
   ) %>%
@@ -69,7 +69,7 @@ diepte_ok <- length(unique(data_subset$diepte)) > 1
 
 Fitting models
 
-```{r m-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 if (diepte_ok) {
   form_shannon <- formula(
   shannon ~
@@ -115,13 +115,13 @@ if (!zeroes) {
 
 Performance check selected model
 
-```{r m-shannon-checks-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-checks-{{taxon_group}}-{{primerset}}-{{unit}}}
 performance::check_model(m_shannon)
 ```
 
 Summary selected model
 
-```{r m-shannon-summary-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-summary-{{taxon_group}}-{{primerset}}-{{unit}}}
 summary(m_shannon) |> print(digits = 2)
 ```
 
@@ -142,7 +142,7 @@ get_family_name <- function(model) {
 model_family_shannon <- get_family_name(m_shannon)
 
 append_model_family_shannon(
-  group        = group,
+  taxon_group        = taxon_group,
   primerset    = primerset,
   season_run   = season_run,
   model_family = model_family_shannon
@@ -152,7 +152,7 @@ append_model_family_shannon(
 
 Anova selected model
 
-```{r m-shannon-anova-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-anova-{{taxon_group}}-{{primerset}}-{{unit}}}
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
@@ -203,13 +203,13 @@ suppressPackageStartupMessages({
 # Build the row enriched with identifiers from the knitting context
 lg_row <- .extract_landgebruik_row(m_shannon, term = "landgebruik") %>%
   mutate(
-    group       = get0("group", ifnotfound = NA_character_),
+    taxon_group       = get0("taxon_group", ifnotfound = NA_character_),
     primerset   = get0("primerset", ifnotfound = NA_character_),
     unit        = get0("unit", ifnotfound = NA_character_),
     season_run  = get0("season_run", ifnotfound = NA_character_),
     n_obs       = tryCatch(stats::nobs(m_shannon), error = function(e) NA_integer_)
   ) %>%
-  relocate(group, primerset, unit, season_run, .before = term)
+  relocate(taxon_group, primerset, unit, season_run, .before = term)
 
 # Append to the parent accumulator living in the same knit session
 anova_landgebruik_all <<- append(anova_landgebruik_all, list(lg_row))
@@ -235,7 +235,7 @@ emm_df <- as.data.frame(emm_landuse) %>%
   as_tibble() %>%
   mutate(
     # tag with run identifiers
-    group       = group,
+    taxon_group       = taxon_group,
     primerset   = primerset,
     season_run  = season_run,
     # always keep landgebruik as character for a stable schema
@@ -244,7 +244,7 @@ emm_df <- as.data.frame(emm_landuse) %>%
   # ensure a 'diepte' column exists even if diepte_ok == FALSE
   { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
   # order columns: required 4 first, then diepte, then the emmeans columns
-  relocate(group, primerset, landgebruik, season_run, diepte)
+  relocate(taxon_group, primerset, landgebruik, season_run, diepte)
 
 # Append to the parent accumulator
 append_summary_emm(emm_df)
@@ -256,7 +256,7 @@ emm_landuse
 
 Estimate contrasts between land-use categories per depth
 
-```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-emmeans-contrasts-per-depth-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
 emm_shannon_landuse_by_depth <- emmeans(
   m_shannon,
@@ -277,7 +277,7 @@ contrasts_shannon_landuse_response <- contrast(
 # Save to CSV
 write_csv(
   contrasts_shannon_landuse_response,
-  file = file.path(output_dir, glue("contrasts_landuse_shannon_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_shannon_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -315,7 +315,7 @@ if (diepte_ok) {
 # Save
 write_csv(
   contrasts_tbl_sh,
-  file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_table_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 if (!"z.ratio" %in% names(contrasts_shannon_landuse_response) && "t.ratio" %in% names(contrasts_shannon_landuse_response)) {
@@ -347,11 +347,11 @@ contrasts_tbl_shannon <- contrasts_shannon_landuse_response %>%
   ) %>%
   # Tag with run identifiers and order columns
   mutate(
-    group      = group,
+    taxon_group      = taxon_group,
     primerset  = primerset,
     season_run = season_run
   ) %>%
-  relocate(group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
+  relocate(taxon_group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
            effect, effect_pct, SE, lcl, ucl, stat_name, stat, p.value)
 
 
@@ -452,7 +452,7 @@ contrasts_tbl_shannon_deltaH <- contrasts_shannon_deltaH %>%
     hill_UCL   = exp(ucl)
   ) %>%
   dplyr::mutate(
-    group      = group,
+    taxon_group      = taxon_group,
     primerset  = primerset,
     season_run = season_run
   ) %>%
@@ -461,7 +461,7 @@ contrasts_tbl_shannon_deltaH <- contrasts_shannon_deltaH %>%
 # Save ΔH′ + Hill table (in addition to your original CSVs)
 readr::write_csv(
   contrasts_tbl_shannon_deltaH,
-  file = file.path(output_dir, glue::glue("contrasts_landuse_table_deltaH_hill_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue::glue("contrasts_landuse_table_deltaH_hill_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Append ΔH′ + Hill table to your accumulator as well
@@ -472,7 +472,7 @@ append_summary_contrasts_shannon(contrasts_tbl_shannon_deltaH)
 
 Marginal effects average predictions (double check marginal means but different method)
 
-```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-values-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}}
 predicted_values <- marginaleffects::avg_predictions(
   m_shannon,
   variables = c("landgebruik", "diepte"),
@@ -483,7 +483,7 @@ predicted_values <- marginaleffects::avg_predictions(
 # save to CSV
 write_csv(
   predicted_values,
-  file = file.path(output_dir, glue("predicted_values_shannon_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("predicted_values_shannon_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # View
@@ -492,7 +492,7 @@ print(predicted_values)
 
 Plot predictions total count
 
-```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-total-count-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
   condition = c("total_count"),
@@ -506,7 +506,7 @@ marginaleffects::plot_predictions(
 
 Plot predictions design variables
 
-```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-preds-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
   condition = c("landgebruik", "diepte"[diepte_ok]),
@@ -567,7 +567,7 @@ We voegen alle niet collineaire fysicochemische variabelen toe aan het basismode
 Voor pH gebruiken we een kwadratische effect.
 Dit wordt het `full model`.
 
-```{r extend-shannon-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-shannon-model-additional-predictors-{{taxon_group}}-{{primerset}}-{{unit}}}
 form_shannon_full <- update(
   form_shannon,
   . ~ .
@@ -587,7 +587,7 @@ m_shannon_full <- update(
 
 We vergelijken de parameterschattingen van het basis en volledig model.
 
-```{r coefficients-se-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r coefficients-se-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 base_model_coefs <- broom.mixed::tidy(m_shannon)
 full_model_coefs <- broom.mixed::tidy(m_shannon_full)
 
@@ -597,7 +597,7 @@ coefs_df <- rbind(
 )
 ```
 
-```{r plot-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r plot-coefficient-estimates-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 ggplot(
   coefs_df,
   aes(x = term, y = estimate, fill = Model)
@@ -620,12 +620,12 @@ ggplot(
   )
 ```
 
-```{r save-coefficient-estimates-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r save-coefficient-estimates-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 readr::write_csv(
   coefs_df,
   file = file.path(
     output_dir,
-    glue::glue("coefs_base_vs_full_shannon-{group}_{primerset}_{unit}.csv")
+    glue::glue("coefs_base_vs_full_shannon-{taxon_group}_{primerset}_{unit}.csv")
   )
 )
 ```
@@ -633,7 +633,7 @@ readr::write_csv(
 Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
-```{r model-selection-and-comparison-shannon-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
+```{r model-selection-and-comparison-shannon-{{taxon_group}}-{{primerset}}-{{unit}}, warning=FALSE}
 if (diepte_ok) {
   model_set <- dredge(
     m_shannon_full,
@@ -658,7 +658,7 @@ if (diepte_ok) {
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
 
-```{r importance-per-predictor-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r importance-per-predictor-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 importance_df <- sw(model_set)
 print(importance_df)
 ```
@@ -679,7 +679,7 @@ lowest_aic <- get.models(dd, 1)[[1]]
 summary(lowest_aic)
 ```
 
-```{r m-shannon-anova-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-anova-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
 car::Anova(lowest_aic) |> print(digits = 2)
 ```
 
@@ -762,7 +762,7 @@ p
 ```
 
 global log_c_density effect. This gives a global (averaged) slope across the different land-use categories
-```{r log-c-density-lowest_aic-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r log-c-density-lowest_aic-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 
 # Slope for log(c_density) on the latent (log) scale
 tr_add <- emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent")
@@ -790,7 +790,7 @@ result
 ```
 
 ```{r}
-# Requires: result (3-row tibble), group, primerset, season_run
+# Requires: result (3-row tibble), taxon_group, primerset, season_run
 # Also assumes you've already created 'summary_cdensity_shannon_all' in the parent.
 if (!exists("summary_cdensity_shannon_all")) summary_cdensity_shannon_all <- tibble::tibble()
 
@@ -799,7 +799,7 @@ library(tidyr)
 library(stringr)
 
 .schema <- c(
-  "group","primerset","landgebruik","season_run",
+  "taxon_group","primerset","landgebruik","season_run",
   "beta","SE",
   "IRR_e","LCL_e","UCL_e",
   "IRR_2x","LCL_2x","UCL_2x",
@@ -827,12 +827,12 @@ global_row <- {
 
   bind_cols(vals, wide) %>%
     mutate(
-      group       = group,
+      taxon_group       = taxon_group,
       primerset   = primerset,
       landgebruik = "global",
       season_run  = season_run
     ) %>%
-    relocate(group, primerset, landgebruik, season_run)
+    relocate(taxon_group, primerset, landgebruik, season_run)
 }
 
 # Guarantee full schema exists
@@ -873,7 +873,7 @@ anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
 
 Per–land-use IRRs for fold changes in carbon density (no subsetting)
 
-```{r log-c-density-lowest-aic-int-perlanduse-shannon-{{group}}-{{primerset}}-{{unit}}}
+```{r log-c-density-lowest-aic-int-perlanduse-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Slopes per landgebruik w.r.t. log(c_density) on latent scale
 tr_lu <- summary(
   emtrends(lowest_aic_int, ~ landgebruik,
@@ -901,12 +901,12 @@ print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
 Append the **per-landuse** effects (`irr_lu_fc`) to `summary_cdensity_shannon_all`
 
 ```{r}
-# Requires: irr_lu_fc (per landgebruik tibble), group, primerset, season_run
+# Requires: irr_lu_fc (per landgebruik tibble), taxon_group, primerset, season_run
 
 if (!exists("summary_cdensity_shannon_all")) summary_cdensity_shannon_all <- tibble::tibble()
 
 .schema <- c(
-  "group","primerset","landgebruik","season_run",
+  "taxon_group","primerset","landgebruik","season_run",
   "beta","SE",
   "IRR_e","LCL_e","UCL_e",
   "IRR_2x","LCL_2x","UCL_2x",
@@ -918,12 +918,12 @@ if (!exists("summary_cdensity_shannon_all")) summary_cdensity_shannon_all <- tib
 
 lu_rows <- irr_lu_fc %>%
   mutate(
-    group       = group,
+    taxon_group       = taxon_group,
     primerset   = primerset,
     landgebruik = as.character(landgebruik),
     season_run  = season_run
   ) %>%
-  relocate(group, primerset, landgebruik, season_run)
+  relocate(taxon_group, primerset, landgebruik, season_run)
 
 # Guarantee full schema exists
 missing <- setdiff(.schema, names(lu_rows))
