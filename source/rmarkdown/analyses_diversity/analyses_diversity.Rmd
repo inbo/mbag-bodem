@@ -33,6 +33,8 @@ library(glue)
 library(readr)
 library(emmeans)
 library(lubridate)
+library(tibble)
+
 
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
@@ -83,9 +85,10 @@ diversiteit <- readr::read_csv(
   mutate(
     taxon_group = if_else(taxon_group == "Nematoda", "nematoda", taxon_group)
   ) %>%
-  filter(
-    taxon_group %in% c("annelida", "arthropoda")
-  )
+  filter(taxon_group %in% c(
+  "annelida",
+  "arthropoda"
+))
 
 
 metadata <- readr::read_csv(
