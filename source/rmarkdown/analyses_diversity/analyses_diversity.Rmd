@@ -78,25 +78,20 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
+    "mbag_insekp_combined_df_phos_vs_powersoil_final.csv"
   )
 ) %>%
   rename(taxon_group = group) %>%
   mutate(
     taxon_group = if_else(taxon_group == "Nematoda", "nematoda", taxon_group)
-  ) %>%
-  filter(taxon_group %in% c(
-  "annelida",
-  "arthropoda"
-))
-
+  ) 
 
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_cleaned_20.csv"
+    "MBAG_stratfile_v2_20_with_extraction_method.csv"
   )
 ) %>%
   janitor::clean_names() %>%
@@ -622,10 +617,6 @@ if (exists("summary_models", envir = .GlobalEnv)) {
 
 ```{r eval=FALSE}
 # WERKT NIET
-# Create a flipped version: (landgebruik_2 / landgebruik_1)
-# Assumes summary_contrasts has: taxon_group, primerset, season_run, diepte,
-# landgebruik_1, landgebruik_2, effect (= ratio), effect_pct, lcl, ucl, stat_name, stat, p.value
-
 if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
   sc <- summary_contrasts
 
@@ -634,18 +625,25 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
   if (!"lcl"    %in% names(sc) && "asymp.LCL" %in% names(sc)) sc$lcl <- sc$asymp.LCL
   if (!"ucl"    %in% names(sc) && "asymp.UCL" %in% names(sc)) sc$ucl <- sc$asymp.UCL
 
-  # Flip: new ratio = 1 / old ratio; CI flips to (1/ucl, 1/lcl); statistic changes sign; p-value unchanged
+  # Preserve originals to avoid masking issues
+  sc <- dplyr::mutate(
+    sc,
+    .orig_effect = effect,
+    .orig_lcl    = lcl,
+    .orig_ucl    = ucl
+  )
+
   summary_contrasts_flipped <- sc %>%
     dplyr::transmute(
       taxon_group, primerset, season_run, diepte,
       landgebruik_1 = landgebruik_2,
       landgebruik_2 = landgebruik_1,
-      effect        = dplyr::if_else(is.finite(effect) & effect > 0, 1/effect, NA_real_),
-      effect_pct    = 100 * (effect - 1),
-      lcl           = dplyr::if_else(is.finite(ucl) & ucl > 0, 1/ucl, NA_real_),
-      ucl           = dplyr::if_else(is.finite(lcl) & lcl > 0, 1/lcl, NA_real_),
+      effect     = dplyr::if_else(is.finite(.orig_effect) & .orig_effect > 0, 1/.orig_effect, NA_real_),
+      effect_pct = 100 * (effect - 1),
+      lcl        = dplyr::if_else(is.finite(.orig_ucl) & .orig_ucl > 0, 1/.orig_ucl, NA_real_),
+      ucl        = dplyr::if_else(is.finite(.orig_lcl) & .orig_lcl > 0, 1/.orig_lcl, NA_real_),
       stat_name,
-      stat          = dplyr::if_else(!is.na(stat), -stat, stat),  # log-scale contrast flips sign
+      stat       = dplyr::if_else(!is.na(stat), -stat, stat),  # log-contrast flips sign
       p.value
     ) %>%
     dplyr::arrange(season_run, taxon_group, primerset, diepte, landgebruik_1, landgebruik_2)
@@ -653,6 +651,7 @@ if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
   readr::write_csv(summary_contrasts_flipped,
                    file.path(output_dir, "summary_contrasts_landuse_flipped.csv"))
 }
+
 ```
 
 
