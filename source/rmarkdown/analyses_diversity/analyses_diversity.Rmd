@@ -78,20 +78,21 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_insekp_combined_df_phos_vs_powersoil_final.csv"
+    "mbag_combined_dataframe_INBO_ILVO_insecta"
   )
 ) %>%
   rename(taxon_group = group) %>%
   mutate(
     taxon_group = if_else(taxon_group == "Nematoda", "nematoda", taxon_group)
-  ) 
+  ) %>%
+  filter(taxon_group == "insecta")
 
 metadata <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data",
     "Stratificatie_MBAG_plots",
-    "MBAG_stratfile_v2_20_with_extraction_method.csv"
+    "MBAG_stratfile_v2_cleaned_20.csv"
   )
 ) %>%
   janitor::clean_names() %>%
@@ -426,7 +427,7 @@ if (interactive()) {
 
 Dit zijn de modelleringen obv input data van november tot april
 
-```{r child-model-observed-richness-winterhalfjaar, eval=FALSE, echo=FALSE, results="asis"}
+```{r child-model-observed-richness-winterhalfjaar, echo=FALSE, results="asis"}
 library(dplyr)
 library(purrr)
 library(stringr)
@@ -504,7 +505,7 @@ if (interactive()) {
 
 Dit zijn de modelleringen obv input data van december tot april
 
-```{r child-model-observed-richness-winter, eval=FALSE, echo=FALSE, results="asis"}
+```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
 library(dplyr)
 library(purrr)
 library(stringr)
@@ -752,7 +753,7 @@ if (interactive()) {
 
 Dit zijn de modelleringen voor Shannon diversity obv input data van maanden 11 tot 4 (november tot april)
 
-```{r child-model-shannon-winterhalfjaar, eval=FALSE, echo=FALSE, results="asis"}
+```{r child-model-shannon-winterhalfjaar, echo=FALSE, results="asis"}
 season_run <- "winterhalfjaar"
 
 # Triplets present in this seasonal subset
@@ -816,7 +817,7 @@ if (interactive()) {
 
 Dit zijn de modelleringen voor Shannon diversity obv input data van maanden 12 tot 4 (december tot april)
 
-```{r child-model-shannon-winter, eval=FALSE, echo=FALSE, results="asis"}
+```{r child-model-shannon-winter, echo=FALSE, results="asis"}
 season_run <- "winter"
 
 # (Optional) TEMP compatibility if any inline code still refers to `winter`
