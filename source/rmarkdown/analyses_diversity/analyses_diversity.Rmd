@@ -147,6 +147,61 @@ In `mbag_combined_dataframe_INBO_known_species_v19` zitten de nulwaarnemingen in
 sum(diversiteit$observed == 0)
 ```
 
+Stalen waarvoor wij replicates hebben gebruikt in het labo (meso- en macrofauna en 18S eukaryoten), zijn niet noodzakelijk stalen waarvoor ILVO (bacteria en fungi) replicaten hebben voor gebruikt. Voor deze stalen is er dus helaas een andere naam gebruikt in files van INBO vs ILVO. Onderstaande code om dat recht te zetten.
+
+```{r}
+## 0. Manually define the 11 samples that are in 'diversiteit' but not in 'metadata'
+missing_in_meta <- tibble(
+  sample = c(
+    "p606caf7_0_10",
+    "p60d9924_10_30",
+    "p63709a4_0_10",
+    "p6c5f1e9_10_30",
+    "p6f9f3ac_10_30",
+    "p72fc124_10_30",
+    "p73791ed_10_30",
+    "p9b72a5f_10_30",
+    "paabb27c_10_30",
+    "pba5715d_10_30",
+    "pc591112_10_30"
+  )
+)
+
+base_samples <- missing_in_meta$sample
+
+## 1. Add a base_sample column to metadata (strip trailing _number if present)
+metadata <- metadata %>%
+  mutate(
+    base_sample = sub("_[0-9]+$", "", sample)  # e.g. p606caf7_0_10_1 -> p606caf7_0_10
+  )
+
+## 2. For those 11 base samples, find replicate rows in metadata,
+##    keep ONE per base (smallest sample name), and rename to base_sample
+replacements <- metadata %>%
+  filter(base_sample %in% base_samples) %>%
+  group_by(base_sample) %>%
+  arrange(sample, .by_group = TRUE) %>%  # so _1 is chosen before _2, etc.
+  slice(1) %>%                           # keep only one replicate per base
+  ungroup() %>%
+  mutate(
+    sample = base_sample                 # rename to base name without _1/_2
+  ) %>%
+  select(-base_sample)
+
+## 3. Drop ALL replicate rows for those base samples from metadata
+##    and then add back the cleaned single rows
+metadata <- metadata %>%
+  filter(!base_sample %in% base_samples) %>%  # remove all old replicates
+  select(-base_sample) %>%                    # drop helper column
+  bind_rows(replacements)
+
+## Optional sanity check
+metadata %>%
+  filter(sample %in% base_samples) %>%
+  arrange(sample)
+
+```
+
 We moeten dus geen nulwaarnemingen meer toevoegen
 
 ```{r}
