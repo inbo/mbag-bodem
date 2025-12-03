@@ -93,21 +93,19 @@ ggplot(counts_season, aes(x = landgebruik, y = n, fill = sampling_season)) +
 ```{r m-richness-{{taxon_group}}-{{primerset}}-{{unit}}}
 if (diepte_ok) {
   form_richness <- formula(
-  observed ~
-    log(total_count + 1)
-    + landgebruik
-    + diepte
-    + landgebruik:diepte
-    + (1 | cmon_plot_id)
+    observed ~
+      log(total_count + 1) +
+      landgebruik +
+      diepte +
+      landgebruik:diepte +
+      (1 | cmon_plot_id)
   )
-  ziform <- formula(~ 1 + (1 | cmon_plot_id))
 } else {
   form_richness <- formula(
-  observed ~
-    log(total_count + 1)
-    + landgebruik
+    observed ~
+      log(total_count + 1) +
+      landgebruik
   )
-  ziform <- formula(~ 1)
 }
 
 cat("Fitting Poisson model\n")
@@ -116,47 +114,25 @@ m_pois <- glmmTMB(
   data = data_subset,
   family = poisson()
 )
-cat("Fitting hurdle Poisson model\n")
-m_hpois <- glmmTMB(
-  formula = form_richness,
-  ziformula = ziform,
-  data = data_subset,
-  family = truncated_poisson()
-)
+
 cat("Fitting negative binomial model\n")
 m_nbinom <- glmmTMB(
   formula = form_richness,
   data = data_subset,
   family = nbinom2()
 )
-cat("Fitting hurdle negative binomial model\n")
-m_hnbinom <- glmmTMB(
-  formula = form_richness,
-  ziformula = ziform,
-  data = data_subset,
-  family = truncated_nbinom2()
-)
+
 cat("Fitting generalized Poisson model\n")
 m_genpois <- glmmTMB(
   formula = form_richness,
   data = data_subset,
   family = genpois()
 )
-cat("Fitting hurdle generalized Poisson model\n")
-m_hgenpois <- glmmTMB(
-  formula = form_richness,
-  ziformula = ziform,
-  data = data_subset,
-  family = truncated_genpois()
-)
 
 mlist <- list(
-  pois = m_pois,
-  hpois = m_hpois,
-  nbinom = m_nbinom,
-  hnbinom = m_hnbinom,
-  genpois = m_genpois,
-  hgenpois = m_hgenpois
+  pois    = m_pois,
+  nbinom  = m_nbinom,
+  genpois = m_genpois
 )
 ```
 
