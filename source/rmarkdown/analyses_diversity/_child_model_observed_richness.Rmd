@@ -1,19 +1,50 @@
 
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+### `r stringr::str_to_sentence("{{taxon_group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
-group <- "{{group}}"
+taxon_group <- "{{taxon_group}}"
 primerset <- "{{primerset}}"
 unit <- "{{unit}}"
+season_run <- "{{season_run}}"
+
+```
+
+Seasonal filtering inside the child
+
+```{r}
+# Seasonal filtering inside the child
+months_map <- list(
+  allseasons     = NULL,
+  winterhalfjaar = c(11, 12, 1, 2, 3, 4),
+  winter         = c(12, 1, 2, 3, 4)
+)
+
+data_subset <- combined %>%
+  {
+    sel <- months_map[[season_run]]
+    if (!is.null(sel) && "sampling_month" %in% names(.)) {
+      dplyr::filter(., sampling_month %in% sel)
+    } else {
+      .
+    }
+  } %>%
+  dplyr::filter(
+    taxon_group     == "{{taxon_group}}",
+    primerset == "{{primerset}}",
+    unit      == "{{unit}}"
+  ) %>%
+  droplevels()
 ```
 
 ```{r}
-data_subset <- combined %>%
-  filter(
-    group == "{{group}}",
-    primerset == "{{primerset}}",
-    unit == "{{unit}}"
-  )
+cat("season_run =", season_run,
+    "| rows =", nrow(data_subset),
+    "| months =",
+    if ("sampling_month" %in% names(data_subset))
+      paste(sort(unique(data_subset$sampling_month)), collapse = ",")
+    else "NA",
+    "\n")
+
 ```
 
 
@@ -32,10 +63,34 @@ data_subset <- data_subset %>%
 diepte_ok <- length(unique(data_subset$diepte)) > 1
 ```
 
+plot number of samples per landgebruik per sampling_season
+
+```{r}
+# Count unique samples per landgebruik × sampling_season
+counts_season <- data_subset %>%
+  distinct(sample, landgebruik, sampling_season) %>%  # avoid double-counting
+  count(landgebruik, sampling_season, name = "n") %>%
+  complete(landgebruik, sampling_season, fill = list(n = 0)) %>%
+  arrange(landgebruik, sampling_season)
+
+# Plot stacked bars
+ggplot(counts_season, aes(x = landgebruik, y = n, fill = sampling_season)) +
+  geom_col() +
+  labs(
+    x = "Landgebruik",
+    y = "Aantal stalen",
+    fill = "Sampling season"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1)
+  )
+```
+
 
 #### Basismodel
 
-```{r m-richness-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-{{taxon_group}}-{{primerset}}-{{unit}}}
 if (diepte_ok) {
   form_richness <- formula(
   observed ~
@@ -129,7 +184,39 @@ Het geselecteerde model is:
 insight::get_call(m_richness)
 ```
 
-```{r m-richness-checks-{{group}}-{{primerset}}-{{unit}}, error=TRUE}
+Capture model family for this run
+
+```{r}
+# ---- Capture model family for this run ----
+get_family_name <- function(model) {
+  tryCatch({
+    fam <- stats::family(model)
+    if (is.list(fam) && !is.null(fam$family)) {
+      as.character(fam$family)
+    } else if (inherits(fam, "family") && !is.null(fam$family)) {
+      fam$family
+    } else if (is.character(fam)) {
+      fam
+    } else {
+      NA_character_
+    }
+  }, error = function(e) NA_character_)
+}
+
+model_family <- get_family_name(m_richness)
+
+# Append a row (uses the helper defined in the parent)
+append_model_family(
+  taxon_group       = taxon_group,
+  primerset   = primerset,
+  season_run  = season_run,
+  model_family = model_family
+)
+
+```
+
+
+```{r m-richness-checks-{{taxon_group}}-{{primerset}}-{{unit}}, error=TRUE}
 p <- performance::check_predictions(m_richness)
 plot(p) + facet_zoom(xlim = c(0, 10))
 p <- performance::check_overdispersion(m_richness)
@@ -142,16 +229,21 @@ performance::check_collinearity(m_richness)
 performance::check_zeroinflation(m_richness)
 ```
 
+Samenvatting van het geselecteerde model
 
-```{r m-richness-summary-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-summary-{{taxon_group}}-{{primerset}}-{{unit}}}
 summary(m_richness) |> print(digits = 2)
 ```
 
-```{r m-richness-anova-{{group}}-{{primerset}}-{{unit}}}
+Anova voor de variabelen in het geselecteerde model
+
+```{r m-richness-anova-{{taxon_group}}-{{primerset}}-{{unit}}}
 car::Anova(m_richness) |> print(digits = 2)
 ```
 
-```{r m-richness-marginal-means-per-depth-{{group}}-{{primerset}}-{{unit}}}
+estimate marginal means per land-use category per depth
+
+```{r m-richness-marginal-means-per-depth-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable)
 
 emm_landuse <- emmeans(
@@ -165,8 +257,26 @@ emm_landuse <- emmeans(
 # Save to CSV with automatic naming
 write_csv(
   as.data.frame(emm_landuse),
-  file = file.path(output_dir, glue("emmeans_landuse_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_landuse_{taxon_group}_{primerset}_{unit}.csv"))
 )
+
+emm_df <- as.data.frame(emm_landuse) %>%
+  as_tibble() %>%
+  mutate(
+    # tag with run identifiers
+    taxon_group       = taxon_group,
+    primerset   = primerset,
+    season_run  = season_run,
+    # always keep landgebruik as character for a stable schema
+    landgebruik = as.character(landgebruik)
+  ) %>%
+  # ensure a 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # order columns: required 4 first, then diepte, then the emmeans columns
+  relocate(taxon_group, primerset, landgebruik, season_run, diepte)
+
+# Append to the parent accumulator
+append_summary_emm(emm_df)
 
 # print
 emm_landuse
@@ -174,8 +284,9 @@ emm_landuse
 
 ```
 
+estimate contrasts between land-use categories per depth
 
-```{r m-richness-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-per-depth-response-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable), on response scale
 emm_landuse <- emmeans(
   m_richness,
@@ -196,7 +307,7 @@ contrasts_landuse_response <- contrast(
 # Save to CSV
 write_csv(
   contrasts_landuse_response,
-  file = file.path(output_dir, glue("contrasts_landuse_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -206,7 +317,7 @@ print(contrasts_landuse_response)
 ```
 
 
-```{r m-richness-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-per-depth-response-bh-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Summary table
 contrasts_landuse_table <- contrasts_landuse_response %>%
   as_tibble() %>%
@@ -234,15 +345,56 @@ if (diepte_ok) {
 # Save
 write_csv(
   contrasts_landuse_table,
-  file = file.path(output_dir, glue("contrasts_landuse_table_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_table_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
+
+if (!"z.ratio" %in% names(contrasts_landuse_response) && "t.ratio" %in% names(contrasts_landuse_response)) {
+  contrasts_landuse_response$z.ratio <- contrasts_landuse_response$t.ratio
+}
+
+if (!"asymp.LCL" %in% names(contrasts_landuse_response) && "lower.CL" %in% names(contrasts_landuse_response)) {
+  contrasts_landuse_response$asymp.LCL <- contrasts_landuse_response$lower.CL
+  contrasts_landuse_response$asymp.UCL <- contrasts_landuse_response$upper.CL
+}
+
+
+# Build a tidy table with standard columns
+contrasts_tbl <- contrasts_landuse_response %>%
+  # Ensure 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # Split "Akker / Natuurgrasland" -> two columns
+  mutate(contrast = as.character(contrast)) %>%
+  tidyr::separate(contrast, into = c("landgebruik_1", "landgebruik_2"),
+                  sep = " / ", remove = TRUE, fill = "right") %>%
+  mutate(
+    effect      = .data$ratio,
+    effect_pct  = 100 * (effect - 1),  # percent difference (numerator vs denominator)
+    lcl         = .data$asymp.LCL,
+    ucl         = .data$asymp.UCL,
+    stat        = .data$z.ratio,
+    stat_name   = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
+                                   TRUE ~ NA_character_)
+  ) %>%
+  # Tag with run identifiers and order columns
+  mutate(
+    taxon_group      = taxon_group,
+    primerset  = primerset,
+    season_run = season_run
+  ) %>%
+  relocate(taxon_group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
+           effect, effect_pct, SE, lcl, ucl, stat_name, stat, p.value)
+
+# Append to the parent accumulator
+append_summary_contrasts(contrasts_tbl)
 
 # Print
 contrasts_landuse_table
 
 ```
 
-```{r m-richness-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+plot predictions richness vs sequencing depth
+
+```{r m-richness-preds-total-count-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
   condition = c("total_count"),
@@ -253,7 +405,9 @@ marginaleffects::plot_predictions(
   labs(y = "Voorspeld aantal taxa")
 ```
 
-```{r m-richness-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+plot predictions richness vs land-use category
+
+```{r m-richness-preds-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_richness,
   condition = c("landgebruik", "diepte"[diepte_ok]),
@@ -289,9 +443,16 @@ cat(
     "rijen.\n"
   )
 )
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
+data_subset <- data_subset %>%
+  mutate(log_c_density = log(c_density)) %>%  # log-transform predictor
+  { 
+    # Guard: non-positive c_density cannot be logged
+    if (any(!is.finite(.$log_c_density))) {
+      stop("c_density bevat niet-positieve waarden; log() is niet gedefinieerd. Filter/aanpassen vereist.")
+    } else .
+  } %>%
+  filter(complete.cases(across(all_of(c(variables_no_collinearity, "log_c_density"))))) %>%
+  droplevels()
 nr2 <- nrow(data_subset)
 
 cat(
@@ -309,12 +470,12 @@ We voegen alle niet collineaire fysicochemische variabelen toe aan het basismode
 Voor pH gebruiken we een kwadratische effect.
 Dit wordt het `full model`.
 
-```{r extend-model-additional-predictors-{{group}}-{{primerset}}-{{unit}}}
+```{r extend-model-additional-predictors-{{taxon_group}}-{{primerset}}-{{unit}}}
 form_richness_full <- update(
   form_richness,
   . ~ .
     + swc_vol
-    + c_density
+    + log_c_density
     + poly(ph_kcl, 2)
     + textuur_som_klei_zand
 )
@@ -329,7 +490,7 @@ m_richness_full <- update(
 
 We vergelijken de parameterschattingen van het basis en volledig model.
 
-```{r coefficients-se-{{group}}-{{primerset}}-{{unit}}}
+```{r coefficients-se-{{taxon_group}}-{{primerset}}-{{unit}}}
 base_model_coefs <- broom.mixed::tidy(m_richness)
 full_model_coefs <- broom.mixed::tidy(m_richness_full)
 
@@ -339,7 +500,7 @@ coefs_df <- rbind(
 )
 ```
 
-```{r plot-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
+```{r plot-coefficient-estimates-{{taxon_group}}-{{primerset}}-{{unit}}}
 ggplot(
   coefs_df,
   aes(x = term, y = estimate, fill = Model)
@@ -362,12 +523,12 @@ ggplot(
   )
 ```
 
-```{r save-coefficient-estimates-{{group}}-{{primerset}}-{{unit}}}
+```{r save-coefficient-estimates-{{taxon_group}}-{{primerset}}-{{unit}}}
 readr::write_csv(
   coefs_df,
   file = file.path(
     output_dir,
-    glue::glue("coefs_base_vs_full_{group}_{primerset}_{unit}.csv")
+    glue::glue("coefs_base_vs_full_{taxon_group}_{primerset}_{unit}.csv")
   )
 )
 ```
@@ -376,7 +537,7 @@ readr::write_csv(
 Modelselectie met de functie `dredge`.
 We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
 
-```{r model-selection-and-comparison-{{group}}-{{primerset}}-{{unit}}, warning=FALSE}
+```{r model-selection-and-comparison-{{taxon_group}}-{{primerset}}-{{unit}}, warning=FALSE}
 if (diepte_ok) {
   model_set <- dredge(
     m_richness_full,
@@ -401,7 +562,7 @@ if (diepte_ok) {
 
 Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
 
-```{r importance-per-predictor-{{group}}-{{primerset}}-{{unit}}}
+```{r importance-per-predictor-{{taxon_group}}-{{primerset}}-{{unit}}}
 importance_df <- sw(model_set)
 print(importance_df)
 ```
@@ -415,29 +576,29 @@ par(mar = c(3, 5, 6, 4))
 plot(dd, labAsExpr = TRUE)
 ```
 
-```{r save-model-selection-{{group}}-{{primerset}}-{{unit}}}
+```{r save-model-selection-{{taxon_group}}-{{primerset}}-{{unit}}}
 
 # -- Full selection table
 model_set_tbl <- model_set %>%
   as.data.frame() %>%
-  rownames_to_column("model_id") %>%
+  tibble::rownames_to_column("model_id") %>%
   arrange(AICc)
 
 write_csv(
   model_set_tbl,
-  file.path(output_dir, glue("full_model_set_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("full_model_set_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # -- ΔAICc < 4 subset
 dd_obj <- subset(model_set, delta < 4)
 dd_tbl <- dd_obj %>%
   as.data.frame() %>%
-  rownames_to_column("model_id") %>%
+  tibble::rownames_to_column("model_id") %>%
   arrange(AICc)
 
 write_csv(
   dd_tbl,
-  file.path(output_dir, glue("model_set_delta_lt4_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("model_set_delta_lt4_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # -- 95% cumulative weight subset
@@ -447,22 +608,27 @@ cumw_tbl <- model_set_tbl %>%
 
 write_csv(
   cumw_tbl,
-  file.path(output_dir, glue("model_set_cumw95_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("model_set_cumw95_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Variable importance (sum of weights by term)
-imp <- MuMIn::importance(model_set)
+imp <- if ("sw" %in% getNamespaceExports("MuMIn")) {
+  MuMIn::sw(model_set)
+} else {
+  MuMIn::importance(model_set)
+}
+
 imp_tbl <- tibble(term = names(imp), importance = as.numeric(imp)) %>%
   arrange(desc(importance))
 
 write_csv(
   imp_tbl,
-  file.path(output_dir, glue("model_importance_{group}_{primerset}_{unit}.csv"))
+  file.path(output_dir, glue("model_importance_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # -- (Reproducibility) Save the objects too
-saveRDS(model_set, file.path(output_dir, glue("model_set_{group}_{primerset}_{unit}.rds")))
-saveRDS(dd_obj,    file.path(output_dir, glue("model_set_delta_lt4_{group}_{primerset}_{unit}.rds")))
+saveRDS(model_set, file.path(output_dir, glue("model_set_{taxon_group}_{primerset}_{unit}.rds")))
+saveRDS(dd_obj,    file.path(output_dir, glue("model_set_delta_lt4_{taxon_group}_{primerset}_{unit}.rds")))
 
 
 ```
@@ -475,11 +641,11 @@ lowest_aic <- get.models(dd, 1)[[1]]
 summary(lowest_aic)
 ```
 
-```{r m-richness-anova-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-anova-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
 car::Anova(lowest_aic) |> print(digits = 2)
 ```
 
-```{r m-richness-marginal-means-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-marginal-means-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use (and per depth if applicable), on response scale
 emm_landuse_incl_fyschem <- emmeans(
   lowest_aic,
@@ -492,7 +658,7 @@ emm_landuse_incl_fyschem <- emmeans(
 # Keep original filename
 write_csv(
   as.data.frame(emm_landuse_incl_fyschem),
-  file = file.path(output_dir, glue("emmeans_landuse_incl_fyschem_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_landuse_incl_fyschem_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -500,7 +666,7 @@ emm_landuse_incl_fyschem
 
 ```
 
-```{r m-richness-contrasts-per-depth-response-incl-fyschem-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-per-depth-response-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Pairwise contrasts on response scale (keep CIs & p-values), via emmeans
 contrasts_landuse_response_incl_fyschem <- contrast(
   emm_landuse_incl_fyschem,
@@ -512,7 +678,7 @@ contrasts_landuse_response_incl_fyschem <- contrast(
 # Write
 write_csv(
   contrasts_landuse_response_incl_fyschem,
-  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -521,7 +687,7 @@ print(contrasts_landuse_response_incl_fyschem)
 ```
 
 
-```{r m-richness-contrasts-incl-fyschem-adj-{{group}}-{{primerset}}-{{unit}}}
+```{r m-richness-contrasts-incl-fyschem-adj-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Summary table, aligned with base-model structure
 contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_response_incl_fyschem %>%
   as_tibble() %>%
@@ -543,7 +709,7 @@ contrasts_landuse_by_depth_incl_fyschem_adj <- contrasts_landuse_response_incl_f
 # Keep original adjusted filename (content is now the summary table without BH)
 write_csv(
   contrasts_landuse_by_depth_incl_fyschem_adj,
-  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_adj_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_landuse_incl_fyschem_adj_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -628,1274 +794,333 @@ for (i in efvars) {
 p
 ```
 
-global c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
+global log_c_density effect. This gives a global (averaged) slope across the different land-use categories
 
-```{r}
-# Global IRR per IQR for c_density from the additive model
-iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
-tr_add <- summary(emtrends(lowest_aic, ~ 1, var = "c_density", mode = "latent", infer = TRUE))
-irr_add <- transform(as.data.frame(tr_add),
-                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(c_density.trend * iqr_cd),
-                     LCL = exp((c_density.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((c_density.trend + 1.96*SE) * iqr_cd))
-irr_add[, c("increment","IRR","LCL","UCL","p.value")]
-```
+```{r log-c-density-lowest_aic-{{taxon_group}}-{{primerset}}-{{unit}}}
 
+# Slope for log(c_density) on the latent (log) scale
+tr_add <- emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent")
+tr_add_sum <- summary(tr_add, infer = TRUE)
 
-#### Correlation carbon density
+z <- qnorm(0.975)
 
-We voegen carbon density toe aan het basismodel.
+coef_tbl <- as_tibble(tr_add_sum) %>%
+  transmute(beta = log_c_density.trend, SE = SE, p.value = p.value)
 
-```{r}
-variables_no_collinearity <- c(
-  "total_count",
-  "landgebruik",
-  "diepte"[diepte_ok],
-  "cmon_plot_id",
-  "c_density"
+inc_tbl <- tibble(
+  increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)", "×1.2 (+20%)"),  
+  delta     = c(1,               log(2),          log(10),         log(1.2)),
+  code      = c("e",             "2x",            "10x",           "1.2x")   # NEW      
 )
 
-nr1 <- nrow(data_subset)
-cat(
-  paste(
-    "De originele dataset heeft",
-    nr1,
-    "rijen.\n"
+result <- crossing(coef_tbl, inc_tbl) %>%
+  mutate(
+    IRR = exp(beta * delta),
+    LCL = exp((beta - z * SE) * delta),
+    UCL = exp((beta + z * SE) * delta)
   )
-)
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
-nr2 <- nrow(data_subset)
 
-cat(
-  paste(
-    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
-    één van de covariaten, heeft de dataset",
-    nr2,
-    "rijen.\n"
+result
+```
+
+
+```{r}
+# Requires: result (3-row tibble), taxon_group, primerset, season_run
+# Also assumes you've already created 'summary_all' in the parent.
+if (!exists("summary_all")) summary_all <- tibble::tibble()
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+.schema <- c(
+  "taxon_group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
+)
+
+# Convert the 3 increments (e, 2x, 10x) into one wide row with matching names
+global_row <- {
+  vals <- result %>%
+    summarise(
+      beta    = first(beta),
+      SE      = first(SE),
+      p.value = first(p.value)
+    )
+
+  wide <- result %>%
+  dplyr::select(code, IRR, LCL, UCL) %>%
+  tidyr::pivot_wider(
+    names_from  = code,
+    values_from = c(IRR, LCL, UCL),
+    names_glue  = "{.value}_{code}"
   )
-)
-```
 
-
-```{r extend-model-carbon-density-{{group}}-{{primerset}}-{{unit}}}
-form_richness_full <- update(
-  form_richness,
-  . ~ .
-    + c_density)
-
-m_richness_full <- update(
-  m_richness,
-  formula = form_richness_full,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full)
-```
-
-global c_density effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
-
-```{r}
-# Global IRR per IQR for c_density from the additive model
-iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
-tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "c_density", mode = "latent", infer = TRUE))
-irr_add <- transform(as.data.frame(tr_add),
-                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(c_density.trend * iqr_cd),
-                     LCL = exp((c_density.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((c_density.trend + 1.96*SE) * iqr_cd))
-irr_add[, c("increment","IRR","LCL","UCL","p.value")]
-```
-
-Plot global c_density effect
-
-```{r}
-mod <- m_richness_full
-
-# Build a grid that varies c_density (and includes LU & depth so they can be averaged)
-nd <- insight::get_datagrid(mod, by = c("landgebruik","diepte","c_density"), length = 50)
-
-# Pin sequencing depth (standardize curves)
-if ("total_count" %in% names(nd)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
+  bind_cols(vals, wide) %>%
+    mutate(
+      taxon_group       = taxon_group,
+      primerset   = primerset,
+      landgebruik = "global",
+      season_run  = season_run
+    ) %>%
+    relocate(taxon_group, primerset, landgebruik, season_run)
 }
 
-p_cdens <- marginaleffects::plot_predictions(
-  model    = mod,
-  newdata  = nd,
-  condition = "c_density",   # <-- x-axis variable
-  type     = "response",
-  vcov     = TRUE,
-  re.form  = NA,
-  points   = 0.1             # faint raw points; set to 0 to hide
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(global_row))
+if (length(missing)) global_row[missing] <- NA_real_
+global_row <- global_row %>% select(all_of(.schema))
+
+# Append
+summary_all <- bind_rows(summary_all, global_row)
+
+
+```
+
+
+Include the interaction between log(c_density) and landuse (to get landuse specific slopes)
+
+```{r}
+lowest_aic_int <- update(
+  lowest_aic,
+  formula.  = ~ . + landgebruik * log_c_density,
+  data      = data_subset,
+  na.action = na.fail)
+
+```
+
+summary of the model that includes the interaction between log(c_density) and landuse
+
+```{r}
+summary(lowest_aic_int)
+
+```
+
+Does this model fit better or worse?
+
+```{r}
+anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
+
+```
+
+Per–land-use IRRs for fold changes in carbon density (no subsetting)
+
+```{r log-c-density-lowest-aic-int-perlanduse-{{taxon_group}}-{{primerset}}-{{unit}}}
+# Slopes per landgebruik w.r.t. log(c_density) on latent scale
+tr_lu <- summary(
+  emtrends(lowest_aic_int, ~ landgebruik,
+           var = "log_c_density", mode = "latent", infer = TRUE)
 )
-p_cdens
 
+z <- qnorm(0.975)
+irr_lu_fc <- as_tibble(tr_lu) %>%
+  transmute(
+    landgebruik,
+    beta = log_c_density.trend,
+    SE   = SE,
+    # IRRs for fold changes:
+    IRR_e   = exp(beta * 1),          LCL_e   = exp((beta - z*SE) * 1),          UCL_e   = exp((beta + z*SE) * 1),
+    IRR_2x  = exp(beta * log(2)),     LCL_2x  = exp((beta - z*SE) * log(2)),     UCL_2x  = exp((beta + z*SE) * log(2)),
+    IRR_1.2x  = exp(beta * log(1.2)), LCL_1.2x = exp((beta - z*SE) * log(1.2)),  UCL_1.2x = exp((beta + z*SE) * log(1.2)),  # NEW
+    IRR_10x = exp(beta * log(10)),    LCL_10x = exp((beta - z*SE) * log(10)),    UCL_10x = exp((beta + z*SE) * log(10)),
+    p.value
+  )
+
+print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
 
 ```
 
 
-We voegen carbon density en de interactie met landgebruik toe aan het basismodel (to see land-use–specific slopes).
+Append the **per-landuse** effects (`irr_lu_fc`) to `summary_all`
 
 ```{r}
-form_richness_full_int <- update(
-  form_richness,
-  . ~ .
-    + landgebruik * c_density)
+# Requires: irr_lu_fc (per landgebruik tibble), taxon_group, primerset, season_run
+if (!exists("summary_all")) summary_all <- tibble::tibble()
 
-m_richness_full_int <- update(
-  m_richness,
-  formula = form_richness_full_int,
-  data = data_subset,
-  na.action = na.fail
+library(dplyr)
+
+.schema <- c(
+  "taxon_group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
 )
+
+
+lu_rows <- irr_lu_fc %>%
+  mutate(
+    taxon_group       = taxon_group,
+    primerset   = primerset,
+    landgebruik = as.character(landgebruik),
+    season_run  = season_run
+  ) %>%
+  relocate(taxon_group, primerset, landgebruik, season_run)
+
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(lu_rows))
+if (length(missing)) lu_rows[missing] <- NA_real_
+lu_rows <- lu_rows %>% select(all_of(.schema))
+
+# Append
+summary_all <- bind_rows(summary_all, lu_rows)
+
 ```
 
-```{r}
-summary(m_richness_full_int)
 
-```
+plots per land-use
 
 ```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
+# --- Pull levels & ranges from the fitted model ---
+.mf <- model.frame(lowest_aic_int)  # training frame actually used
+stopifnot("landgebruik" %in% names(.mf))  # should be there after you added the interaction
+lu_lvls <- levels(.mf$landgebruik)
 
-```
-
-
-Report per–land-use slopes of c_density (IRR per IQR) without subsetting
-
-```{r}
-iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
-emtrends(m_richness_full_int, ~ landgebruik, var = "c_density",
-         delta = iqr_cd, type = "response", infer = TRUE)
-
-```
-
-
-plot
-
-Diagnostics for the interaction model
-
-```{r}
-
-mod <- m_richness_full_int
-
-# Predictions vs observed (zoom to data-driven x-range if ggforce available)
-p1 <- performance::check_predictions(mod)
-xr <- quantile(data_subset$c_density, c(.01, .99), na.rm = TRUE)
-
-if (requireNamespace("ggforce", quietly = TRUE)) {
-  library(ggforce)
-  print(plot(p1) + ggforce::facet_zoom(xlim = xr))
-} else {
-  print(plot(p1))
+has_diepte <- "diepte" %in% names(.mf) && is.factor(.mf$diepte)
+if (has_diepte) {
+  dep_lvls      <- levels(.mf$diepte)
+  ref_depth_chr <- if (any(grepl("^0-10", dep_lvls))) "0-10" else dep_lvls[1]
+  ref_depth     <- factor(ref_depth_chr, levels = dep_lvls)
 }
 
-# Overdispersion, residuals, collinearity, zero-inflation
-od <- performance::check_overdispersion(mod); print(od); plot(od)
-res <- performance::check_residuals(mod);    print(res); plot(res)
-performance::check_collinearity(mod)
-performance::check_zeroinflation(mod)
+# Range for log_c_density strictly within training data (avoid extrapolation weirdness)
+stopifnot("log_c_density" %in% names(.mf))
+rng_log <- range(.mf$log_c_density, na.rm = TRUE)
+log_seq <- seq(rng_log[1], rng_log[2], length.out = 80)
 
-```
-
-Model-based predictions: richness vs c_density by landgebruik
-
-```{r}
-# Build grid over c_density within each land-use (keep your “pinning” lines)
-by_vars <- c("landgebruik", "c_density")
-nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
-
-if ("total_count" %in% names(data_subset)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
-}
-ref_depth <- if ("diepte" %in% names(data_subset) &&
-                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
-nd$diepte <- ref_depth
-
-# Get predictions (response scale), marginal over REs
-pr <- marginaleffects::predictions(
-  model   = mod,
-  newdata = nd,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
+# --- Build datagrid from the MODEL (auto-fills all other covariates) ---
+nd <- insight::get_datagrid(
+  lowest_aic_int,
+  by     = c("landgebruik", "log_c_density"),
+  length = 80
 )
 
-# Plot: x = c_density, facet by land-use
-library(ggplot2)
-ggplot(pr, aes(x = c_density, y = estimate)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line() +
+# Force the grid to use *all* landgebruik levels & our log grid
+nd <- tidyr::crossing(
+  landgebruik   = factor(lu_lvls, levels = lu_lvls),
+  log_c_density = log_seq
+) %>%
+  dplyr::left_join(
+    # take a single representative row from get_datagrid per landgebruik to carry other covariates
+    nd %>%
+      dplyr::group_by(landgebruik) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-log_c_density),  # we’ll supply our own sequence
+    by = "landgebruik"
+  ) %>%
+  { if (has_diepte) dplyr::mutate(., diepte = ref_depth) else . } %>%
+  dplyr::mutate(c_density = exp(log_c_density))
+
+# --- Predictions with CI; fall back to point preds if CI fails ---
+pr <- tryCatch(
+  marginaleffects::predictions(
+    model   = lowest_aic_int,
+    newdata = nd,
+    type    = "response",
+    vcov    = TRUE,
+    re.form = NA
+  ),
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd, type = "response", re.form = NA)
+    dplyr::bind_cols(nd, tibble::tibble(estimate = as.numeric(est),
+                                        conf.low = NA_real_, conf.high = NA_real_))
+  }
+)
+
+has_ci <- "conf.low" %in% names(pr) && any(is.finite(pr$conf.low))
+
+# --- Plot ---
+p <- ggplot(pr, aes(c_density, estimate))
+if (has_ci) p <- p + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+p + geom_line(na.rm = TRUE) +
   facet_wrap(~ landgebruik, scales = "free_y") +
-  labs(x = "Carbon density", y = "Predicted richness",
-       title = "Predicted richness vs carbon density by land-use",
-       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
-                         ", depth = ", ref_depth)) +
+  labs(
+    x = "Carbon density",
+    y = "Voorspelde rijkdom",
+    title = "Voorspelde rijkdom vs carbon density per landgebruik",
+    subtitle = paste0(
+      "Bij total_count = ",
+      if ("total_count" %in% names(.mf)) round(stats::median(.mf$total_count, na.rm = TRUE)) else "—",
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
+  ) +
   theme_bw()
 
-
 ```
+
+alternative: plot on the log scale
 
 ```{r}
-resp_var <- all.vars(formula(mod))[1]
-last_plot() +
-  geom_point(data = data_subset,
-             aes(x = c_density, y = .data[[resp_var]]),
-             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
+# Reuse .mf, lu_lvls, has_diepte, ref_depth from above
 
-```
+rng_log <- range(.mf$log_c_density, na.rm = TRUE)
+log_seq <- seq(rng_log[1], rng_log[2], length.out = 80)
 
-
-Per–land-use effect sizes (IRR) for c_density
-
-IRR per IQR, work on the link (latent) scale and exponentiate
-
-```{r}
-library(emmeans)
-iqr_cd <- IQR(data_subset$c_density, na.rm = TRUE)
-
-# Get slopes on the link (log) scale
-tr <- summary(
-  emtrends(mod, ~ landgebruik, var = "c_density", mode = "latent", infer = TRUE)
-) # columns include: landgebruik, c_density.trend, SE, df (Inf), p.value
-
-zcrit <- qnorm(0.975)
-
-irr_tbl <- as.data.frame(tr) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = c_density.trend,
-    SE    = SE,
-    IRR   = exp(beta * iqr_cd),
-    LCL   = exp((beta - zcrit * SE) * iqr_cd),
-    UCL   = exp((beta + zcrit * SE) * iqr_cd),
-    p.value
-  )
-
-irr_tbl
-
-
-```
-
-keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
-
-```{r}
-tr_delta <- summary(
-  emtrends(mod, ~ landgebruik, var = "c_density",
-           mode = "latent", delta = iqr_cd, infer = TRUE)
-)
-irr_tbl <- as.data.frame(tr_delta) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = c_density.trend,  # already scaled by delta
-    SE    = SE,               # SE is scaled too
-    IRR   = exp(beta),
-    LCL   = exp(beta - qnorm(0.975) * SE),
-    UCL   = exp(beta + qnorm(0.975) * SE),
-    p.value
-  )
-
-irr_tbl
-
-```
-
-
-Center/scale c_density (optional) to stabilize estimation and make the intercept interpretable? Not done yet
-
-```{r eval=FALSE}
-data_subset$c_density_c <- scale(data_subset$c_density, center = TRUE, scale = TRUE)
-# then use c_density_c instead of c_density in both above formulas
-
-```
-
-#### Correlation bulk density
-
-We voegen bulk density toe aan het basismodel.
-
-```{r}
-variables_no_collinearity <- c(
-  "total_count",
-  "landgebruik",
-  "diepte"[diepte_ok],
-  "cmon_plot_id",
-  "bd"
+nd_log <- insight::get_datagrid(
+  lowest_aic_int,
+  by     = c("landgebruik", "log_c_density"),
+  length = 80
 )
 
-nr1 <- nrow(data_subset)
-cat(
-  paste(
-    "De originele dataset heeft",
-    nr1,
-    "rijen.\n"
-  )
-)
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
-nr2 <- nrow(data_subset)
+nd_log <- tidyr::crossing(
+  landgebruik   = factor(lu_lvls, levels = lu_lvls),
+  log_c_density = log_seq
+) %>%
+  dplyr::left_join(
+    nd_log %>%
+      dplyr::group_by(landgebruik) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-log_c_density),
+    by = "landgebruik"
+  ) %>%
+  { if (has_diepte) dplyr::mutate(., diepte = ref_depth) else . } %>%
+  dplyr::mutate(c_density = exp(log_c_density))
 
-cat(
-  paste(
-    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
-    één van de covariaten, heeft de dataset",
-    nr2,
-    "rijen.\n"
-  )
-)
-```
-
-
-```{r extend-model-bulk-density-{{group}}-{{primerset}}-{{unit}}}
-form_richness_full <- update(
-  form_richness,
-  . ~ .
-    + bd)
-
-m_richness_full <- update(
-  m_richness,
-  formula = form_richness_full,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full)
-```
-
-global bd effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
-
-```{r}
-# Global IRR per IQR for bd from the additive model
-iqr_cd <- IQR(data_subset$bd, na.rm = TRUE)
-tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "bd", mode = "latent", infer = TRUE))
-irr_add <- transform(as.data.frame(tr_add),
-                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(bd.trend * iqr_cd),
-                     LCL = exp((bd.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((bd.trend + 1.96*SE) * iqr_cd))
-irr_add[, c("increment","IRR","LCL","UCL","p.value")]
-```
-
-We voegen bulk density en de interactie met landgebruik toe aan het basismodel (to see land-use–specific slopes).
-
-```{r}
-form_richness_full_int <- update(
-  form_richness,
-  . ~ .
-    + landgebruik * bd)
-
-m_richness_full_int <- update(
-  m_richness,
-  formula = form_richness_full_int,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full_int)
-
-```
-
-```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
-
-```
-
-
-Report per–land-use slopes of bd (IRR per IQR) without subsetting
-
-```{r}
-iqr_cd <- IQR(data_subset$bd, na.rm = TRUE)
-emtrends(m_richness_full_int, ~ landgebruik, var = "bd",
-         delta = iqr_cd, type = "response", infer = TRUE)
-
-```
-
-
-plot
-
-Diagnostics for the interaction model
-
-```{r}
-
-mod <- m_richness_full_int
-
-# Predictions vs observed (zoom to data-driven x-range if ggforce available)
-p1 <- performance::check_predictions(mod)
-xr <- quantile(data_subset$bd, c(.01, .99), na.rm = TRUE)
-
-if (requireNamespace("ggforce", quietly = TRUE)) {
-  library(ggforce)
-  print(plot(p1) + ggforce::facet_zoom(xlim = xr))
-} else {
-  print(plot(p1))
-}
-
-# Overdispersion, residuals, collinearity, zero-inflation
-od <- performance::check_overdispersion(mod); print(od); plot(od)
-res <- performance::check_residuals(mod);    print(res); plot(res)
-performance::check_collinearity(mod)
-performance::check_zeroinflation(mod)
-
-```
-
-Model-based predictions: richness vs bd by landgebruik
-
-```{r}
-# Build grid over bd within each land-use (keep your “pinning” lines)
-by_vars <- c("landgebruik", "bd")
-nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
-
-if ("total_count" %in% names(data_subset)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
-}
-ref_depth <- if ("diepte" %in% names(data_subset) &&
-                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
-nd$diepte <- ref_depth
-
-# Get predictions (response scale), marginal over REs
-pr <- marginaleffects::predictions(
-  model   = mod,
-  newdata = nd,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
+pr_log <- tryCatch(
+  marginaleffects::predictions(
+    model   = lowest_aic_int,
+    newdata = nd_log,
+    type    = "response",
+    vcov    = TRUE,
+    re.form = NA
+  ),
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd_log, type = "response", re.form = NA)
+    dplyr::bind_cols(nd_log, tibble::tibble(estimate = as.numeric(est),
+                                            conf.low = NA_real_, conf.high = NA_real_))
+  }
 )
 
-# Plot: x = bd, facet by land-use
-library(ggplot2)
-ggplot(pr, aes(x = bd, y = estimate)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line() +
+has_ci_log <- "conf.low" %in% names(pr_log) && any(is.finite(pr_log$conf.low))
+breaks_nat  <- pretty(range(nd_log$c_density, na.rm = TRUE), n = 5)
+
+p2 <- ggplot(pr_log, aes(log_c_density, estimate))
+if (has_ci_log) p2 <- p2 + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+p2 + geom_line(na.rm = TRUE) +
   facet_wrap(~ landgebruik, scales = "free_y") +
-  labs(x = "bulk density", y = "Predicted richness",
-       title = "Predicted richness vs bulk density by land-use",
-       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
-                         ", depth = ", ref_depth)) +
+  scale_x_continuous(
+    name   = "Carbon density",
+    breaks = log(breaks_nat),
+    labels = signif(breaks_nat, 3)
+  ) +
+  labs(
+    y = "Voorspelde rijkdom",
+    title = "Voorspelde rijkdom vs log(carbon density) per landgebruik",
+    subtitle = paste0(
+      "Bij total_count = ",
+      if ("total_count" %in% names(.mf)) round(stats::median(.mf$total_count, na.rm = TRUE)) else "—",
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
+  ) +
   theme_bw()
-
-
-```
-
-```{r}
-resp_var <- all.vars(formula(mod))[1]
-last_plot() +
-  geom_point(data = data_subset,
-             aes(x = bd, y = .data[[resp_var]]),
-             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
-
-```
-
-
-Per–land-use effect sizes (IRR) for bd
-
-IRR per IQR, work on the link (latent) scale and exponentiate
-
-```{r}
-library(emmeans)
-iqr_cd <- IQR(data_subset$bd, na.rm = TRUE)
-
-# Get slopes on the link (log) scale
-tr <- summary(
-  emtrends(mod, ~ landgebruik, var = "bd", mode = "latent", infer = TRUE)
-) # columns include: landgebruik, bd.trend, SE, df (Inf), p.value
-
-zcrit <- qnorm(0.975)
-
-irr_tbl <- as.data.frame(tr) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = bd.trend,
-    SE    = SE,
-    IRR   = exp(beta * iqr_cd),
-    LCL   = exp((beta - zcrit * SE) * iqr_cd),
-    UCL   = exp((beta + zcrit * SE) * iqr_cd),
-    p.value
-  )
-
-irr_tbl
-
-
-```
-
-keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
-
-```{r}
-tr_delta <- summary(
-  emtrends(mod, ~ landgebruik, var = "bd",
-           mode = "latent", delta = iqr_cd, infer = TRUE)
-)
-irr_tbl <- as.data.frame(tr_delta) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = bd.trend,  # already scaled by delta
-    SE    = SE,               # SE is scaled too
-    IRR   = exp(beta),
-    LCL   = exp(beta - qnorm(0.975) * SE),
-    UCL   = exp(beta + qnorm(0.975) * SE),
-    p.value
-  )
-
-irr_tbl
-
-```
-
-
-Center/scale bd (optional) to stabilize estimation and make the intercept interpretable? Not done yet
-
-```{r eval=FALSE}
-data_subset$bd_c <- scale(data_subset$bd, center = TRUE, scale = TRUE)
-# then use bd_c instead of bd in both above formulas
-
-```
-
-
-#### Correlation pH
-
-We voegen pH toe aan het basismodel.
-
-```{r}
-variables_no_collinearity <- c(
-  "total_count",
-  "landgebruik",
-  "diepte"[diepte_ok],
-  "cmon_plot_id",
-  "ph_kcl"
-)
-
-nr1 <- nrow(data_subset)
-cat(
-  paste(
-    "De originele dataset heeft",
-    nr1,
-    "rijen.\n"
-  )
-)
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
-nr2 <- nrow(data_subset)
-
-cat(
-  paste(
-    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
-    één van de covariaten, heeft de dataset",
-    nr2,
-    "rijen.\n"
-  )
-)
-```
-
-
-```{r extend-model-ph-{{group}}-{{primerset}}-{{unit}}}
-form_richness_full <- update(
-  form_richness,
-  . ~ .
-    + ph_kcl)
-
-m_richness_full <- update(
-  m_richness,
-  formula = form_richness_full,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full)
-```
-
-global ph_kcl effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
-
-```{r}
-# Global IRR per IQR for ph_kcl from the additive model
-iqr_cd <- IQR(data_subset$ph_kcl, na.rm = TRUE)
-tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "ph_kcl", mode = "latent", infer = TRUE))
-irr_add <- transform(as.data.frame(tr_add),
-                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(ph_kcl.trend * iqr_cd),
-                     LCL = exp((ph_kcl.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((ph_kcl.trend + 1.96*SE) * iqr_cd))
-irr_add[, c("increment","IRR","LCL","UCL","p.value")]
-```
-
-We voegen pH en de interactie met landgebruik toe aan het basismodel (to see land-use–specific slopes).
-
-```{r}
-form_richness_full_int <- update(
-  form_richness,
-  . ~ .
-    + landgebruik * ph_kcl)
-
-m_richness_full_int <- update(
-  m_richness,
-  formula = form_richness_full_int,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full_int)
-
-```
-
-```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
-
-```
-
-
-Report per–land-use slopes of ph_kcl (IRR per IQR) without subsetting
-
-```{r}
-iqr_cd <- IQR(data_subset$ph_kcl, na.rm = TRUE)
-emtrends(m_richness_full_int, ~ landgebruik, var = "ph_kcl",
-         delta = iqr_cd, type = "response", infer = TRUE)
-
-```
-
-
-plot
-
-Diagnostics for the interaction model
-
-```{r}
-
-mod <- m_richness_full_int
-
-# Predictions vs observed (zoom to data-driven x-range if ggforce available)
-p1 <- performance::check_predictions(mod)
-xr <- quantile(data_subset$ph_kcl, c(.01, .99), na.rm = TRUE)
-
-if (requireNamespace("ggforce", quietly = TRUE)) {
-  library(ggforce)
-  print(plot(p1) + ggforce::facet_zoom(xlim = xr))
-} else {
-  print(plot(p1))
-}
-
-# Overdispersion, residuals, collinearity, zero-inflation
-od <- performance::check_overdispersion(mod); print(od); plot(od)
-res <- performance::check_residuals(mod);    print(res); plot(res)
-performance::check_collinearity(mod)
-performance::check_zeroinflation(mod)
-
-```
-
-Model-based predictions: richness vs ph_kcl by landgebruik
-
-```{r}
-# Build grid over ph_kcl within each land-use (keep your “pinning” lines)
-by_vars <- c("landgebruik", "ph_kcl")
-nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
-
-if ("total_count" %in% names(data_subset)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
-}
-ref_depth <- if ("diepte" %in% names(data_subset) &&
-                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
-nd$diepte <- ref_depth
-
-# Get predictions (response scale), marginal over REs
-pr <- marginaleffects::predictions(
-  model   = mod,
-  newdata = nd,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
-)
-
-# Plot: x = ph_kcl, facet by land-use
-library(ggplot2)
-ggplot(pr, aes(x = ph_kcl, y = estimate)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line() +
-  facet_wrap(~ landgebruik, scales = "free_y") +
-  labs(x = "pH", y = "Predicted richness",
-       title = "Predicted richness vs pH by land-use",
-       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
-                         ", depth = ", ref_depth)) +
-  theme_bw()
-
-
-```
-
-```{r}
-resp_var <- all.vars(formula(mod))[1]
-last_plot() +
-  geom_point(data = data_subset,
-             aes(x = ph_kcl, y = .data[[resp_var]]),
-             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
-
-```
-
-
-Per–land-use effect sizes (IRR) for ph_kcl
-
-IRR per IQR, work on the link (latent) scale and exponentiate
-
-```{r}
-library(emmeans)
-iqr_cd <- IQR(data_subset$ph_kcl, na.rm = TRUE)
-
-# Get slopes on the link (log) scale
-tr <- summary(
-  emtrends(mod, ~ landgebruik, var = "ph_kcl", mode = "latent", infer = TRUE)
-) # columns include: landgebruik, ph_kcl.trend, SE, df (Inf), p.value
-
-zcrit <- qnorm(0.975)
-
-irr_tbl <- as.data.frame(tr) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = ph_kcl.trend,
-    SE    = SE,
-    IRR   = exp(beta * iqr_cd),
-    LCL   = exp((beta - zcrit * SE) * iqr_cd),
-    UCL   = exp((beta + zcrit * SE) * iqr_cd),
-    p.value
-  )
-
-irr_tbl
-
-
-```
-
-keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
-
-```{r}
-tr_delta <- summary(
-  emtrends(mod, ~ landgebruik, var = "ph_kcl",
-           mode = "latent", delta = iqr_cd, infer = TRUE)
-)
-irr_tbl <- as.data.frame(tr_delta) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = ph_kcl.trend,  # already scaled by delta
-    SE    = SE,               # SE is scaled too
-    IRR   = exp(beta),
-    LCL   = exp(beta - qnorm(0.975) * SE),
-    UCL   = exp(beta + qnorm(0.975) * SE),
-    p.value
-  )
-
-irr_tbl
-
-```
-
-
-Center/scale ph_kcl (optional) to stabilize estimation and make the intercept interpretable? Not done yet
-
-```{r eval=FALSE}
-data_subset$ph_kcl_c <- scale(data_subset$ph_kcl, center = TRUE, scale = TRUE)
-# then use ph_kcl_c instead of ph_kcl in both above formulas
-
-```
-
-
-#### Correlation soil texture
-
-We voegen textuur_som_klei_zand toe aan het basismodel.
-
-```{r}
-variables_no_collinearity <- c(
-  "total_count",
-  "landgebruik",
-  "diepte"[diepte_ok],
-  "cmon_plot_id",
-  "textuur_som_klei_zand"
-)
-
-nr1 <- nrow(data_subset)
-cat(
-  paste(
-    "De originele dataset heeft",
-    nr1,
-    "rijen.\n"
-  )
-)
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
-nr2 <- nrow(data_subset)
-
-cat(
-  paste(
-    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
-    één van de covariaten, heeft de dataset",
-    nr2,
-    "rijen.\n"
-  )
-)
-```
-
-
-```{r extend-model-soil-texture-{{group}}-{{primerset}}-{{unit}}}
-form_richness_full <- update(
-  form_richness,
-  . ~ .
-    + textuur_som_klei_zand)
-
-m_richness_full <- update(
-  m_richness,
-  formula = form_richness_full,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full)
-```
-
-global textuur_som_klei_zand effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
-
-```{r}
-# Global IRR per IQR for textuur_som_klei_zand from the additive model
-iqr_cd <- IQR(data_subset$textuur_som_klei_zand, na.rm = TRUE)
-tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "textuur_som_klei_zand", mode = "latent", infer = TRUE))
-irr_add <- transform(as.data.frame(tr_add),
-                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(textuur_som_klei_zand.trend * iqr_cd),
-                     LCL = exp((textuur_som_klei_zand.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((textuur_som_klei_zand.trend + 1.96*SE) * iqr_cd))
-irr_add[, c("increment","IRR","LCL","UCL","p.value")]
-```
-
-We voegen textuur_som_klei_zand en de interactie met landgebruik toe aan het basismodel (to see land-use–specific slopes).
-
-```{r}
-form_richness_full_int <- update(
-  form_richness,
-  . ~ .
-    + landgebruik * textuur_som_klei_zand)
-
-m_richness_full_int <- update(
-  m_richness,
-  formula = form_richness_full_int,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full_int)
-
-```
-
-```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
-
-```
-
-
-Report per–land-use slopes of textuur_som_klei_zand (IRR per IQR) without subsetting
-
-```{r}
-iqr_cd <- IQR(data_subset$textuur_som_klei_zand, na.rm = TRUE)
-emtrends(m_richness_full_int, ~ landgebruik, var = "textuur_som_klei_zand",
-         delta = iqr_cd, type = "response", infer = TRUE)
-
-```
-
-
-plot
-
-Diagnostics for the interaction model
-
-```{r}
-
-mod <- m_richness_full_int
-
-# Predictions vs observed (zoom to data-driven x-range if ggforce available)
-p1 <- performance::check_predictions(mod)
-xr <- quantile(data_subset$textuur_som_klei_zand, c(.01, .99), na.rm = TRUE)
-
-if (requireNamespace("ggforce", quietly = TRUE)) {
-  library(ggforce)
-  print(plot(p1) + ggforce::facet_zoom(xlim = xr))
-} else {
-  print(plot(p1))
-}
-
-# Overdispersion, residuals, collinearity, zero-inflation
-od <- performance::check_overdispersion(mod); print(od); plot(od)
-res <- performance::check_residuals(mod);    print(res); plot(res)
-performance::check_collinearity(mod)
-performance::check_zeroinflation(mod)
-
-```
-
-Model-based predictions: richness vs textuur_som_klei_zand by landgebruik
-
-```{r}
-# Build grid over textuur_som_klei_zand within each land-use (keep your “pinning” lines)
-by_vars <- c("landgebruik", "textuur_som_klei_zand")
-nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
-
-if ("total_count" %in% names(data_subset)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
-}
-ref_depth <- if ("diepte" %in% names(data_subset) &&
-                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
-nd$diepte <- ref_depth
-
-# Get predictions (response scale), marginal over REs
-pr <- marginaleffects::predictions(
-  model   = mod,
-  newdata = nd,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
-)
-
-# Plot: x = textuur_som_klei_zand, facet by land-use
-library(ggplot2)
-ggplot(pr, aes(x = textuur_som_klei_zand, y = estimate)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line() +
-  facet_wrap(~ landgebruik, scales = "free_y") +
-  labs(x = "textuur_som_klei_zand", y = "Predicted richness",
-       title = "Predicted richness vs textuur_som_klei_zand by land-use",
-       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
-                         ", depth = ", ref_depth)) +
-  theme_bw()
-
-
-```
-
-```{r}
-resp_var <- all.vars(formula(mod))[1]
-last_plot() +
-  geom_point(data = data_subset,
-             aes(x = textuur_som_klei_zand, y = .data[[resp_var]]),
-             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
-
-```
-
-
-Per–land-use effect sizes (IRR) for textuur_som_klei_zand
-
-IRR per IQR, work on the link (latent) scale and exponentiate
-
-```{r}
-library(emmeans)
-iqr_cd <- IQR(data_subset$textuur_som_klei_zand, na.rm = TRUE)
-
-# Get slopes on the link (log) scale
-tr <- summary(
-  emtrends(mod, ~ landgebruik, var = "textuur_som_klei_zand", mode = "latent", infer = TRUE)
-) # columns include: landgebruik, textuur_som_klei_zand.trend, SE, df (Inf), p.value
-
-zcrit <- qnorm(0.975)
-
-irr_tbl <- as.data.frame(tr) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = textuur_som_klei_zand.trend,
-    SE    = SE,
-    IRR   = exp(beta * iqr_cd),
-    LCL   = exp((beta - zcrit * SE) * iqr_cd),
-    UCL   = exp((beta + zcrit * SE) * iqr_cd),
-    p.value
-  )
-
-irr_tbl
-
-
-```
-
-keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
-
-```{r}
-tr_delta <- summary(
-  emtrends(mod, ~ landgebruik, var = "textuur_som_klei_zand",
-           mode = "latent", delta = iqr_cd, infer = TRUE)
-)
-irr_tbl <- as.data.frame(tr_delta) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = textuur_som_klei_zand.trend,  # already scaled by delta
-    SE    = SE,               # SE is scaled too
-    IRR   = exp(beta),
-    LCL   = exp(beta - qnorm(0.975) * SE),
-    UCL   = exp(beta + qnorm(0.975) * SE),
-    p.value
-  )
-
-irr_tbl
-
-```
-
-
-Center/scale textuur_som_klei_zand (optional) to stabilize estimation and make the intercept interpretable? Not done yet
-
-```{r eval=FALSE}
-data_subset$textuur_som_klei_zand_c <- scale(data_subset$textuur_som_klei_zand, center = TRUE, scale = TRUE)
-# then use textuur_som_klei_zand_c instead of textuur_som_klei_zand in both above formulas
-
-```
-
-
-#### Correlation soil water content
-
-We voegen swc_vol toe aan het basismodel.
-
-```{r}
-variables_no_collinearity <- c(
-  "total_count",
-  "landgebruik",
-  "diepte"[diepte_ok],
-  "cmon_plot_id",
-  "swc_vol"
-)
-
-nr1 <- nrow(data_subset)
-cat(
-  paste(
-    "De originele dataset heeft",
-    nr1,
-    "rijen.\n"
-  )
-)
-data_subset <- data_subset[
-  complete.cases(data_subset[, variables_no_collinearity]),
-]
-nr2 <- nrow(data_subset)
-
-cat(
-  paste(
-    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
-    één van de covariaten, heeft de dataset",
-    nr2,
-    "rijen.\n"
-  )
-)
-```
-
-
-```{r extend-model-swc-vol-{{group}}-{{primerset}}-{{unit}}}
-form_richness_full <- update(
-  form_richness,
-  . ~ .
-    + swc_vol)
-
-m_richness_full <- update(
-  m_richness,
-  formula = form_richness_full,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full)
-```
-
-global swc_vol effect (IRR per IQR), with 95% CI. This gives a global (averaged) slope across the different land-use categories
-
-```{r}
-# Global IRR per IQR for swc_vol from the additive model
-iqr_cd <- IQR(data_subset$swc_vol, na.rm = TRUE)
-tr_add <- summary(emtrends(m_richness_full, ~ 1, var = "swc_vol", mode = "latent", infer = TRUE))
-irr_add <- transform(as.data.frame(tr_add),
-                     increment = paste0("per IQR (", round(iqr_cd,2), ")"),
-                     IRR = exp(swc_vol.trend * iqr_cd),
-                     LCL = exp((swc_vol.trend - 1.96*SE) * iqr_cd),
-                     UCL = exp((swc_vol.trend + 1.96*SE) * iqr_cd))
-irr_add[, c("increment","IRR","LCL","UCL","p.value")]
-```
-
-We voegen swc_vol en de interactie met landgebruik toe aan het basismodel (to see land-use–specific slopes).
-
-```{r}
-form_richness_full_int <- update(
-  form_richness,
-  . ~ .
-    + landgebruik * swc_vol)
-
-m_richness_full_int <- update(
-  m_richness,
-  formula = form_richness_full_int,
-  data = data_subset,
-  na.action = na.fail
-)
-```
-
-```{r}
-summary(m_richness_full_int)
-
-```
-
-```{r}
-anova(m_richness_full, m_richness_full_int)  # LRT for interaction
-
-```
-
-
-Report per–land-use slopes of swc_vol (IRR per IQR) without subsetting
-
-```{r}
-iqr_cd <- IQR(data_subset$swc_vol, na.rm = TRUE)
-emtrends(m_richness_full_int, ~ landgebruik, var = "swc_vol",
-         delta = iqr_cd, type = "response", infer = TRUE)
-
-```
-
-
-plot
-
-Diagnostics for the interaction model
-
-```{r}
-
-mod <- m_richness_full_int
-
-# Predictions vs observed (zoom to data-driven x-range if ggforce available)
-p1 <- performance::check_predictions(mod)
-xr <- quantile(data_subset$swc_vol, c(.01, .99), na.rm = TRUE)
-
-if (requireNamespace("ggforce", quietly = TRUE)) {
-  library(ggforce)
-  print(plot(p1) + ggforce::facet_zoom(xlim = xr))
-} else {
-  print(plot(p1))
-}
-
-# Overdispersion, residuals, collinearity, zero-inflation
-od <- performance::check_overdispersion(mod); print(od); plot(od)
-res <- performance::check_residuals(mod);    print(res); plot(res)
-performance::check_collinearity(mod)
-performance::check_zeroinflation(mod)
-
-```
-
-Model-based predictions: richness vs swc_vol by landgebruik
-
-```{r}
-# Build grid over swc_vol within each land-use (keep your “pinning” lines)
-by_vars <- c("landgebruik", "swc_vol")
-nd <- insight::get_datagrid(mod, by = by_vars, length = 50)
-
-if ("total_count" %in% names(data_subset)) {
-  nd$total_count <- stats::median(data_subset$total_count, na.rm = TRUE)
-}
-ref_depth <- if ("diepte" %in% names(data_subset) &&
-                 any(grepl("0-10", levels(data_subset$diepte)))) "0-10" else levels(data_subset$diepte)[1]
-nd$diepte <- ref_depth
-
-# Get predictions (response scale), marginal over REs
-pr <- marginaleffects::predictions(
-  model   = mod,
-  newdata = nd,
-  type    = "response",
-  vcov    = TRUE,
-  re.form = NA
-)
-
-# Plot: x = swc_vol, facet by land-use
-library(ggplot2)
-ggplot(pr, aes(x = swc_vol, y = estimate)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15) +
-  geom_line() +
-  facet_wrap(~ landgebruik, scales = "free_y") +
-  labs(x = "swc_vol", y = "Predicted richness",
-       title = "Predicted richness vs swc_vol by land-use",
-       subtitle = paste0("Predictions at total_count = ", round(stats::median(data_subset$total_count, na.rm = TRUE)),
-                         ", depth = ", ref_depth)) +
-  theme_bw()
-
-
-```
-
-```{r}
-resp_var <- all.vars(formula(mod))[1]
-last_plot() +
-  geom_point(data = data_subset,
-             aes(x = swc_vol, y = .data[[resp_var]]),
-             inherit.aes = FALSE, alpha = 0.12, size = 0.9)
-
-```
-
-
-Per–land-use effect sizes (IRR) for swc_vol
-
-IRR per IQR, work on the link (latent) scale and exponentiate
-
-```{r}
-library(emmeans)
-iqr_cd <- IQR(data_subset$swc_vol, na.rm = TRUE)
-
-# Get slopes on the link (log) scale
-tr <- summary(
-  emtrends(mod, ~ landgebruik, var = "swc_vol", mode = "latent", infer = TRUE)
-) # columns include: landgebruik, swc_vol.trend, SE, df (Inf), p.value
-
-zcrit <- qnorm(0.975)
-
-irr_tbl <- as.data.frame(tr) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = swc_vol.trend,
-    SE    = SE,
-    IRR   = exp(beta * iqr_cd),
-    LCL   = exp((beta - zcrit * SE) * iqr_cd),
-    UCL   = exp((beta + zcrit * SE) * iqr_cd),
-    p.value
-  )
-
-irr_tbl
-
-
-```
-
-keep delta inside emtrends(), do this (still on the latent scale) and then exponentiate the trend directly:
-
-```{r}
-tr_delta <- summary(
-  emtrends(mod, ~ landgebruik, var = "swc_vol",
-           mode = "latent", delta = iqr_cd, infer = TRUE)
-)
-irr_tbl <- as.data.frame(tr_delta) |>
-  dplyr::transmute(
-    landgebruik,
-    increment = paste0("per IQR (", round(iqr_cd, 2), ")"),
-    beta  = swc_vol.trend,  # already scaled by delta
-    SE    = SE,               # SE is scaled too
-    IRR   = exp(beta),
-    LCL   = exp(beta - qnorm(0.975) * SE),
-    UCL   = exp(beta + qnorm(0.975) * SE),
-    p.value
-  )
-
-irr_tbl
-
-```
-
-
-Center/scale swc_vol (optional) to stabilize estimation and make the intercept interpretable? Not done yet
-
-```{r eval=FALSE}
-data_subset$swc_vol_c <- scale(data_subset$swc_vol, center = TRUE, scale = TRUE)
-# then use swc_vol_c instead of swc_vol in both above formulas
 
 ```
 

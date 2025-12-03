@@ -1,7 +1,7 @@
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+### `r stringr::str_to_sentence("{{taxon_group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
-group <- "{{group}}"
+taxon_group <- "{{taxon_group}}"
 primerset <- "{{primerset}}"
 unit <- "{{unit}}"
 ```
@@ -9,7 +9,7 @@ unit <- "{{unit}}"
 ```{r}
 data_subset <- combined %>%
   filter(
-    group == "{{group}}",
+    taxon_group == "{{taxon_group}}",
     primerset == "{{primerset}}",
     unit == "{{unit}}"
   )
@@ -32,7 +32,7 @@ data_subset <- data_subset %>%
 diepte_ok <- length(unique(data_subset$diepte)) > 1
 ```
 
-```{r m-simpson-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-{{taxon_group}}-{{primerset}}-{{unit}}}
 if (diepte_ok) {
   form_simpson <- formula(
     simpson ~
@@ -61,20 +61,20 @@ m_simpson <- glmmTMB(
 ```
 
 
-```{r m-simpson-checks-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+```{r m-simpson-checks-{{taxon_group}}-{{primerset}}-{{unit}}, error = TRUE}
 performance::check_model(m_simpson)
 ```
 
 
-```{r m-simpson-summary-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-summary-{{taxon_group}}-{{primerset}}-{{unit}}}
 summary(m_simpson) |> print(digits = 2)
 ```
 
-```{r m-simpson-anova-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+```{r m-simpson-anova-{{taxon_group}}-{{primerset}}-{{unit}}, error = TRUE}
 car::Anova(m_simpson) |> print(digits = 2)
 ```
 
-```{r m-simpson-marginal-means-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-marginal-means-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimated marginal means per land use *within each depth layer*
 emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
   m_simpson,
@@ -87,7 +87,7 @@ emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
 # Save to CSV with automatic naming
 write_csv(
   emmeans_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_simpson_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_simpson_landuse_by_depth_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # print
@@ -95,7 +95,7 @@ emmeans_landuse_by_depth
 ```
 
 
-```{r m-simpson-contrasts-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Compute all pairwise contrasts between land use types within each depth layer
 contrasts_landuse_by_depth <- marginaleffects::comparisons(
   model = m_simpson,
@@ -107,7 +107,7 @@ contrasts_landuse_by_depth <- marginaleffects::comparisons(
 # Save to CSV with automatic naming
 write_csv(
   contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("contrasts_simpson_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_simpson_landuse_by_depth_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print the results
@@ -115,7 +115,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-simpson-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-adj-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Add BH-corrected p-values per depth group
 contrasts_simpson_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
   group_by(diepte) %>%
@@ -136,7 +136,7 @@ contrasts_simpson_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
 # Save adjusted results to CSV
 write_csv(
   contrasts_simpson_landuse_by_depth_adj,
-  file = file.path(output_dir, glue("contrasts_simpson_landuse_by_depth_adj_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("contrasts_simpson_landuse_by_depth_adj_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print adjusted summary
@@ -144,7 +144,7 @@ print(contrasts_simpson_landuse_by_depth_adj)
 
 ```
 
-```{r m-simpson-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-emmeans-contrasts-per-depth-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_simpson,
@@ -160,7 +160,7 @@ contrasts_landuse_by_depth <- contrast(emm_landuse_by_depth, method = "pairwise"
 # Save to CSV
 write_csv(
   contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -168,7 +168,7 @@ print(contrasts_landuse_by_depth)
 
 ```
 
-```{r m-simpson-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-bh-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
   as_tibble() %>%
@@ -190,7 +190,7 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
 # Save corrected results to CSV
 write_csv(
   contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_bh_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_bh_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -198,7 +198,7 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-simpson-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-response-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Estimate marginal means per land use per depth
 emm_landuse_by_depth <- emmeans(
   m_simpson,
@@ -215,7 +215,7 @@ contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "
 # Save to CSV
 write_csv(
   contrasts_landuse_by_depth_response,
-  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -224,7 +224,7 @@ print(contrasts_landuse_by_depth_response)
 ```
 
 
-```{r m-simpson-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-contrasts-per-depth-response-bh-{{taxon_group}}-{{primerset}}-{{unit}}}
 # Add BH-adjusted p-values per depth
 contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
   as_tibble() %>%
@@ -248,7 +248,7 @@ contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
 # Save corrected results to CSV
 write_csv(
   contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_bh_response_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("emmeans_contrasts_simps_landuse_by_depth_bh_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
@@ -256,7 +256,7 @@ contrasts_landuse_by_depth_corrected
 
 ```
 
-```{r m-simpson-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+```{r m-simpson-preds-values-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}}
 predicted_values <- marginaleffects::avg_predictions(
   m_simpson,
   variables = c("landgebruik", "diepte"),
@@ -267,14 +267,14 @@ predicted_values <- marginaleffects::avg_predictions(
 # save to CSV
 write_csv(
   predicted_values,
-  file = file.path(output_dir, glue("predicted_values_simpson_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("predicted_values_simpson_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # View
 print(predicted_values)
 ```
 
-```{r m-simpson-preds-total-count-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+```{r m-simpson-preds-total-count-{{taxon_group}}-{{primerset}}-{{unit}}, error = TRUE}
 marginaleffects::plot_predictions(
   m_simpson,
   condition = c("total_count"),
@@ -286,7 +286,7 @@ marginaleffects::plot_predictions(
   scale_x_log10()
 ```
 
-```{r m-simpson-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}, error = TRUE}
+```{r m-simpson-preds-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}, error = TRUE}
 marginaleffects::plot_predictions(
   m_simpson,
   condition = c("landgebruik", "diepte"[diepte_ok]),

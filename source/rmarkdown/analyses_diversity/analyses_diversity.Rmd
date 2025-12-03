@@ -33,6 +33,8 @@ library(glue)
 library(readr)
 library(emmeans)
 library(lubridate)
+library(tibble)
+
 
 
 mbag_bodem_folder <- "G:/Gedeelde drives/PRJ_MBAG/4c_bodembiodiversiteit" # nolint
@@ -70,32 +72,19 @@ inflation_dispersion <- function(model) {
 
 # Inlezen data
 
-DIT IS de output obv de winterhalfjaar data
-
 
 ```{r inlezen}
 diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_ILVO_v19.csv"
+    "mbag_combined_dataframe_INBO_known_species_shannon.csv"
   )
 ) %>%
-  mutate(group = if_else(group == "Nematoda", "nematoda", group)) %>%
-  filter(group %in% c(
-    "nematoda",
-    "annelida",
-    "collembola",
-    "arthropoda",
-    "fungi",
-    "protisten",
-    "annelida_bold",
-    "arthropoda_bold",
-    "collembola_bold",
-    "enchytraeidae_bold",
-    "lumbricidae_bold"
-  ))
-
+  rename(taxon_group = group) %>%
+  mutate(
+    taxon_group = if_else(taxon_group == "Nematoda", "nematoda", taxon_group)
+  )
 
 metadata <- readr::read_csv(
   file.path(
@@ -143,8 +132,7 @@ metadata <- readr::read_csv(
       sampling_month %in% c(9, 10, 11) ~ "Autumn",
       TRUE ~ "Unknown"
     ) |> factor(levels = c("Spring", "Summer", "Autumn", "Winter", "Unknown"))
-  ) %>%
-  filter(sampling_month %in% c(12, 1, 2, 3, 4))
+  )
 
 ```
 
@@ -158,7 +146,7 @@ We moeten dus geen nulwaarnemingen meer toevoegen
 
 ```{r}
 groups <- diversiteit %>%
-  distinct(primerset, group, unit)
+  distinct(primerset, taxon_group, unit)
 
 samples <- metadata %>%
   distinct(sample)
@@ -170,7 +158,7 @@ samples_groups <- expand_grid(
 combined <- samples_groups %>%
   full_join(
     diversiteit,
-    by = c("sample", "primerset", "group", "unit")
+    by = c("sample", "primerset", "taxon_group", "unit")
   ) %>%
   inner_join(metadata, by = join_by(sample))
 
@@ -200,6 +188,60 @@ combined <- combined %>%
   droplevels()
 ```
 
+seizoenale spreiding
+
+```{r}
+counts_all <- metadata %>%
+  distinct(sample, landgebruik, sampling_season) %>%
+  # remove true NAs
+  filter(!is.na(landgebruik), !is.na(sampling_season)) %>%
+  # drop categories you don't want
+  filter(!landgebruik %in% c("Heide", "Moeras")) %>%
+  count(landgebruik, sampling_season, name = "n") %>%
+  complete(landgebruik, sampling_season, fill = list(n = 0)) %>%
+  droplevels()
+
+ggplot(counts_all, aes(landgebruik, n, fill = sampling_season)) +
+  geom_col() +
+  labs(x = "Landgebruik", y = "Aantal stalen", fill = "Sampling season") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1)) +
+  # belt-and-braces: hide any remaining NA in the legend if they sneak in
+  scale_fill_discrete(na.translate = FALSE)
+
+```
+
+spreiding per maand
+
+```{r}
+
+counts_all_month <- metadata %>%
+  distinct(sample, landgebruik, sampling_month) %>%
+  # drop true NAs
+  filter(!is.na(landgebruik), !is.na(sampling_month)) %>%
+  # drop unwanted land-use types
+  filter(!landgebruik %in% c("Heide", "Moeras")) %>%
+  count(landgebruik, sampling_month, name = "n") %>%
+  # ensure all months 1–12 appear (zeros where absent)
+  complete(landgebruik, sampling_month = 1:12, fill = list(n = 0)) %>%
+  mutate(
+    month_lab = factor(
+      sampling_month,
+      levels = 1:12,
+      labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    )
+  ) %>%
+  droplevels()
+
+ggplot(counts_all_month, aes(x = landgebruik, y = n, fill = month_lab)) +
+  geom_col() +
+  labs(x = "Landgebruik", y = "Aantal stalen", fill = "Sampling month") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1, vjust = 1)) +
+  scale_fill_discrete(drop = FALSE)  # keep all months in legend
+
+```
+
 
 Het geobserveerde aantal taxa neemt toe met het aantal reads in een staal:
 
@@ -210,7 +252,7 @@ combined %>%
   geom_point(aes(x = total_count, y = observed)) +
   scale_x_log10() +
   labs(y = "Observed number of taxa") +
-  facet_wrap(group ~ primerset ~ unit, scales = "free")
+  facet_wrap(taxon_group ~ primerset ~ unit, scales = "free")
 ```
 
 Relaties tussen de drie diversiteitsmaten:
@@ -220,13 +262,13 @@ combined %>%
   ggplot() +
   geom_autopoint(
     aes(
-      colour = group, shape = primerset
+      colour = taxon_group, shape = primerset
     ),
     alpha = 0.5
   ) +
   geom_autodensity(
     aes(
-      fill = group
+      fill = taxon_group
     ),
     alpha = 0.5
   ) +
@@ -239,7 +281,7 @@ Aantal samples met nul OTUs:
 
 ```{r}
 combined %>%
-  group_by(group, primerset, unit) %>%
+  group_by(taxon_group, primerset, unit) %>%
   mutate(
     observed0 =
       ifelse(observed == 0, "geen OTU", "minstens 1 OTU")
@@ -271,24 +313,82 @@ metadata %>%
 
 # Analyses
 
-## Geobserveerde soortenrijkdom
+## Geobserveerde soortenrijkdom: allseasons
 
 We fitten een model waarbij we de log van het totaal aantal reads in een staal als covariaat toevoegen samen met landgebruik en diepte van het staal (de laatste twee in interactie).
 We voegen ook een random intercept toe die aangeeft op welke locatie een staal werd genomen.
 Hiermee geven we aan dat stalen op verschillende diepte, maar dezelfde locatie, gecorreleerd zijn.
 
+```{r setup-accumulator, include=FALSE}
 
-```{r child-model-observed-richness, echo=FALSE, results="asis"}
+# Resets on every knit of the parent
+
+# Accumulator for correlation richness with c_density. 
+summary_all <- tibble()
+
+# Accumulator for emmeans summaries
+if (!exists("summary_emm")) summary_emm <- tibble()
+
+# Accumulator for land-use pairwise contrasts
+if (!exists("summary_contrasts")) summary_contrasts <- tibble()
+
+# Accumulator for family of selected model m_richness
+
+if (!exists("summary_models", envir = .GlobalEnv)) {
+  summary_models <- tibble::tibble(
+    taxon_group        = character(),
+    primerset    = character(),
+    season_run   = character(),
+    model_family = character()
+  )
+}
+
+# Helpers so children can append
+append_summary_contrasts <- function(df) {
+  summary_contrasts <<- dplyr::bind_rows(summary_contrasts, df)
+  invisible(NULL)
+}
+
+append_summary_emm <- function(df) {
+  summary_emm <<- dplyr::bind_rows(summary_emm, df)
+  invisible(NULL)
+}
+
+append_model_family <- function(taxon_group, primerset, season_run, model_family) {
+  row <- tibble::tibble(
+    taxon_group        = taxon_group,
+    primerset    = primerset,
+    season_run   = season_run,
+    model_family = as.character(model_family)
+  )
+  if (exists("summary_models", envir = .GlobalEnv)) {
+    assign(
+      "summary_models",
+      dplyr::bind_rows(get("summary_models", envir = .GlobalEnv), row),
+      envir = .GlobalEnv
+    )
+  } else {
+    assign("summary_models", row, envir = .GlobalEnv)
+  }
+}
+
+```
+
+Dit zijn de modelleringen obv input data van alle seizoenen
+
+```{r child-model-observed-richness-allseasons, echo=FALSE, results="asis"}
+season_run <- "allseasons"
+
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(taxon_group, primerset, unit) %>%
   arrange(
-    group, primerset, unit
+    taxon_group, primerset, unit
   )
 
 pmap(
   inputs,
   function(
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit) {
     knit_expand(
@@ -296,9 +396,10 @@ pmap(
         "source", "rmarkdown", "analyses_diversity",
         "_child_model_observed_richness.Rmd"
       ),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
-      unit = unit
+      unit = unit,
+      season_run = season_run
     )
   }
 ) %>%
@@ -320,53 +421,525 @@ if (interactive()) {
 }
 ```
 
-## Shannon index
+## Geobserveerde soortenrijkdom: winterhalfjaar
 
-```{r child-model-shannon, eval=FALSE, echo=FALSE, results="asis"}
+
+Dit zijn de modelleringen obv input data van november tot april
+
+```{r child-model-observed-richness-winterhalfjaar, echo=FALSE, results="asis"}
+library(dplyr)
+library(purrr)
+library(stringr)
+library(here)
+library(knitr)
+
+season_run <- "winterhalfjaar"
+
+# Build the triplets for this seasonal subset
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
-  arrange(
-    group, primerset, unit
-  )
+  dplyr::filter(!is.na(sampling_month),
+                sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
 
+# Expand the child Rmd for all triplets
 pmap(
   inputs,
-  function(
-      group = group,
-      primerset = primerset,
-      unit = unit) {
+  function(taxon_group, primerset, unit) {
     knit_expand(
-      here(
-        "source", "rmarkdown", "analyses_diversity",
-        "_child_model_shannon.Rmd"
-      ),
-      group = group,
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_observed_richness.Rmd"),
+      taxon_group = taxon_group,
       primerset = primerset,
-      unit = unit
+      unit = unit,
+      season_run = season_run
     )
   }
 ) %>%
   paste(collapse = "\n") -> rmd
 
-# clipr::write_clip(rmd) # nolint
+# --- Helper: append a suffix to *named* chunk labels only
+add_chunk_label_suffix <- function(rmd_text, suffix) {
+  # allow typical label chars and require a comma or } after the label
+  safe_suffix <- gsub("[^A-Za-z0-9._-]+", "-", suffix)
+  pattern     <- "(?m)^```\\{r\\s+([A-Za-z0-9._-]+)(?=\\s*[,}])"
+  replacement <- paste0("```{r \\1-", safe_suffix)
+  gsub(pattern, replacement, rmd_text, perl = TRUE)
+}
 
-knit_child(text = rmd, quiet = TRUE) %>%
-  cat()
+# Apply suffix = season_run so labels don't collide across seasonal runs
+rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Create per-run figure / cache dirs
+fig_dir   <- file.path("figures", paste0("obs-richness-", season_run))
+cache_dir <- file.path("cache",   paste0("obs-richness-", season_run))
+dir.create(fig_dir,   recursive = TRUE, showWarnings = FALSE)
+dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Helper for interactive execution of inline Rmd text
+execute_code <- function(rmd_text) {
+  r_code <- knitr::purl(text = rmd_text, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd_text = rmd_labeled)
+} else {
+  knit_child(
+    text    = rmd_labeled,
+    quiet   = TRUE,
+    options = list(
+      fig.path   = paste0(fig_dir, "/"),
+      cache.path = paste0(cache_dir, "/")
+    )
+  ) %>% cat()
+}
+
+
 ```
+
+
+## Geobserveerde soortenrijkdom: winter
+
+
+Dit zijn de modelleringen obv input data van december tot april
+
+```{r child-model-observed-richness-winter, echo=FALSE, results="asis"}
+library(dplyr)
+library(purrr)
+library(stringr)
+library(here)
+library(knitr)
+
+season_run <- "winter"
+
+# (Optional) TEMP compatibility if your Rmd has inline `r winter`
+# Prefer to change those to `r season_run` in the source.
+winter <- season_run
+
+# Build the triplets for this seasonal subset (Dec–Apr)
+inputs <- combined %>%
+  dplyr::filter(!is.na(sampling_month),
+                sampling_month %in% c(12, 1, 2, 3, 4)) %>%
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
+
+# Expand the child Rmd for all triplets
+pmap(
+  inputs,
+  function(taxon_group, primerset, unit) {
+    knit_expand(
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_observed_richness.Rmd"),
+      taxon_group = taxon_group,
+      primerset = primerset,
+      unit = unit,
+      season_run = season_run
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+# --- Helper: append a suffix to *named* chunk labels only
+add_chunk_label_suffix <- function(rmd_text, suffix) {
+  safe_suffix <- gsub("[^A-Za-z0-9._-]+", "-", suffix)        # sanitize
+  # Match lines like: ```{r mylabel[, ...]} and append -suffix to 'mylabel'
+  pattern     <- "(?m)^```\\{r\\s+([A-Za-z0-9._-]+)(?=\\s*[,}])"
+  replacement <- paste0("```{r \\1-", safe_suffix)
+  gsub(pattern, replacement, rmd_text, perl = TRUE)
+}
+
+# Apply suffix = season_run so labels don't collide across seasonal runs
+rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Create per-run figure / cache dirs (and make sure they exist)
+fig_dir   <- file.path("figures", paste0("obs-richness-", season_run))
+cache_dir <- file.path("cache",   paste0("obs-richness-", season_run))
+dir.create(fig_dir,   recursive = TRUE, showWarnings = FALSE)
+dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Helper for interactive execution of inline Rmd text
+execute_code <- function(rmd_text) {
+  r_code <- knitr::purl(text = rmd_text, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd_text = rmd_labeled)
+} else {
+  knit_child(
+    text    = rmd_labeled,
+    quiet   = TRUE,
+    options = list(
+      fig.path   = paste0(fig_dir, "/"),
+      cache.path = paste0(cache_dir, "/")
+    )
+  ) %>% cat()
+}
+
+```
+
+
+
+```{r save-summary-all, include=FALSE}
+if (exists("summary_all") && nrow(summary_all) > 0) {
+  summary_all <- summary_all %>%
+    dplyr::relocate(taxon_group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, taxon_group, primerset, landgebruik)
+
+  readr::write_csv(summary_all, file.path(output_dir, "richness_vs_c_density_all_groups_primers_seasons.csv"))
+}
+
+if (exists("summary_emm") && nrow(summary_emm) > 0) {
+  if ("diepte" %in% names(summary_emm)) {
+    summary_emm <- summary_emm %>% arrange(season_run, taxon_group, primerset, landgebruik, diepte)
+  } else {
+    summary_emm <- summary_emm %>% arrange(season_run, taxon_group, primerset, landgebruik)
+  }
+  write_csv(summary_emm, file.path(output_dir, "emm_landuse_all_groups_primers_season_runs.csv"))
+}
+
+if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
+  summary_contrasts <- summary_contrasts %>%
+    arrange(season_run, taxon_group, primerset, diepte, landgebruik_1, landgebruik_2)
+  write_csv(summary_contrasts, file.path(output_dir, "summary_contrasts_landuse.csv"))
+}
+
+# ---- Save the model-family summary once, after all season runs ----
+if (exists("summary_models", envir = .GlobalEnv)) {
+  readr::write_csv(
+    summary_models,
+    file.path(output_dir, "summary_model_family.csv")
+  )
+}
+
+```
+
+```{r eval=FALSE}
+# WERKT NIET
+if (exists("summary_contrasts") && nrow(summary_contrasts) > 0) {
+  sc <- summary_contrasts
+
+  # Failsafes if your accumulator kept original emmeans names
+  if (!"effect" %in% names(sc) && "ratio" %in% names(sc)) sc$effect <- sc$ratio
+  if (!"lcl"    %in% names(sc) && "asymp.LCL" %in% names(sc)) sc$lcl <- sc$asymp.LCL
+  if (!"ucl"    %in% names(sc) && "asymp.UCL" %in% names(sc)) sc$ucl <- sc$asymp.UCL
+
+  # Preserve originals to avoid masking issues
+  sc <- dplyr::mutate(
+    sc,
+    .orig_effect = effect,
+    .orig_lcl    = lcl,
+    .orig_ucl    = ucl
+  )
+
+  summary_contrasts_flipped <- sc %>%
+    dplyr::transmute(
+      taxon_group, primerset, season_run, diepte,
+      landgebruik_1 = landgebruik_2,
+      landgebruik_2 = landgebruik_1,
+      effect     = dplyr::if_else(is.finite(.orig_effect) & .orig_effect > 0, 1/.orig_effect, NA_real_),
+      effect_pct = 100 * (effect - 1),
+      lcl        = dplyr::if_else(is.finite(.orig_ucl) & .orig_ucl > 0, 1/.orig_ucl, NA_real_),
+      ucl        = dplyr::if_else(is.finite(.orig_lcl) & .orig_lcl > 0, 1/.orig_lcl, NA_real_),
+      stat_name,
+      stat       = dplyr::if_else(!is.na(stat), -stat, stat),  # log-contrast flips sign
+      p.value
+    ) %>%
+    dplyr::arrange(season_run, taxon_group, primerset, diepte, landgebruik_1, landgebruik_2)
+
+  readr::write_csv(summary_contrasts_flipped,
+                   file.path(output_dir, "summary_contrasts_landuse_flipped.csv"))
+}
+
+```
+
+
+## Shannon index: allseasons
+
+```{r setup-accumulator-shannon, include=FALSE}
+# ==== ACCUMULATORS: Shannon diversity ====
+
+# 1) Pairwise land-use contrasts (Shannon; differences on response scale)
+
+if (!exists("summary_contrasts_shannon")) summary_contrasts_shannon <- tibble()
+
+append_summary_contrasts_shannon <- function(df) {
+  summary_contrasts_shannon <<- dplyr::bind_rows(summary_contrasts_shannon, df)
+  invisible(NULL)
+}
+
+# 2) Model family (Shannon)
+if (!exists("summary_models_shannon", envir = .GlobalEnv)) {
+  summary_models_shannon <- tibble::tibble(
+    taxon_group        = character(),
+    primerset    = character(),
+    season_run   = character(),
+    model_family = character()
+  )
+}
+
+append_model_family_shannon <- function(taxon_group, primerset, season_run, model_family) {
+  row <- tibble::tibble(
+    taxon_group        = taxon_group,
+    primerset    = primerset,
+    season_run   = season_run,
+    model_family = as.character(model_family)
+  )
+  current <- get("summary_models_shannon", envir = .GlobalEnv)
+  assign("summary_models_shannon",
+         dplyr::bind_rows(current, row),
+         envir = .GlobalEnv)
+}
+
+
+# 3) Accumulator for correlation shannon diversity with c_density. 
+summary_cdensity_shannon_all <- tibble()
+
+# 4) Accumulator for emmeans summaries
+if (!exists("summary_emm_shannon")) summary_emm_shannon <- tibble()
+
+append_summary_emm <- function(df) {
+  summary_emm_shannon <<- dplyr::bind_rows(summary_emm_shannon, df)
+  invisible(NULL)
+}
+
+# 5) Accumulator for landgebruik in Anova
+
+anova_landgebruik_all <- list()
+
+```
+
+Dit zijn de modelleringen voor Shannon diversity obv input data van alle seizoenen
+
+
+```{r child-model-shannon-allseasons, echo=FALSE, results="asis"}
+season_run <- "allseasons"
+
+inputs <- combined %>%
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
+
+pmap(
+  inputs,
+  function(taxon_group, primerset, unit) {
+    knit_expand(
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_shannon.Rmd"),
+      taxon_group = taxon_group,
+      primerset = primerset,
+      unit = unit,
+      season_run = season_run
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+# Helper (optional): execute inline if interactive
+execute_code <- function(rmd_text) {
+  r_code <- knitr::purl(text = rmd_text, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd_text = rmd)
+} else {
+  knit_child(text = rmd, quiet = TRUE) %>% cat()
+}
+```
+
+## Shannon index: winterhalfjaar
+
+Dit zijn de modelleringen voor Shannon diversity obv input data van maanden 11 tot 4 (november tot april)
+
+```{r child-model-shannon-winterhalfjaar, echo=FALSE, results="asis"}
+season_run <- "winterhalfjaar"
+
+# Triplets present in this seasonal subset
+inputs <- combined %>%
+  dplyr::filter(!is.na(sampling_month),
+                sampling_month %in% c(11, 12, 1, 2, 3, 4)) %>%
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
+
+# Expand child Rmds
+pmap(
+  inputs,
+  function(taxon_group, primerset, unit) {
+    knit_expand(
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_shannon.Rmd"),
+      taxon_group = taxon_group,
+      primerset = primerset,
+      unit = unit,
+      season_run = season_run
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+# --- Avoid duplicate chunk labels across seasonal runs
+add_chunk_label_suffix <- function(rmd_text, suffix) {
+  safe_suffix <- gsub("[^A-Za-z0-9._-]+", "-", suffix)
+  pattern     <- "(?m)^```\\{r\\s+([A-Za-z0-9._-]+)(?=\\s*[,}])"
+  replacement <- paste0("```{r \\1-", safe_suffix)
+  gsub(pattern, replacement, rmd_text, perl = TRUE)
+}
+rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Season-specific fig/cache dirs
+fig_dir   <- file.path("figures", paste0("shannon-", season_run))
+cache_dir <- file.path("cache",   paste0("shannon-", season_run))
+dir.create(fig_dir,   recursive = TRUE, showWarnings = FALSE)
+dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+
+execute_code <- function(rmd_text) {
+  r_code <- knitr::purl(text = rmd_text, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd_text = rmd_labeled)
+} else {
+  knit_child(
+    text    = rmd_labeled,
+    quiet   = TRUE,
+    options = list(
+      fig.path   = paste0(fig_dir, "/"),
+      cache.path = paste0(cache_dir, "/")
+    )
+  ) %>% cat()
+}
+```
+
+## Shannon index: winter
+
+Dit zijn de modelleringen voor Shannon diversity obv input data van maanden 12 tot 4 (december tot april)
+
+```{r child-model-shannon-winter, echo=FALSE, results="asis"}
+season_run <- "winter"
+
+# (Optional) TEMP compatibility if any inline code still refers to `winter`
+winter <- season_run
+
+# Triplets present in this seasonal subset
+inputs <- combined %>%
+  dplyr::filter(!is.na(sampling_month),
+                sampling_month %in% c(12, 1, 2, 3, 4)) %>%
+  dplyr::distinct(taxon_group, primerset, unit) %>%
+  dplyr::arrange(taxon_group, primerset, unit)
+
+# Expand child Rmds
+pmap(
+  inputs,
+  function(taxon_group, primerset, unit) {
+    knit_expand(
+      here("source", "rmarkdown", "analyses_diversity",
+           "_child_model_shannon.Rmd"),
+      taxon_group = taxon_group,
+      primerset = primerset,
+      unit = unit,
+      season_run = season_run
+    )
+  }
+) %>%
+  paste(collapse = "\n") -> rmd
+
+# --- Avoid duplicate chunk labels across seasonal runs
+add_chunk_label_suffix <- function(rmd_text, suffix) {
+  safe_suffix <- gsub("[^A-Za-z0-9._-]+", "-", suffix)
+  pattern     <- "(?m)^```\\{r\\s+([A-Za-z0-9._-]+)(?=\\s*[,}])"
+  replacement <- paste0("```{r \\1-", safe_suffix)
+  gsub(pattern, replacement, rmd_text, perl = TRUE)
+}
+rmd_labeled <- add_chunk_label_suffix(rmd, season_run)
+
+# Season-specific fig/cache dirs
+fig_dir   <- file.path("figures", paste0("shannon-", season_run))
+cache_dir <- file.path("cache",   paste0("shannon-", season_run))
+dir.create(fig_dir,   recursive = TRUE, showWarnings = FALSE)
+dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+
+execute_code <- function(rmd_text) {
+  r_code <- knitr::purl(text = rmd_text, quiet = TRUE)
+  eval(parse(text = r_code), envir = .GlobalEnv)
+}
+
+if (interactive()) {
+  execute_code(rmd_text = rmd_labeled)
+} else {
+  knit_child(
+    text    = rmd_labeled,
+    quiet   = TRUE,
+    options = list(
+      fig.path   = paste0(fig_dir, "/"),
+      cache.path = paste0(cache_dir, "/")
+    )
+  ) %>% cat()
+}
+```
+
+
+
+```{r}
+# ==== SAVE Shannon summaries ====
+if (exists("summary_contrasts_shannon", envir = .GlobalEnv)) {
+  readr::write_csv(
+    summary_contrasts_shannon,
+    file.path(output_dir, "summary_contrasts_landuse_shannon.csv")
+  )
+}
+
+
+if (exists("summary_models_shannon", envir = .GlobalEnv)) {
+  readr::write_csv(
+    summary_models_shannon,
+    file.path(output_dir, "summary_model_family_shannon.csv")
+  )
+}
+
+
+if (exists("summary_cdensity_shannon_all") && nrow(summary_cdensity_shannon_all) > 0) {
+  summary_cdensity_shannon_all <- summary_cdensity_shannon_all %>%
+    dplyr::relocate(taxon_group, primerset, landgebruik, season_run) %>%
+    dplyr::arrange(season_run, taxon_group, primerset, landgebruik)
+
+  readr::write_csv(summary_cdensity_shannon_all, file.path(output_dir, "shannon_vs_c_density_all_groups_primers_seasons.csv"))
+}
+
+
+if (exists("summary_emm_shannon") && nrow(summary_emm_shannon) > 0) {
+  if ("diepte" %in% names(summary_emm_shannon)) {
+    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, taxon_group, primerset, landgebruik, diepte)
+  } else {
+    summary_emm_shannon <- summary_emm_shannon %>% arrange(season_run, taxon_group, primerset, landgebruik)
+  }
+  write_csv(summary_emm_shannon, file.path(output_dir, "emm_shannon_landuse_all_groups_primers_season_runs.csv"))
+}
+
+
+# ---- finalize-anova-landgebruik ---------------------------------------------
+anova_landgebruik_all_df <- dplyr::bind_rows(anova_landgebruik_all)
+
+write_csv(anova_landgebruik_all_df, file.path(output_dir, "shannon_anova_landgebruik_all.csv"))
+
+
+```
+
 
 ## Simpson index
 
 ```{r child-model-simpson, eval=FALSE, echo=FALSE, results="asis"}
 inputs <- combined %>%
-  distinct(group, primerset, unit) %>%
+  distinct(taxon_group, primerset, unit) %>%
   arrange(
-    group, primerset, unit
+    taxon_group, primerset, unit
   )
 
 pmap(
   inputs,
   function(
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit) {
     knit_expand(
@@ -374,7 +947,7 @@ pmap(
         "source", "rmarkdown", "analyses_diversity",
         "_child_model_simpson.Rmd"
       ),
-      group = group,
+      taxon_group = taxon_group,
       primerset = primerset,
       unit = unit
     )

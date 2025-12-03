@@ -1,20 +1,53 @@
-### `r stringr::str_to_sentence("{{group}} - {{primerset}} - {{unit}}")`
+
+### `r stringr::str_to_sentence("{{taxon_group}} - {{primerset}} - {{unit}}")`
 
 ```{r}
-group <- "{{group}}"
+taxon_group <- "{{taxon_group}}"
 primerset <- "{{primerset}}"
 unit <- "{{unit}}"
+season_run <- "{{season_run}}"
+
+```
+
+Seasonal filtering inside the child
+
+```{r}
+# Seasonal filtering inside the child
+months_map <- list(
+  allseasons     = NULL,
+  winterhalfjaar = c(11, 12, 1, 2, 3, 4),
+  winter         = c(12, 1, 2, 3, 4)
+)
+
+data_subset <- combined %>%
+  {
+    sel <- months_map[[season_run]]
+    if (!is.null(sel) && "sampling_month" %in% names(.)) {
+      dplyr::filter(., sampling_month %in% sel)
+    } else {
+      .
+    }
+  } %>%
+  dplyr::filter(
+    taxon_group     == "{{taxon_group}}",
+    primerset == "{{primerset}}",
+    unit      == "{{unit}}"
+  ) %>%
+  droplevels()
 ```
 
 ```{r}
-data_subset <- combined %>%
-  filter(
-    group == "{{group}}",
-    primerset == "{{primerset}}",
-    unit == "{{unit}}"
-  )
+cat("season_run =", season_run,
+    "| rows =", nrow(data_subset),
+    "| months =",
+    if ("sampling_month" %in% names(data_subset))
+      paste(sort(unique(data_subset$sampling_month)), collapse = ",")
+    else "NA",
+    "\n")
+
 ```
 
+basic statistics
 
 ```{r}
 data_subset %>%
@@ -32,8 +65,11 @@ data_subset <- data_subset %>%
 diepte_ok <- length(unique(data_subset$diepte)) > 1
 ```
 
+#### Basismodel
 
-```{r m-shannon-{{group}}-{{primerset}}-{{unit}}}
+Fitting models
+
+```{r m-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
 if (diepte_ok) {
   form_shannon <- formula(
   shannon ~
@@ -77,204 +113,366 @@ if (!zeroes) {
 }
 ```
 
+Performance check selected model
 
-```{r m-shannon-checks-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-checks-{{taxon_group}}-{{primerset}}-{{unit}}}
 performance::check_model(m_shannon)
 ```
 
+Summary selected model
 
-```{r m-shannon-summary-{{group}}-{{primerset}}-{{unit}}}
+```{r m-shannon-summary-{{taxon_group}}-{{primerset}}-{{unit}}}
 summary(m_shannon) |> print(digits = 2)
 ```
 
-```{r m-shannon-anova-{{group}}-{{primerset}}-{{unit}}}
+Capture model family
+
+```{r}
+# ---- Shannon: capture model family (NEW) ----
+get_family_name <- function(model) {
+  tryCatch({
+    fam <- stats::family(model)
+    if (is.list(fam) && !is.null(fam$family)) as.character(fam$family)
+    else if (inherits(fam, "family") && !is.null(fam$family)) fam$family
+    else if (is.character(fam)) fam
+    else NA_character_
+  }, error = function(e) NA_character_)
+}
+
+model_family_shannon <- get_family_name(m_shannon)
+
+append_model_family_shannon(
+  taxon_group        = taxon_group,
+  primerset    = primerset,
+  season_run   = season_run,
+  model_family = model_family_shannon
+)
+
+```
+
+Anova selected model
+
+```{r m-shannon-anova-{{taxon_group}}-{{primerset}}-{{unit}}}
 car::Anova(m_shannon) |> print(digits = 2)
 ```
 
-```{r m-shannon-marginal-means-{{group}}-{{primerset}}-{{unit}}}
-# Estimated marginal means per land use *within each depth layer*
-emmeans_landuse_by_depth <- marginaleffects::avg_predictions(
-  m_shannon,
-  variables = "landgebruik",
-  newdata = data_subset,
-  by = c("diepte", "landgebruik"),
-  type = "response"
-)
+accumulator landgebruik output in anova
 
+```{r}
+# ---- anova-landgebruik-extract-and-append -----------------------------------
+suppressPackageStartupMessages({
+  library(dplyr); library(tibble)
+})
 
-# Save to CSV with automatic naming
-write_csv(
-  emmeans_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
+# Helper safely extracts the 'landgebruik' row from car::Anova
+.extract_landgebruik_row <- function(model, term = "landgebruik") {
+  out <- try(car::Anova(model, type = 2), silent = TRUE)
+  if (inherits(out, "try-error")) {
+    return(tibble(
+      term        = term,
+      chisq       = NA_real_,
+      df          = NA_real_,
+      p.value     = NA_real_,
+      anova_ok    = FALSE,
+      note        = as.character(out)
+    ))
+  }
+  tab <- as.data.frame(out) %>% tibble::rownames_to_column("term")
+  if (!term %in% tab$term) {
+    return(tibble(
+      term        = term,
+      chisq       = NA_real_,
+      df          = NA_real_,
+      p.value     = NA_real_,
+      anova_ok    = TRUE,
+      note        = "term not in Anova table"
+    ))
+  }
+  row <- tab %>% filter(term == !!term) %>%
+    transmute(
+      term,
+      chisq   = as.numeric(.data[["Chisq"]]),
+      df      = as.numeric(.data[["Df"]]),
+      p.value = as.numeric(.data[["Pr(>Chisq)"]]),
+      anova_ok = TRUE,
+      note    = NA_character_
+    )
+  row
+}
 
-# print
-emmeans_landuse_by_depth
-```
-
-
-```{r m-shannon-contrasts-{{group}}-{{primerset}}-{{unit}}}
-# Compute all pairwise contrasts between land use types within each depth layer
-contrasts_landuse_by_depth <- marginaleffects::comparisons(
-  model = m_shannon,
-  variables = "landgebruik",
-  newdata = data_subset,
-  type = "response",
-  by = "diepte")
-
-# Save to CSV with automatic naming
-write_csv(
-  contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("contrasts_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print the results
-print(contrasts_landuse_by_depth)
-
-```
-
-```{r m-shannon-contrasts-adj-{{group}}-{{primerset}}-{{unit}}}
-# Add bh-corrected p-values per depth group
-contrasts_shannon_landuse_by_depth_adj <- contrasts_landuse_by_depth %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    estimate,
-    std.error,
-    conf.low,
-    conf.high,
-    p.value,
-    p_bh
+# Build the row enriched with identifiers from the knitting context
+lg_row <- .extract_landgebruik_row(m_shannon, term = "landgebruik") %>%
+  mutate(
+    taxon_group       = get0("taxon_group", ifnotfound = NA_character_),
+    primerset   = get0("primerset", ifnotfound = NA_character_),
+    unit        = get0("unit", ifnotfound = NA_character_),
+    season_run  = get0("season_run", ifnotfound = NA_character_),
+    n_obs       = tryCatch(stats::nobs(m_shannon), error = function(e) NA_integer_)
   ) %>%
-  arrange(diepte, p.value)
+  relocate(taxon_group, primerset, unit, season_run, .before = term)
 
-# Save adjusted results to CSV
-write_csv(
-  contrasts_shannon_landuse_by_depth_adj,
-  file = file.path(output_dir, glue("contrasts_shannon_landuse_by_depth_adj_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print adjusted summary
-print(contrasts_shannon_landuse_by_depth_adj)
+# Append to the parent accumulator living in the same knit session
+anova_landgebruik_all <<- append(anova_landgebruik_all, list(lg_row))
 
 ```
 
-```{r m-shannon-emmeans-contrasts-per-depth-{{group}}-{{primerset}}-{{unit}}}
-# Estimate marginal means per land use per depth
-emm_landuse_by_depth <- emmeans(
+
+estimate marginal means shannon diversity
+
+```{r}
+# Estimated marginal means per land use (and per depth if applicable)
+
+emm_landuse <- emmeans(
   m_shannon,
   specs = "landgebruik",
-  by = "diepte",
-  data = data_subset
-)
-
-# Compute pairwise contrasts
-contrasts_landuse_by_depth <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none") %>%
-  as.data.frame()
-
-# Save to CSV
-write_csv(
-  contrasts_landuse_by_depth,
-  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print
-print(contrasts_landuse_by_depth)
-
-```
-
-```{r m-shannon-contrasts-per-depth-bh-{{group}}-{{primerset}}-{{unit}}}
-# Add BH-adjusted p-values per depth
-contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth %>%
-  as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    estimate,
-    SE,
-    z.ratio,
-    p.value,
-    p_bh
-  ) %>%
-  arrange(diepte, p.value)
-
-
-# Save corrected results to CSV
-write_csv(
-  contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_bh_{group}_{primerset}_{unit}.csv"))
-)
-
-# Print
-contrasts_landuse_by_depth_corrected
-
-```
-
-```{r m-shannon-contrasts-per-depth-response-{{group}}-{{primerset}}-{{unit}}}
-# Estimate marginal means per land use per depth
-emm_landuse_by_depth <- emmeans(
-  m_shannon,
-  specs = "landgebruik",
-  by = "diepte",
+  by = if (diepte_ok) "diepte" else NULL,
   data = data_subset,
   type = "response"
 )
 
-# Compute pairwise contrasts
-contrasts_landuse_by_depth_response <- contrast(emm_landuse_by_depth, method = "pairwise", adjust = "none", infer = c(TRUE, TRUE)) %>%
+
+emm_df <- as.data.frame(emm_landuse) %>%
+  as_tibble() %>%
+  mutate(
+    # tag with run identifiers
+    taxon_group       = taxon_group,
+    primerset   = primerset,
+    season_run  = season_run,
+    # always keep landgebruik as character for a stable schema
+    landgebruik = as.character(landgebruik)
+  ) %>%
+  # ensure a 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # order columns: required 4 first, then diepte, then the emmeans columns
+  relocate(taxon_group, primerset, landgebruik, season_run, diepte)
+
+# Append to the parent accumulator
+append_summary_emm(emm_df)
+
+# print
+emm_landuse
+```
+
+
+Estimate contrasts between land-use categories per depth
+
+```{r m-shannon-emmeans-contrasts-per-depth-{{taxon_group}}-{{primerset}}-{{unit}}}
+# Estimate marginal means per land use per depth
+emm_shannon_landuse_by_depth <- emmeans(
+  m_shannon,
+  specs = "landgebruik",
+  by = if (diepte_ok) "diepte" else NULL,
+  data = data_subset,
+  type = "response"
+)
+
+# Pairwise contrasts (auto adjustment by emmeans; keep CIs & p-values)
+contrasts_shannon_landuse_response <- contrast(
+  emm_shannon_landuse_by_depth,
+  method = "pairwise",
+  infer = c(TRUE, TRUE)
+) %>%
   as.data.frame()
 
 # Save to CSV
 write_csv(
-  contrasts_landuse_by_depth_response,
-  file = file.path(output_dir, glue("emmans_contrasts_shannon_landuse_by_depth_response_{group}_{primerset}_{unit}.csv"))
+  contrasts_shannon_landuse_response,
+  file = file.path(output_dir, glue("contrasts_landuse_shannon_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # Print
-print(contrasts_landuse_by_depth_response)
+print(contrasts_shannon_landuse_response)
 
 ```
 
+Accumulator contrasts Shannon diversity between land-use categories per depth
 
-```{r m-shannon-contrasts-per-depth-response-bh-{{group}}-{{primerset}}-{{unit}}}
-# Add BH-adjusted p-values per depth
-contrasts_landuse_by_depth_corrected <- contrasts_landuse_by_depth_response %>%
+```{r}
+# Summary table
+contrasts_tbl_sh <- contrasts_shannon_landuse_response %>%
   as_tibble() %>%
-  group_by(diepte) %>%
-  mutate(p_bh = p.adjust(p.value, method = "BH")) %>%
-  ungroup() %>%
-  select(
-    diepte,
-    contrast,
-    ratio,
-    SE,
-    z.ratio,
-    p.value,
-    p_bh,
-    asymp.LCL,
-    asymp.UCL
-  ) %>%
-  arrange(diepte, p.value)
+  dplyr::select(
+    dplyr::any_of(c(
+      "diepte",        # only present if diepte_ok == TRUE
+      "contrast",
+      "estimate",      # default column name
+      "ratio",         # appears instead of 'estimate' when type = "response"
+      "SE",
+      "z.ratio",       # or t.ratio, one of them will always exist with infer=TRUE
+      "p.value",
+      "asymp.LCL",
+      "asymp.UCL"
+    ))
+  )
 
+# Sort
+if (diepte_ok) {
+  contrasts_tbl_sh <- contrasts_tbl_sh %>% arrange(diepte, p.value)
+} else {
+  contrasts_tbl_sh <- contrasts_tbl_sh %>% arrange(p.value)
+}
 
-# Save corrected results to CSV
+# Save
 write_csv(
-  contrasts_landuse_by_depth_corrected,
-  file = file.path(output_dir, glue("emmeans_contrasts_shannon_landuse_by_depth_bh_response_{group}_{primerset}_{unit}.csv"))
+  contrasts_tbl_sh,
+  file = file.path(output_dir, glue("contrasts_landuse_table_response_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
+if (!"z.ratio" %in% names(contrasts_shannon_landuse_response) && "t.ratio" %in% names(contrasts_shannon_landuse_response)) {
+  contrasts_shannon_landuse_response$z.ratio <- contrasts_shannon_landuse_response$t.ratio
+}
+
+if (!"asymp.LCL" %in% names(contrasts_shannon_landuse_response) && "lower.CL" %in% names(contrasts_shannon_landuse_response)) {
+  contrasts_shannon_landuse_response$asymp.LCL <- contrasts_shannon_landuse_response$lower.CL
+  contrasts_shannon_landuse_response$asymp.UCL <- contrasts_shannon_landuse_response$upper.CL
+}
+
+
+# Build a tidy table with standard columns
+contrasts_tbl_shannon <- contrasts_shannon_landuse_response %>%
+  # Ensure 'diepte' column exists even if diepte_ok == FALSE
+  { if (!"diepte" %in% names(.)) mutate(., diepte = NA_character_) else . } %>%
+  # Split "Akker / Natuurgrasland" -> two columns
+  mutate(contrast = as.character(contrast)) %>%
+  tidyr::separate(contrast, into = c("landgebruik_1", "landgebruik_2"),
+                  sep = " / ", remove = TRUE, fill = "right") %>%
+  mutate(
+    effect      = .data$ratio,
+    effect_pct  = 100 * (effect - 1),  # percent difference (numerator vs denominator)
+    lcl         = .data$asymp.LCL,
+    ucl         = .data$asymp.UCL,
+    stat        = .data$z.ratio,
+    stat_name   = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
+                                   TRUE ~ NA_character_)
+  ) %>%
+  # Tag with run identifiers and order columns
+  mutate(
+    taxon_group      = taxon_group,
+    primerset  = primerset,
+    season_run = season_run
+  ) %>%
+  relocate(taxon_group, primerset, season_run, diepte, landgebruik_1, landgebruik_2,
+           effect, effect_pct, SE, lcl, ucl, stat_name, stat, p.value)
+
+
+# --- Build ΔH′ + Hill table and JOIN into existing contrasts_tbl_shannon ---
+
+# Regrid to identity (H′) so pairwise are differences (ΔH′)
+emm_shannon_resp <- regrid(emm_shannon_landuse_by_depth, transform = "response")
+
+# Pairwise differences in H′
+contrasts_shannon_deltaH <- contrast(
+  emm_shannon_resp,
+  method = "pairwise",
+  by     = if (diepte_ok) "diepte" else NULL,
+  infer  = c(TRUE, TRUE)
+) %>% as.data.frame()
+
+# Tidy ΔH′; standardize columns + split "A / B" or "A - B"
+delta_tbl <- contrasts_shannon_deltaH %>%
+  { if (!"diepte" %in% names(.)) dplyr::mutate(., diepte = NA_character_) else . } %>%
+  dplyr::mutate(
+    LCL = .data$asymp.LCL,
+    UCL = .data$asymp.UCL,
+    stat_delta = .data$z.ratio,
+    contrast = as.character(.data$contrast)
+  ) %>%
+  tidyr::separate(
+    contrast, into = c("landgebruik_1","landgebruik_2"),
+    sep = " / | - ", remove = TRUE, fill = "right"
+  ) %>%
+  dplyr::transmute(
+    diepte, landgebruik_1, landgebruik_2,
+    delta_H       = estimate,
+    deltaH_LCL    = LCL,
+    deltaH_UCL    = UCL,
+    hill_ratio    = exp(delta_H),
+    hill_LCL      = exp(deltaH_LCL),
+    hill_UCL      = exp(deltaH_UCL),
+    stat_name_delta = dplyr::case_when(!is.na(stat_delta) ~ "z", TRUE ~ NA_character_),
+    stat_delta    = stat_delta,
+    p.value_delta = p.value
+  )
+
+# JOIN ΔH′/Hill columns into your original ratio table (one row per pair)
+contrasts_tbl_shannon <- contrasts_tbl_shannon %>%
+  dplyr::left_join(
+    delta_tbl,
+    by = c("diepte","landgebruik_1","landgebruik_2")
+  )
+
+contrasts_tbl_shannon <- contrasts_tbl_shannon %>%
+  dplyr::rename(ratio_LCL = lcl, ratio_UCL = ucl) %>%
+  dplyr::relocate(ratio_LCL, ratio_UCL, .after = effect_pct)
+
+
+# Append to the parent accumulator
+append_summary_contrasts_shannon(contrasts_tbl_shannon)
+
 # Print
-contrasts_landuse_by_depth_corrected
+#contrasts_tbl_shannon
+```
+
+Keep the below, in case the above does not work
+
+```{r eval=FALSE}
+# --- Also compute ΔH′ and Hill fold-changes, keeping the original output intact ---
+
+# Put EMMs onto the identity (H′) scale so pairwise are *differences* (ΔH′), not ratios
+emm_shannon_resp <- regrid(emm_shannon_landuse_by_depth, transform = "response")
+
+# Pairwise differences in H′
+contrasts_shannon_deltaH <- contrast(
+  emm_shannon_resp,
+  method = "pairwise",
+  by     = if (diepte_ok) "diepte" else NULL,
+  infer  = c(TRUE, TRUE)
+) %>% 
+  as.data.frame() %>%
+  dplyr::mutate(
+    LCL = .data$asymp.LCL,
+    UCL = .data$asymp.UCL,
+    stat = .data$z.ratio,
+    stat_name = dplyr::case_when(!is.na(.data$z.ratio) ~ "z",
+                                 TRUE ~ NA_character_)
+  )
+
+# Tidy ΔH′ + Hill ratios table (separate "A / B")
+contrasts_tbl_shannon_deltaH <- contrasts_shannon_deltaH %>%
+  { if (!"diepte" %in% names(.)) dplyr::mutate(., diepte = NA_character_) else . } %>%
+  dplyr::mutate(contrast = as.character(.data$contrast)) %>%
+  tidyr::separate(contrast, into = c("landgebruik_1", "landgebruik_2"),
+                  sep = " / ", remove = TRUE, fill = "right") %>%
+  dplyr::mutate(
+    delta_H    = .data$estimate,
+    lcl        = .data$LCL,
+    ucl        = .data$UCL,
+    hill_ratio = exp(delta_H),
+    hill_LCL   = exp(lcl),
+    hill_UCL   = exp(ucl)
+  ) %>%
+  dplyr::mutate(
+    taxon_group      = taxon_group,
+    primerset  = primerset,
+    season_run = season_run
+  ) %>%
+  { if (diepte_ok) dplyr::arrange(., diepte, p.value) else dplyr::arrange(., p.value) }
+
+# Save ΔH′ + Hill table (in addition to your original CSVs)
+readr::write_csv(
+  contrasts_tbl_shannon_deltaH,
+  file = file.path(output_dir, glue::glue("contrasts_landuse_table_deltaH_hill_{taxon_group}_{primerset}_{unit}.csv"))
+)
+
+# Append ΔH′ + Hill table to your accumulator as well
+append_summary_contrasts_shannon(contrasts_tbl_shannon_deltaH)
 
 ```
 
-```{r m-shannon-preds-values-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+
+Marginal effects average predictions (double check marginal means but different method)
+
+```{r m-shannon-preds-values-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}}
 predicted_values <- marginaleffects::avg_predictions(
   m_shannon,
   variables = c("landgebruik", "diepte"),
@@ -285,14 +483,16 @@ predicted_values <- marginaleffects::avg_predictions(
 # save to CSV
 write_csv(
   predicted_values,
-  file = file.path(output_dir, glue("predicted_values_shannon_{group}_{primerset}_{unit}.csv"))
+  file = file.path(output_dir, glue("predicted_values_shannon_{taxon_group}_{primerset}_{unit}.csv"))
 )
 
 # View
 print(predicted_values)
 ```
 
-```{r m-shannon-preds-total-count-{{group}}-{{primerset}}-{{unit}}}
+Plot predictions total count
+
+```{r m-shannon-preds-total-count-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
   condition = c("total_count"),
@@ -304,7 +504,9 @@ marginaleffects::plot_predictions(
   scale_x_log10()
 ```
 
-```{r m-shannon-preds-landgebruikxdiepte-{{group}}-{{primerset}}-{{unit}}}
+Plot predictions design variables
+
+```{r m-shannon-preds-landgebruikxdiepte-{{taxon_group}}-{{primerset}}-{{unit}}}
 marginaleffects::plot_predictions(
   m_shannon,
   condition = c("landgebruik", "diepte"[diepte_ok]),
@@ -313,6 +515,574 @@ marginaleffects::plot_predictions(
   type = "response"
 ) +
   labs(y = "Shannon index")
+```
+
+#### Met fysicochemische data
+
+Stapsgewijze modelselectie:
+
+```{r}
+variables_no_collinearity <- c(
+  "total_count",
+  "landgebruik",
+  "diepte"[diepte_ok],
+  "cmon_plot_id",
+  "c_density",
+  "swc_vol",
+  "ph_kcl",
+  "textuur_som_klei_zand"
+)
+
+nr1 <- nrow(data_subset)
+cat(
+  paste(
+    "De originele dataset heeft",
+    nr1,
+    "rijen.\n"
+  )
+)
+data_subset <- data_subset %>%
+  mutate(log_c_density = log(c_density)) %>%  # log-transform predictor
+  { 
+    # Guard: non-positive c_density cannot be logged
+    if (any(!is.finite(.$log_c_density))) {
+      stop("c_density bevat niet-positieve waarden; log() is niet gedefinieerd. Filter/aanpassen vereist.")
+    } else .
+  } %>%
+  filter(complete.cases(across(all_of(c(variables_no_collinearity, "log_c_density"))))) %>%
+  droplevels()
+nr2 <- nrow(data_subset)
+
+cat(
+  paste(
+    "Na verwijderen van rijen waarvan er ontbrekende gegevens zijn voor
+    één van de covariaten, heeft de dataset",
+    nr2,
+    "rijen.\n"
+  )
+)
+```
+
+We voegen alle niet collineaire fysicochemische variabelen toe aan het basismodel.
+Voor pH gebruiken we een kwadratische effect.
+Dit wordt het `full model`.
+
+```{r extend-shannon-model-additional-predictors-{{taxon_group}}-{{primerset}}-{{unit}}}
+form_shannon_full <- update(
+  form_shannon,
+  . ~ .
+    + swc_vol
+    + log_c_density
+    + poly(ph_kcl, 2)
+    + textuur_som_klei_zand
+)
+
+m_shannon_full <- update(
+  m_shannon,
+  formula = form_shannon_full,
+  data = data_subset,
+  na.action = na.fail
+)
+```
+
+We vergelijken de parameterschattingen van het basis en volledig model.
+
+```{r coefficients-se-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
+base_model_coefs <- broom.mixed::tidy(m_shannon)
+full_model_coefs <- broom.mixed::tidy(m_shannon_full)
+
+coefs_df <- rbind(
+  data.frame(Model = "Base", base_model_coefs),
+  data.frame(Model = "Full", full_model_coefs)
+)
+```
+
+```{r plot-coefficient-estimates-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
+ggplot(
+  coefs_df,
+  aes(x = term, y = estimate, fill = Model)
+) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(
+    aes(
+      ymin = estimate - std.error,
+      ymax = estimate + std.error
+    ),
+    width = 0.2, position = position_dodge(0.9)
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  labs(
+    title = "Coefficient Estimates and Standard Errors",
+    x = "Predictor",
+    y = "Estimate",
+    fill = "Model"
+  )
+```
+
+```{r save-coefficient-estimates-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
+readr::write_csv(
+  coefs_df,
+  file = file.path(
+    output_dir,
+    glue::glue("coefs_base_vs_full_shannon-{taxon_group}_{primerset}_{unit}.csv")
+  )
+)
+```
+
+Modelselectie met de functie `dredge`.
+We beperken het aantal te verkennen parametercombinaties door te forceren dat `total count` `landgebruik` en `diepte` altijd geschat moeten worden ('by design') en maximaal 7 termen in het model zitten.
+
+```{r model-selection-and-comparison-shannon-{{taxon_group}}-{{primerset}}-{{unit}}, warning=FALSE}
+if (diepte_ok) {
+  model_set <- dredge(
+    m_shannon_full,
+    m.lim = c(NA, 7),
+    fixed = ~
+      cond(log(total_count + 1))
+    + cond(landgebruik)
+    + cond(diepte)
+    + (1 | cmon_plot_id)
+  )
+} else {
+  model_set <- dredge(
+    m_shannon_full,
+    m.lim = c(NA, 7),
+    fixed = ~
+      cond(log(total_count + 1))
+    + cond(landgebruik)
+    + (1 | cmon_plot_id)
+  )
+}
+```
+
+Per variabele berekenen we de som van modelgewichten over alle modellen en tellen we in hoeveel modellen de variabele voorkwam:
+
+```{r importance-per-predictor-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
+importance_df <- sw(model_set)
+print(importance_df)
+```
+
+Visualisatie van modellen die minder dan 4 AICc verschillen van het model met laagste AICc (rij 1):
+
+```{r}
+dd <- subset(model_set, delta < 4)
+
+par(mar = c(3, 5, 6, 4))
+plot(dd, labAsExpr = TRUE)
+```
+
+Dit is de samenvatting voor het model met de laagste AICc:
+
+```{r}
+lowest_aic <- get.models(dd, 1)[[1]]
+summary(lowest_aic)
+```
+
+```{r m-shannon-anova-incl-fyschem-{{taxon_group}}-{{primerset}}-{{unit}}}
+car::Anova(lowest_aic) |> print(digits = 2)
+```
+
+plot model diagnostics and model predictions
+
+```{r error=TRUE}
+p <- performance::check_predictions(lowest_aic)
+plot(p) + facet_zoom(xlim = c(0, 10))
+p <- performance::check_overdispersion(lowest_aic)
+p
+p %>% plot()
+p <- performance::check_residuals(lowest_aic)
+p
+p %>% plot()
+performance::check_collinearity(lowest_aic)
+performance::check_zeroinflation(lowest_aic)
+```
+
+
+```{r}
+at <- car::Anova(lowest_aic)
+efvars <- rownames(at)[order(-at$Chisq)]
+interactingvars <- efvars[grepl(":", efvars)]
+interactingvars <- stringr::str_split(interactingvars, ":") %>%
+  unlist() %>%
+  unique()
+efvars <- efvars[!efvars %in% interactingvars]
+efvars <- stringr::str_replace_all(
+  efvars, "^(\\w+\\()?(.+?)(\\))?$", "\\2"
+)
+efvars <- ifelse(
+  efvars == "diepte:landgebruik", "landgebruik:diepte", efvars
+)
+efvars <- ifelse(
+  efvars == "total_count + 1", "total_count", efvars
+)
+efvars <- ifelse(
+  efvars == "ph_kcl, 2", "ph_kcl", efvars
+)
+
+p <- vector(mode = "list", length = length(efvars))
+p <- set_names(p, efvars)
+for (i in efvars) {
+  if (grepl(":", i)) {
+    conds <- stringr::str_split_1(i, ":")
+    nd <- insight::get_datagrid(
+      lowest_aic,
+      by = conds,
+      length = 50
+    )
+    pl <- marginaleffects::plot_predictions(
+      model = lowest_aic,
+      by = conds,
+      newdata = nd,
+      vcov = TRUE,
+      type = "response",
+      points = 0.1,
+      re.form = NA
+    )
+  } else {
+    nd <- insight::get_datagrid(
+      lowest_aic,
+      by = i,
+      length = 50
+    )
+    pl <- marginaleffects::plot_predictions(
+      lowest_aic,
+      by = i,
+      newdata = nd,
+      vcov = TRUE,
+      type = "response",
+      points = 0.1,
+      re.form = NA
+    )
+  }
+  p[[i]] <- pl
+}
+
+p
+```
+
+global log_c_density effect. This gives a global (averaged) slope across the different land-use categories
+```{r log-c-density-lowest_aic-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
+
+# Slope for log(c_density) on the latent (log) scale
+tr_add <- emtrends(lowest_aic, ~ 1, var = "log_c_density", mode = "latent")
+tr_add_sum <- summary(tr_add, infer = TRUE)
+
+z <- qnorm(0.975)
+
+coef_tbl <- as_tibble(tr_add_sum) %>%
+  transmute(beta = log_c_density.trend, SE = SE, p.value = p.value)
+
+inc_tbl <- tibble(
+  increment = c("×e (e-fold)", "×2 (doubling)", "×10 (tenfold)", "×1.2 (+20%)"),  
+  delta     = c(1,               log(2),          log(10),         log(1.2)),
+  code      = c("e",             "2x",            "10x",           "1.2x")   # NEW      
+)
+
+result <- crossing(coef_tbl, inc_tbl) %>%
+  mutate(
+    IRR = exp(beta * delta),
+    LCL = exp((beta - z * SE) * delta),
+    UCL = exp((beta + z * SE) * delta)
+  )
+
+result
+```
+
+```{r}
+# Requires: result (3-row tibble), taxon_group, primerset, season_run
+# Also assumes you've already created 'summary_cdensity_shannon_all' in the parent.
+if (!exists("summary_cdensity_shannon_all")) summary_cdensity_shannon_all <- tibble::tibble()
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+.schema <- c(
+  "taxon_group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
+)
+
+# Convert the 3 increments (e, 2x, 10x) into one wide row with matching names
+global_row <- {
+  vals <- result %>%
+    summarise(
+      beta    = first(beta),
+      SE      = first(SE),
+      p.value = first(p.value)
+    )
+
+  wide <- result %>%
+  dplyr::select(code, IRR, LCL, UCL) %>%
+  tidyr::pivot_wider(
+    names_from  = code,
+    values_from = c(IRR, LCL, UCL),
+    names_glue  = "{.value}_{code}"
+  )
+
+  bind_cols(vals, wide) %>%
+    mutate(
+      taxon_group       = taxon_group,
+      primerset   = primerset,
+      landgebruik = "global",
+      season_run  = season_run
+    ) %>%
+    relocate(taxon_group, primerset, landgebruik, season_run)
+}
+
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(global_row))
+if (length(missing)) global_row[missing] <- NA_real_
+global_row <- global_row %>% select(all_of(.schema))
+
+# Append
+summary_cdensity_shannon_all <- bind_rows(summary_cdensity_shannon_all, global_row)
+
+
+```
+
+Include the interaction between log(c_density) and landuse (to get landuse specific slopes)
+
+```{r}
+lowest_aic_int <- update(
+  lowest_aic,
+  formula.  = ~ . + landgebruik * log_c_density,
+  data      = data_subset,
+  na.action = na.fail)
+
+```
+
+summary of the model that includes the interaction between log(c_density) and landuse
+
+```{r}
+summary(lowest_aic_int)
+
+```
+
+Does this model fit better or worse?
+
+```{r}
+anova(lowest_aic, lowest_aic_int, test = "Chisq")  # LRT for interaction
+
+```
+
+Per–land-use IRRs for fold changes in carbon density (no subsetting)
+
+```{r log-c-density-lowest-aic-int-perlanduse-shannon-{{taxon_group}}-{{primerset}}-{{unit}}}
+# Slopes per landgebruik w.r.t. log(c_density) on latent scale
+tr_lu <- summary(
+  emtrends(lowest_aic_int, ~ landgebruik,
+           var = "log_c_density", mode = "latent", infer = TRUE)
+)
+
+z <- qnorm(0.975)
+irr_lu_fc <- as_tibble(tr_lu) %>%
+  transmute(
+    landgebruik,
+    beta = log_c_density.trend,
+    SE   = SE,
+    # IRRs for fold changes:
+    IRR_e   = exp(beta * 1),          LCL_e   = exp((beta - z*SE) * 1),          UCL_e   = exp((beta + z*SE) * 1),
+    IRR_2x  = exp(beta * log(2)),     LCL_2x  = exp((beta - z*SE) * log(2)),     UCL_2x  = exp((beta + z*SE) * log(2)),
+    IRR_1.2x  = exp(beta * log(1.2)), LCL_1.2x = exp((beta - z*SE) * log(1.2)),  UCL_1.2x = exp((beta + z*SE) * log(1.2)),  # NEW
+    IRR_10x = exp(beta * log(10)),    LCL_10x = exp((beta - z*SE) * log(10)),    UCL_10x = exp((beta + z*SE) * log(10)),
+    p.value
+  )
+
+print(irr_lu_fc, n = Inf, width = Inf)   # <- shows every column/row
+
+```
+
+Append the **per-landuse** effects (`irr_lu_fc`) to `summary_cdensity_shannon_all`
+
+```{r}
+# Requires: irr_lu_fc (per landgebruik tibble), taxon_group, primerset, season_run
+
+if (!exists("summary_cdensity_shannon_all")) summary_cdensity_shannon_all <- tibble::tibble()
+
+.schema <- c(
+  "taxon_group","primerset","landgebruik","season_run",
+  "beta","SE",
+  "IRR_e","LCL_e","UCL_e",
+  "IRR_2x","LCL_2x","UCL_2x",
+  "IRR_1.2x","LCL_1.2x","UCL_1.2x",   # NEW
+  "IRR_10x","LCL_10x","UCL_10x",
+  "p.value"
+)
+
+
+lu_rows <- irr_lu_fc %>%
+  mutate(
+    taxon_group       = taxon_group,
+    primerset   = primerset,
+    landgebruik = as.character(landgebruik),
+    season_run  = season_run
+  ) %>%
+  relocate(taxon_group, primerset, landgebruik, season_run)
+
+# Guarantee full schema exists
+missing <- setdiff(.schema, names(lu_rows))
+if (length(missing)) lu_rows[missing] <- NA_real_
+lu_rows <- lu_rows %>% select(all_of(.schema))
+
+# Append
+summary_cdensity_shannon_all <- bind_rows(summary_cdensity_shannon_all, lu_rows)
+
+```
+
+plots per land-use
+
+```{r}
+# --- Pull levels & ranges from the fitted model ---
+.mf <- model.frame(lowest_aic_int)  # training frame actually used
+stopifnot("landgebruik" %in% names(.mf))  # should be there after you added the interaction
+lu_lvls <- levels(.mf$landgebruik)
+
+has_diepte <- "diepte" %in% names(.mf) && is.factor(.mf$diepte)
+if (has_diepte) {
+  dep_lvls      <- levels(.mf$diepte)
+  ref_depth_chr <- if (any(grepl("^0-10", dep_lvls))) "0-10" else dep_lvls[1]
+  ref_depth     <- factor(ref_depth_chr, levels = dep_lvls)
+}
+
+# Range for log_c_density strictly within training data (avoid extrapolation weirdness)
+stopifnot("log_c_density" %in% names(.mf))
+rng_log <- range(.mf$log_c_density, na.rm = TRUE)
+log_seq <- seq(rng_log[1], rng_log[2], length.out = 80)
+
+# --- Build datagrid from the MODEL (auto-fills all other covariates) ---
+nd <- insight::get_datagrid(
+  lowest_aic_int,
+  by     = c("landgebruik", "log_c_density"),
+  length = 80
+)
+
+# Force the grid to use *all* landgebruik levels & our log grid
+nd <- tidyr::crossing(
+  landgebruik   = factor(lu_lvls, levels = lu_lvls),
+  log_c_density = log_seq
+) %>%
+  dplyr::left_join(
+    # take a single representative row from get_datagrid per landgebruik to carry other covariates
+    nd %>%
+      dplyr::group_by(landgebruik) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-log_c_density),  # we’ll supply our own sequence
+    by = "landgebruik"
+  ) %>%
+  { if (has_diepte) dplyr::mutate(., diepte = ref_depth) else . } %>%
+  dplyr::mutate(c_density = exp(log_c_density))
+
+# --- Predictions with CI; fall back to point preds if CI fails ---
+pr <- tryCatch(
+  marginaleffects::predictions(
+    model   = lowest_aic_int,
+    newdata = nd,
+    type    = "response",
+    vcov    = TRUE,
+    re.form = NA
+  ),
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd, type = "response", re.form = NA)
+    dplyr::bind_cols(nd, tibble::tibble(estimate = as.numeric(est),
+                                        conf.low = NA_real_, conf.high = NA_real_))
+  }
+)
+
+has_ci <- "conf.low" %in% names(pr) && any(is.finite(pr$conf.low))
+
+# --- Plot ---
+p <- ggplot(pr, aes(c_density, estimate))
+if (has_ci) p <- p + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+p + geom_line(na.rm = TRUE) +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  labs(
+    x = "Carbon density",
+    y = "Voorspelde shannon diversity index",
+    title = "Voorspelde shannon diversity index vs carbon density per landgebruik",
+    subtitle = paste0(
+      "Bij total_count = ",
+      if ("total_count" %in% names(.mf)) round(stats::median(.mf$total_count, na.rm = TRUE)) else "—",
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
+  ) +
+  theme_bw()
+
+```
+
+alternative: plot on the log scale
+
+```{r}
+# Reuse .mf, lu_lvls, has_diepte, ref_depth from above
+
+rng_log <- range(.mf$log_c_density, na.rm = TRUE)
+log_seq <- seq(rng_log[1], rng_log[2], length.out = 80)
+
+nd_log <- insight::get_datagrid(
+  lowest_aic_int,
+  by     = c("landgebruik", "log_c_density"),
+  length = 80
+)
+
+nd_log <- tidyr::crossing(
+  landgebruik   = factor(lu_lvls, levels = lu_lvls),
+  log_c_density = log_seq
+) %>%
+  dplyr::left_join(
+    nd_log %>%
+      dplyr::group_by(landgebruik) %>%
+      dplyr::slice(1) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-log_c_density),
+    by = "landgebruik"
+  ) %>%
+  { if (has_diepte) dplyr::mutate(., diepte = ref_depth) else . } %>%
+  dplyr::mutate(c_density = exp(log_c_density))
+
+pr_log <- tryCatch(
+  marginaleffects::predictions(
+    model   = lowest_aic_int,
+    newdata = nd_log,
+    type    = "response",
+    vcov    = TRUE,
+    re.form = NA
+  ),
+  error = function(e) {
+    est <- stats::predict(lowest_aic_int, newdata = nd_log, type = "response", re.form = NA)
+    dplyr::bind_cols(nd_log, tibble::tibble(estimate = as.numeric(est),
+                                            conf.low = NA_real_, conf.high = NA_real_))
+  }
+)
+
+has_ci_log <- "conf.low" %in% names(pr_log) && any(is.finite(pr_log$conf.low))
+breaks_nat  <- pretty(range(nd_log$c_density, na.rm = TRUE), n = 5)
+
+p2 <- ggplot(pr_log, aes(log_c_density, estimate))
+if (has_ci_log) p2 <- p2 + geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15)
+p2 + geom_line(na.rm = TRUE) +
+  facet_wrap(~ landgebruik, scales = "free_y") +
+  scale_x_continuous(
+    name   = "Carbon density",
+    breaks = log(breaks_nat),
+    labels = signif(breaks_nat, 3)
+  ) +
+  labs(
+    y = "Voorspelde shannon diversity index",
+    title = "Voorspelde shannon diversity index vs log(carbon density) per landgebruik",
+    subtitle = paste0(
+      "Bij total_count = ",
+      if ("total_count" %in% names(.mf)) round(stats::median(.mf$total_count, na.rm = TRUE)) else "—",
+      if (has_diepte) paste0(", diepte = ", as.character(ref_depth)) else ""
+    )
+  ) +
+  theme_bw()
+
 ```
 
 
