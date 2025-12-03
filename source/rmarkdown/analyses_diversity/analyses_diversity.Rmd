@@ -78,13 +78,18 @@ diversiteit <- readr::read_csv(
   file.path(
     mbag_bodem_folder,
     "data", "statistiek", "dataframe_overkoepelend",
-    "mbag_combined_dataframe_INBO_known_species_shannon.csv"
+    "mbag_functional_diversity2.csv"
   )
 ) %>%
   rename(taxon_group = group) %>%
   mutate(
     taxon_group = if_else(taxon_group == "Nematoda", "nematoda", taxon_group)
-  )
+  ) %>%
+filter(taxon_group %in% c(
+  "mycorrhiza",
+  "plant pathogen",
+  "saprotroph"
+))
 
 metadata <- readr::read_csv(
   file.path(
