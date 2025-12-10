@@ -1,4 +1,4 @@
-### ESB CATBoost machine learning model 
+### MBAG CATBoost machine learning model 
 ### Marginal effect of stratifiers on prediction of target variables
 ### Determines Relative importance of predictors
 ### Creates beeswarm plots & dependence plots for analysis and exploration
@@ -32,7 +32,7 @@ shapviz.catboost.Model <- function(object, X_pred, X = X_pred, collapse = NULL, 
 source(file = "C:/R_scripts/R_PQ/PQD_function.R")
 
 # Set working directory ---PUT YOUR OWN WD here --- 
-setwd("C:/data/MBAG/")
+setwd("./data/")
 
 
 #Load soil data  ------
@@ -127,7 +127,7 @@ cv_results <- catboost.cv(
 best_iter <- which.min(cv_results$test.RMSE.mean)
 cat("Best number of iterations based on CV:", best_iter, "\n")
 
-# Train final model using best teration
+# Train final model using best number of iterations
 params$iterations <- best_iter
 Anne_Richness_CBmodel  <- catboost.train(s1_pool, params = params)
 summary(Anne_Richness_CBmodel)    ## this is your CATBOOST model for training dataset
@@ -138,7 +138,7 @@ summary(Anne_Richness_CBmodel)    ## this is your CATBOOST model for training da
 Anne_shap <- shapviz(Anne_Richness_CBmodel, X_pred = s1_pool, X = s1_feat)
 saveRDS(Anne_shap, file = "./Anne_shap_model_Ann.rds")   ## save your SHAP object for later SHAP analysis
 
-#read it with Anne_shap <- readRDS("Anne_shap_model.rds")
+# read it with Anne_shap <- readRDS("Anne_shap_model.rds")
 # mean SHAP values for each predictor (relative importance)
 Ann_imp<-sv_importance(Anne_shap, kind="no")    # Table with average Anne_shap values for each feature
 #write.csv2(Ann_imp,"./CB_Ann_importance.csv", row.names = TRUE)
@@ -475,6 +475,7 @@ summary(Predicted_Richness)  ### predicted values by model
 ### from here you can analyse the residuals (p-o) for
 # correlation/covariate analysis 
 # geostatistical (spatial) analysis (kriging, ...)
+
 
 
 
